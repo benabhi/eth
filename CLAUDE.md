@@ -114,7 +114,8 @@ Para iterar sin gastar presupuesto de ESI: `ETH_REGIONS=10000002,10000043` (subc
 
 ## Entorno (Windows 11 + Docker)
 
-- **Ubicación del repo:** lo preferido es el filesystem de WSL2 con VS Code (extensión WSL o Dev Containers), que da inotify nativo. En NTFS (`C:\...`) el live reload necesita polling (ERS RNF-11, decisión pendiente P-06).
+- **Ubicación del repo:** `C:\Users\Benabhi\Documents\Code\eth` (NTFS, decisión P-06). Los eventos inotify no llegan al contenedor, así que `ETH_FS_POLL=true` activa live reload por polling y `Eth.Dev.TailwindPoller`. Si algún día se mueve a WSL2, se quita esa variable.
+- **Entornos de Mix:** el contenedor no fija `MIX_ENV` (dev por defecto) para que `mix test` y `mix precommit` pasen a test solos. Los tests usan `DB_HOST=db`.
 - **Red:** Phoenix escucha en `0.0.0.0` dentro del contenedor (`PHX_BIND`); el host publica solo `127.0.0.1:4000`.
 - **Volúmenes:** `_build`, `deps` y `priv/data` viven en volúmenes nombrados; no borrarlos desde el host.
 - **Finales de línea:** LF (`.gitattributes`); un script con CRLF falla en Linux.

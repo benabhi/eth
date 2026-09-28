@@ -8,7 +8,8 @@ import Config
 config :eth, Eth.Repo,
   username: "postgres",
   password: "postgres",
-  hostname: "localhost",
+  # En Docker el host de la base es el servicio `db` (DB_HOST); en CI/local, localhost.
+  hostname: System.get_env("DB_HOST", "localhost"),
   database: "eth_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2

@@ -1,0 +1,51 @@
+# Entorno de desarrollo (ERS §10.1).
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: eth_dev
+    volumes:
+      - pgdata:/var/lib/postgresql # PostgreSQL >= 18: montar aquí (no en .../data)
+    ports:
+      - "127.0.0.1:5432:5432" # solo loopback del host
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d eth_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  phoenix:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "127.0.0.1:4000:4000" # solo loopback del host (RNF-4.5)
+    volumes:
+      - .:/app
+      - build:/app/_build # volúmenes nombrados: no se pisan con el host
+      - deps:/app/deps
+      - data:/app/priv/data # SDE procesado, matrices, snapshots
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: ecto://postgres:postgres@db/eth_dev
+      DB_HOST: db # para MIX_ENV=test (config/test.exs)
+      EVE_CALLBACK_URL: http://localhost:4000/auth/eve/callback
+      PHX_BIND: 0.0.0.0
+      ETH_FS_POLL: "true" # repo en NTFS (C:\): polling para live reload y Tailwind (RNF-11.2)
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      bash -lc "mix deps.get && mix assets.setup && mix ecto.create && mix ecto.migrate && exec mix phx.server"
+    stdin_open: true
+    tty: true
+
+volumes:
+  pgdata:
+  build:
+  deps:
+  data:

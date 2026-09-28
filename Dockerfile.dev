@@ -1,0 +1,16 @@
+# Imagen de desarrollo (ERS §10.2).
+# Debian (no Alpine): los binarios standalone de Tailwind y esbuild requieren glibc.
+FROM elixir:1.20
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential git inotify-tools curl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN mix local.hex --force && mix local.rebar --force
+
+WORKDIR /app
+# Sin MIX_ENV fijo: dev es el default de Mix y así `mix test`/`mix precommit`
+# pueden cambiar a test (preferred_envs).
+ENV ERL_AFLAGS="-kernel shell_history enabled"
+
+EXPOSE 4000

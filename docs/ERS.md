@@ -1621,11 +1621,12 @@ services:
       - data:/app/priv/data                 # SDE procesado, matrices, snapshots
     env_file:
       - .env                                # EVE_CLIENT_ID, EVE_CLIENT_SECRET, ETH_VAULT_KEY, ESI_CONTACT…
-    environment:
-      MIX_ENV: dev
+    environment:                            # sin MIX_ENV fijo: `mix test` debe poder pasar a test
       DATABASE_URL: ecto://postgres:postgres@db/eth_dev
+      DB_HOST: db                           # host de la base para MIX_ENV=test
       EVE_CALLBACK_URL: http://localhost:4000/auth/eve/callback
       PHX_BIND: 0.0.0.0                     # config/dev.exs escucha en todas las interfaces del contenedor
+      ETH_FS_POLL: "true"                   # repo en NTFS: polling para live reload y Tailwind (RNF-11.2)
     depends_on:
       db:
         condition: service_healthy
@@ -1655,8 +1656,8 @@ RUN apt-get update \
 RUN mix local.hex --force && mix local.rebar --force
 
 WORKDIR /app
-ENV MIX_ENV=dev \
-    ERL_AFLAGS="-kernel shell_history enabled"
+# Sin MIX_ENV fijo: dev es el default y `mix test`/`mix precommit` pueden pasar a test.
+ENV ERL_AFLAGS="-kernel shell_history enabled"
 
 EXPOSE 4000
 ```
@@ -1673,7 +1674,9 @@ EXPOSE 4000
 | `ETH_VAULT_KEY` | Sí | Clave AES-256 en Base64 para cifrar los refresh tokens | `:crypto.strong_rand_bytes(32) \|> Base.encode64()` |
 | `SECRET_KEY_BASE` | Producción | Secreto de Phoenix | `mix phx.gen.secret` |
 | `DATABASE_URL` | Sí | Conexión a PostgreSQL | `ecto://postgres:postgres@db/eth_dev` |
-| `PHX_BIND` | No | IP de escucha (`0.0.0.0` en contenedor) | `0.0.0.0` |
+| `PHX_BIND` | No | IP de escucha (por defecto `127.0.0.1`; `0.0.0.0` en contenedor) | `0.0.0.0` |
+| `ETH_FS_POLL` | No | `true` si el repo está en NTFS: live reload y Tailwind por polling (RNF-11.2) | `true` |
+| `DB_HOST` | No | Host de PostgreSQL para `MIX_ENV=test` | `db` |
 | `PHX_HOST` / `PORT` | No | Host y puerto públicos | `localhost` / `4000` |
 | `ETH_REGIONS` | No | Subconjunto de regiones (desarrollo) | `10000002,10000043` |
 | `ETH_DATA_SOURCE` | No | `live` o `replay` | `live` |
@@ -1691,7 +1694,7 @@ EXPOSE 4000
 5. `docker compose up --build` y abrir <http://localhost:4000>.
 6. Ejecutar Claude Code desde la terminal de WSL, en el directorio del repo.
 
-**Opción B — fallback (RNF-11.2):** repo en `C:\...` (como hoy). Funciona con live reload por polling (`config :phoenix_live_reload, backend: :fs_poll`) y un watcher de assets por polling, pero con compilaciones más lentas. Decisión pendiente: P-06.
+**Opción B — elegida (P-06, 2026-09-28):** repo en `C:\...`. Con `ETH_FS_POLL=true`, el live reload usa `:fs_poll` (solo en `lib/`, `priv/static` y `priv/gettext`) y Tailwind se recompila con `Eth.Dev.TailwindPoller`. esbuild `--watch` y el code reloader ya funcionan sin inotify. Verificado: la edición de una plantilla desde Windows recarga el navegador y recompila el CSS en ~5 s.
 
 Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una aplicación con el callback `http://localhost:4000/auth/eve/callback` y los 11 scopes de RF-5.2.
 
@@ -1849,7 +1852,7 @@ Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una
 | P-03 | ¿Se piensa exponer la app fuera de localhost (LAN o Internet)? | No en v1 (solo loopback) |
 | P-04 | ¿Formato numérico por defecto? | Estilo EVE (`1,234,567.89`), con opción en español |
 | P-05 | ¿Nombres de ítems para Multibuy en inglés o según el idioma del cliente del juego? | Inglés por defecto, configurable |
-| P-06 | ¿Mover el repo al filesystem de WSL2 (opción A) o seguir en `C:\` con polling (opción B)? | Opción A |
+| P-06 | ~~¿Mover el repo a WSL2 o seguir en `C:\` con polling?~~ | **Resuelta (2026-09-28):** se queda en `C:\` con polling (§10.4, opción B) |
 
 ### 15.3 Supuestos
 

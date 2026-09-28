@@ -1,14 +1,30 @@
 import Config
 
-# Configure your database
+# Base de datos: en Docker se usa DATABASE_URL (servicio `db`); fuera de Docker, localhost.
+if database_url = System.get_env("DATABASE_URL") do
+  config :eth, Eth.Repo, url: database_url
+else
+  config :eth, Eth.Repo,
+    username: "postgres",
+    password: "postgres",
+    hostname: "localhost",
+    database: "eth_dev"
+end
+
 config :eth, Eth.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "eth_dev",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
+
+# IP de escucha: loopback por defecto (RNF-4.5); dentro del contenedor PHX_BIND=0.0.0.0
+# y docker-compose publica el puerto solo en 127.0.0.1 del host (RNF-11.4).
+bind_ip =
+  case System.get_env("PHX_BIND", "127.0.0.1")
+       |> String.split(".")
+       |> Enum.map(&Integer.parse/1) do
+    [{a, ""}, {b, ""}, {c, ""}, {d, ""}] -> {a, b, c, d}
+    _ -> raise "PHX_BIND inválido: se espera una IPv4 como 0.0.0.0"
+  end
 
 # For development, we disable any cache and enable
 # debugging and code reloading.
@@ -17,10 +33,7 @@ config :eth, Eth.Repo,
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
 config :eth, EthWeb.Endpoint,
-  # Bind to 0.0.0.0 to expose the server to the docker host machine.
-  # This makes make the service accessible from any network interface.
-  # Change to `ip: {127, 0, 0, 1}` to allow access only from the server machine.
-  http: [ip: {0, 0, 0, 0}],
+  http: [ip: bind_ip],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
@@ -29,6 +42,24 @@ config :eth, EthWeb.Endpoint,
     esbuild: {Esbuild, :install_and_run, [:eth, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:eth, ~w(--watch)]}
   ]
+
+# Código en NTFS montado en Docker: no llegan eventos inotify al contenedor (RNF-11.2).
+# Con ETH_FS_POLL=true el live reload y el watcher de Tailwind usan polling.
+# (esbuild --watch ya funciona por polling y el code reloader usa mtimes.)
+if System.get_env("ETH_FS_POLL") == "true" do
+  # Solo los directorios que importan: recorrer _build/ y deps/ por polling es lento
+  # y falla con el symlink colgante _build/dev/phoenix-colocated/*/node_modules.
+  config :phoenix_live_reload,
+    backend: :fs_poll,
+    backend_opts: [interval: 500],
+    dirs: ["lib", "priv/static", "priv/gettext"]
+
+  config :eth, EthWeb.Endpoint,
+    watchers: [
+      esbuild: {Esbuild, :install_and_run, [:eth, ~w(--sourcemap=inline --watch)]},
+      tailwind: {Eth.Dev.TailwindPoller, :run, [:eth]}
+    ]
+end
 
 # ## SSL Support
 #
