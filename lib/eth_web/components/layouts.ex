@@ -1,7 +1,9 @@
 defmodule EthWeb.Layouts do
   @moduledoc """
-  This module holds layouts and related functionality
-  used by your application.
+  Layouts de la aplicación: estructura común, navegación principal, mensajes flash
+  y selector de tema claro/oscuro/sistema.
+
+  Implementa: RF-6.11, RNF-5.1, RNF-5.2.
   """
   use EthWeb, :html
 
@@ -12,64 +14,78 @@ defmodule EthWeb.Layouts do
   embed_templates "layouts/*"
 
   @doc """
-  Renders your app layout.
+  Layout principal de la aplicación: barra superior con la navegación (ERS §9.2),
+  selector de tema y contenido.
 
-  This function is typically invoked from every template,
-  and it often contains your application menu, sidebar,
-  or similar.
+  ## Ejemplo
 
-  ## Examples
-
-      <Layouts.app flash={@flash}>
-        <h1>Content</h1>
+      <Layouts.app flash={@flash} active={:hunter}>
+        <h1>Contenido</h1>
       </Layouts.app>
 
   """
-  attr :flash, :map, required: true, doc: "the map of flash messages"
+  attr :flash, :map, required: true, doc: "mensajes flash"
 
   attr :current_scope, :map,
     default: nil,
-    doc: "the current [scope](https://phoenix.hexdocs.pm/scopes.html)"
+    doc: "scope actual de la sesión"
+
+  attr :active, :atom, default: nil, doc: "sección activa de la navegación"
 
   slot :inner_block, required: true
 
   def app(assigns) do
+    assigns = assign(assigns, :sections, sections())
+
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
-        </a>
+    <header class="navbar border-b border-base-300 px-4 sm:px-6 lg:px-8">
+      <div class="flex-1 items-center gap-6">
+        <a href={~p"/"} class="text-lg font-bold tracking-wide">EVE Trade Hunter</a>
+        <nav aria-label={gettext("Navegación principal")}>
+          <ul class="menu menu-horizontal gap-1 p-0">
+            <li :for={{id, label, path} <- @sections}>
+              <a
+                :if={path}
+                href={path}
+                class={[@active == id && "menu-active"]}
+                aria-current={@active == id && "page"}
+              >
+                {label}
+              </a>
+              <span
+                :if={!path}
+                class="menu-disabled opacity-50 cursor-not-allowed"
+                title={gettext("Próximamente")}
+              >
+                {label}
+              </span>
+            </li>
+          </ul>
+        </nav>
       </div>
       <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
-          <li>
-            <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://phoenix.hexdocs.pm/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
-          </li>
-        </ul>
+        <.theme_toggle />
       </div>
     </header>
 
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
+    <main class="px-4 py-10 sm:px-6 lg:px-8">
+      <div class="mx-auto max-w-5xl space-y-6">
         {render_slot(@inner_block)}
       </div>
     </main>
 
     <.flash_group flash={@flash} />
     """
+  end
+
+  # Secciones de la navegación (ERS §9.2); las que aún no existen se muestran deshabilitadas.
+  defp sections do
+    [
+      {:hunter, gettext("Cazador"), ~p"/"},
+      {:run, gettext("Viaje activo"), nil},
+      {:control, gettext("Centro de control"), nil},
+      {:settings, gettext("Ajustes"), nil}
+    ]
   end
 
   @doc """
@@ -91,7 +107,7 @@ defmodule EthWeb.Layouts do
       <.flash
         id="client-error"
         kind={:error}
-        title={gettext("We can't find the internet")}
+        title={gettext("Sin conexión a internet")}
         phx-disconnected={
           show(".phx-client-error #client-error")
           |> JS.remove_attribute("hidden", to: ".phx-client-error #client-error")
@@ -99,14 +115,14 @@ defmodule EthWeb.Layouts do
         phx-connected={hide("#client-error") |> JS.set_attribute({"hidden", ""})}
         hidden
       >
-        {gettext("Attempting to reconnect")}
+        {gettext("Intentando reconectar")}
         <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
       </.flash>
 
       <.flash
         id="server-error"
         kind={:error}
-        title={gettext("Something went wrong!")}
+        title={gettext("¡Algo salió mal!")}
         phx-disconnected={
           show(".phx-server-error #server-error")
           |> JS.remove_attribute("hidden", to: ".phx-server-error #server-error")
@@ -114,7 +130,7 @@ defmodule EthWeb.Layouts do
         phx-connected={hide("#server-error") |> JS.set_attribute({"hidden", ""})}
         hidden
       >
-        {gettext("Attempting to reconnect")}
+        {gettext("Intentando reconectar")}
         <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
       </.flash>
     </div>
@@ -122,19 +138,25 @@ defmodule EthWeb.Layouts do
   end
 
   @doc """
-  Provides dark vs light theme toggle based on themes defined in app.css.
+  Selector de tema sistema/claro/oscuro basado en los temas de `app.css`.
 
-  See <head> in root.html.heex which applies the theme before page load.
+  El `<head>` de `root.html.heex` aplica el tema antes de pintar la página (sin parpadeo).
   """
   def theme_toggle(assigns) do
     ~H"""
-    <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
+    <div
+      class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full"
+      role="group"
+      aria-label={gettext("Tema")}
+    >
       <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 [[data-theme-source=system]_&]:!left-0 transition-[left]" />
 
       <button
         class="flex p-2 cursor-pointer w-1/3"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="system"
+        aria-label={gettext("Tema del sistema")}
+        title={gettext("Tema del sistema")}
       >
         <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
@@ -143,6 +165,8 @@ defmodule EthWeb.Layouts do
         class="flex p-2 cursor-pointer w-1/3"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="light"
+        aria-label={gettext("Tema claro")}
+        title={gettext("Tema claro")}
       >
         <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
@@ -151,6 +175,8 @@ defmodule EthWeb.Layouts do
         class="flex p-2 cursor-pointer w-1/3"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="dark"
+        aria-label={gettext("Tema oscuro")}
+        title={gettext("Tema oscuro")}
       >
         <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>

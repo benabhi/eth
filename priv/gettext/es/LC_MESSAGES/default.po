@@ -1,0 +1,131 @@
+## "msgid"s in this file come from POT (.pot) files.
+###
+### Do not add, change, or remove "msgid"s manually here as
+### they're tied to the ones in the corresponding POT file
+### (with the same domain).
+###
+### Use "mix gettext.extract --merge" or "mix gettext.merge"
+### to merge POT files into PO files.
+msgid ""
+msgstr ""
+"Language: es\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: lib/eth_web/components/core_components.ex:375
+#, elixir-autogen, elixir-format
+msgid "Actions"
+msgstr "Acciones"
+
+#: lib/eth_web/components/layouts.ex:87
+#, elixir-autogen, elixir-format
+msgid "Ajustes"
+msgstr ""
+
+#: lib/eth_web/components/layouts.ex:84
+#, elixir-autogen, elixir-format
+msgid "Cazador"
+msgstr ""
+
+#: lib/eth_web/controllers/page_html/home.html.heex:3
+#, elixir-autogen, elixir-format
+msgid "Cazador de trades"
+msgstr ""
+
+#: lib/eth_web/components/layouts.ex:86
+#, elixir-autogen, elixir-format
+msgid "Centro de control"
+msgstr ""
+
+#: lib/eth_web/controllers/page_html/home.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "En construcciÃ³n: fase F0 (fundaciones). El escaneo de mercado llega en la fase F1."
+msgstr ""
+
+#: lib/eth_web/controllers/page_html/home.html.heex:22
+#, elixir-autogen, elixir-format
+msgid "F1 Â· AdquisiciÃ³n de mercado y Centro de control"
+msgstr ""
+
+#: lib/eth_web/controllers/page_html/home.html.heex:23
+#, elixir-autogen, elixir-format
+msgid "F2 Â· Datos estÃ¡ticos (SDE) y ruteo"
+msgstr ""
+
+#: lib/eth_web/controllers/page_html/home.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "F3 Â· Motor de evaluaciÃ³n y Cazador (modo invitado)"
+msgstr ""
+
+#: lib/eth_web/controllers/page_html/home.html.heex:25
+#, elixir-autogen, elixir-format
+msgid "F4 Â· Login con EVE SSO y contexto del piloto"
+msgstr ""
+
+#: lib/eth_web/components/layouts.ex:118
+#: lib/eth_web/components/layouts.ex:133
+#, elixir-autogen, elixir-format
+msgid "Intentando reconectar"
+msgstr ""
+
+#: lib/eth_web/components/layouts.ex:44
+#, elixir-autogen, elixir-format
+msgid "NavegaciÃ³n principal"
+msgstr ""
+
+#: lib/eth_web/controllers/page_html/home.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Oportunidades de arbitraje en todo New Eden, ajustadas a tu billetera, tu nave, tu ubicaciÃ³n y el riesgo de la ruta."
+msgstr ""
+
+#: lib/eth_web/components/layouts.ex:58
+#, elixir-autogen, elixir-format
+msgid "PrÃ³ximamente"
+msgstr ""
+
+#: lib/eth_web/controllers/page_html/home.html.heex:20
+#, elixir-autogen, elixir-format
+msgid "PrÃ³ximas fases"
+msgstr ""
+
+#: lib/eth_web/components/layouts.ex:110
+#, elixir-autogen, elixir-format
+msgid "Sin conexiÃ³n a internet"
+msgstr ""
+
+#: lib/eth_web/components/layouts.ex:150
+#, elixir-autogen, elixir-format
+msgid "Tema"
+msgstr ""
+
+#: lib/eth_web/components/layouts.ex:168
+#: lib/eth_web/components/layouts.ex:169
+#, elixir-autogen, elixir-format
+msgid "Tema claro"
+msgstr ""
+
+#: lib/eth_web/components/layouts.ex:158
+#: lib/eth_web/components/layouts.ex:159
+#, elixir-autogen, elixir-format
+msgid "Tema del sistema"
+msgstr ""
+
+#: lib/eth_web/components/layouts.ex:178
+#: lib/eth_web/components/layouts.ex:179
+#, elixir-autogen, elixir-format
+msgid "Tema oscuro"
+msgstr ""
+
+#: lib/eth_web/components/layouts.ex:85
+#, elixir-autogen, elixir-format
+msgid "Viaje activo"
+msgstr ""
+
+#: lib/eth_web/components/core_components.ex:81
+#, elixir-autogen, elixir-format
+msgid "close"
+msgstr "cerrar"
+
+#: lib/eth_web/components/layouts.ex:125
+#, elixir-autogen, elixir-format
+msgid "Â¡Algo saliÃ³ mal!"
+msgstr ""

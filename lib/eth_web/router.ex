@@ -7,7 +7,7 @@ defmodule EthWeb.Router do
     plug :fetch_live_flash
     plug :put_root_layout, html: {EthWeb.Layouts, :root}
     plug :protect_from_forgery
-    plug :put_secure_browser_headers
+    plug :put_secure_browser_headers, %{"content-security-policy" => EthWeb.CSP.policy()}
   end
 
   pipeline :api do
@@ -20,10 +20,13 @@ defmodule EthWeb.Router do
     get "/", PageController, :home
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", EthWeb do
-  #   pipe_through :api
-  # end
+  # Healthchecks (RNF-9.4)
+  scope "/", EthWeb do
+    pipe_through :api
+
+    get "/health", HealthController, :health
+    get "/ready", HealthController, :ready
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:eth, :dev_routes) do

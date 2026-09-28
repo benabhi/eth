@@ -36,6 +36,9 @@ config :phoenix_live_view,
 # at the `config/runtime.exs`.
 config :eth, Eth.Mailer, adapter: Swoosh.Adapters.Local
 
+# Textos de UI en español por defecto (RNF-6.3).
+config :eth, EthWeb.Gettext, default_locale: "es"
+
 # Configure esbuild (the version is required)
 config :esbuild,
   version: "0.25.4",
