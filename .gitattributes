@@ -1,0 +1,8 @@
+# Finales de línea LF en todo el repo (los scripts con CRLF fallan en Linux/Docker).
+* text=auto eol=lf
+
+# Binarios
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
