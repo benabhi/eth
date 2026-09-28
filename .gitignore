@@ -37,6 +37,9 @@ eth-*.tar
 # Datos regenerables: SDE procesado, matrices, snapshots.
 /priv/data/
 
+# PLTs de Dialyzer.
+/priv/plts/
+
 # In case you use Node.js/npm, you want to ignore these.
 npm-debug.log
 /assets/node_modules/

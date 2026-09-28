@@ -332,9 +332,12 @@ priv/
 └── data/               # (ignorado por git) SDE procesado, matrices, snapshots
 test/
 └── support/fixtures/   # esi/, r2z2/, sde_min/
+dev/                    # código solo de desarrollo (MIX_ENV=dev), p. ej. Eth.Dev.TailwindPoller
+scripts/                # check-authorship.sh (CI)
+.githooks/              # commit-msg (autoría, RNF-12.6)
 docs/
-├── ERS.md
-└── adr/
+├── ERS.md              # esta especificación
+└── adr/                # decisiones de arquitectura (y otros documentos futuros)
 ```
 
 ---
@@ -1083,7 +1086,7 @@ Estrategia detallada en §11. Mínimos: cobertura ≥ 85 % en `Eth.Engine`, `Eth
 - **RNF-12.3** Conventional Commits con el tipo en inglés y la descripción en español imperativo: `feat(market): agrega poller regional con doble buffer`. Footer opcional `Refs: RF-1.3`.
 - **RNF-12.4** Ramas `tipo/descripcion-corta`; `main` siempre en verde.
 - **RNF-12.5** SemVer con tags `vX.Y.Z` y `CHANGELOG.md` en español (formato Keep a Changelog).
-- **RNF-12.6** Verificación automática: hook local `commit-msg` que rechaza trailers de coautoría o atribución, y chequeo en CI del autor, el committer y los trailers de todos los commits del PR.
+- **RNF-12.6** Verificación automática: hook local `commit-msg` (`.githooks/`, activado con `git config core.hooksPath .githooks`) que rechaza otros autores y los trailers de coautoría o atribución, y chequeo en CI (`scripts/check-authorship.sh`) del autor, el committer y los trailers de todos los commits. Como única excepción de committer se admite `GitHub <noreply@github.com>`, que firma los merges hechos desde la web de GitHub (el autor sigue siendo Hernan).
 
 ### RNF-13 · Documentación y asistentes de IA
 

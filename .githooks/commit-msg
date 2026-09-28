@@ -1,0 +1,21 @@
+#!/bin/sh
+# Hook local: rechaza commits que violen la regla de autoría exclusiva (ERS RNF-12.6).
+# Activar una vez por clon: git config core.hooksPath .githooks
+set -eu
+
+EXPECTED="Hernan Jalabert <benabhi@gmail.com>"
+identity() { git var "$1" | sed -E 's/ [0-9]+ [+-][0-9]{4}$//'; }
+
+if grep -qiE '^co-authored-by:|generated with|noreply@anthropic\.com' "$1"; then
+  echo "commit-msg: el mensaje contiene coautoría o atribución (prohibido por RNF-12.2)." >&2
+  exit 1
+fi
+
+for var in GIT_AUTHOR_IDENT GIT_COMMITTER_IDENT; do
+  ident=$(identity "$var")
+  if [ "$ident" != "$EXPECTED" ]; then
+    echo "commit-msg: $var es \"$ident\"; debe ser \"$EXPECTED\"." >&2
+    echo "  git config user.name \"Hernan Jalabert\" && git config user.email \"benabhi@gmail.com\"" >&2
+    exit 1
+  fi
+done

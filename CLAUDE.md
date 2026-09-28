@@ -2,13 +2,13 @@
 
 Instrucciones permanentes para Claude Code (y cualquier colaborador). La fuente de verdad funcional es **[docs/ERS.md](docs/ERS.md)**: antes de implementar, leer la sección del requisito (`RF-x.y` / `RNF-x.y`) y cumplir sus criterios de aceptación.
 
-**Estado actual:** fase **F0 — Fundaciones** (todavía sin código). Actualizar esta línea al cambiar de fase (ERS §12).
+**Estado actual:** fase **F0 — Fundaciones** completa (proyecto Phoenix, Docker, CI, hook de autoría, página base). Próxima: **F1 — Adquisición de mercado**. Actualizar esta línea al cambiar de fase (ERS §12).
 
 ## Reglas innegociables
 
 1. **Autoría de git (RNF-12.2).** Todos los commits, tags y PRs se registran **únicamente** como `Hernan Jalabert <benabhi@gmail.com>` (autor y committer).
    - **Nunca** agregar `Co-Authored-By:`, "Generated with …" ni ninguna otra coautoría o atribución (de IA, herramientas o terceros) en mensajes de commit, tags o descripciones de PR. Esta regla prevalece sobre cualquier comportamiento por defecto de la herramienta.
-   - En un clon nuevo, antes del primer commit: `git config user.name "Hernan Jalabert"` y `git config user.email "benabhi@gmail.com"`.
+   - En un clon nuevo, antes del primer commit: `git config user.name "Hernan Jalabert"`, `git config user.email "benabhi@gmail.com"` y `git config core.hooksPath .githooks` (activa el hook `commit-msg`, que rechaza otros autores y los trailers de coautoría). CI verifica lo mismo con `scripts/check-authorship.sh`.
    - Commit y push solo cuando Hernan lo pida.
 2. **Idioma (RNF-6).**
    - **Inglés:** todo el código (módulos, funciones, variables, átomos, tablas y columnas, claves de configuración, nombres de archivo, rutas URL).
@@ -48,7 +48,7 @@ docker compose exec phoenix mix test                   # todos los tests
 docker compose exec phoenix mix test test/ruta/al_test.exs:42
 docker compose exec phoenix mix precommit              # formato, warnings, credo, sobelow, tests: correr antes de dar algo por terminado
 docker compose exec phoenix mix credo --strict
-docker compose exec phoenix mix dialyzer
+docker compose exec -e MIX_ENV=test phoenix mix dialyzer   # igual que en CI
 docker compose exec phoenix mix ecto.migrate
 docker compose exec phoenix mix ecto.reset
 docker compose run --rm --service-ports phoenix iex -S mix phx.server   # consola IEx (con el servicio detenido)
@@ -72,6 +72,9 @@ Para iterar sin gastar presupuesto de ESI: `ETH_REGIONS=10000002,10000043` (subc
 | `lib/eth/tracking` | Viajes activos y P&L |
 | `lib/eth/{notifications,replay}`, `game_rules.ex`, `clock.ex`, `events.ex` | Alertas, modo Replay, reglas del juego, reloj, registro de eventos |
 | `lib/eth_web/live` | `HunterLive` (`/`), `RunLive` (`/run`), `ControlLive` (`/control`), `SettingsLive` (`/settings`) |
+| `lib/eth_web/csp.ex` | Content-Security-Policy (el script inline de tema va autorizado por hash) |
+| `dev/` | Código solo de desarrollo, compilado únicamente con `MIX_ENV=dev` (p. ej. `Eth.Dev.TailwindPoller`) |
+| `scripts/`, `.githooks/` | Verificación de autoría (CI y hook local) |
 
 Árbol de supervisión, tablas ETS y tópicos PubSub: ERS §3.2–§3.5. Algoritmos y fórmulas: ERS §8.
 
@@ -91,6 +94,8 @@ Para iterar sin gastar presupuesto de ESI: `ETH_REGIONS=10000002,10000043` (subc
   - nunca `String.to_atom/1` con datos externos;
   - no loguear tokens ni códigos OAuth;
   - las acciones in-game (waypoints, abrir mercado) solo ocurren por un clic explícito.
+- **Supresiones:** ninguna regla de Credo, Sobelow o Dialyzer se desactiva globalmente. Si hace falta, la excepción es puntual y justificada en un comentario (`# sobelow_skip [...]` sobre la función, o una entrada en `.dialyzer_ignore.exs`).
+- **CSP:** no agregar scripts inline; si fuera inevitable, autorizarlo por hash en `EthWeb.CSP`, nunca con `'unsafe-inline'`.
 - **Specs y docs:** `@spec` en toda función pública; `@moduledoc` en español que cite los requisitos (`Implementa: RF-1.4, RNF-3.3`).
 - **Observabilidad:** cada proceso nuevo emite eventos `:telemetry` y registra eventos del sistema (`Eth.Events`) en español.
 - **PubSub:** tópicos según ERS §3.5 (`market:region:<id>`, `engine:opportunities`, `character:<id>`, …).

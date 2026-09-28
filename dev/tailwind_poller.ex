@@ -30,9 +30,17 @@ defmodule Eth.Dev.TailwindPoller do
     loop(profile, interval, current)
   end
 
+  # Un archivo puede borrarse entre el wildcard y el stat: se ignora en vez de fallar
+  # (su desaparición cambia el mapa y dispara la recompilación igual).
   defp snapshot do
     @globs
     |> Enum.flat_map(&Path.wildcard/1)
-    |> Map.new(fn path -> {path, File.stat!(path).mtime} end)
+    |> Enum.flat_map(fn path ->
+      case File.stat(path) do
+        {:ok, %File.Stat{mtime: mtime}} -> [{path, mtime}]
+        {:error, _reason} -> []
+      end
+    end)
+    |> Map.new()
   end
 end

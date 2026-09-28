@@ -11,7 +11,15 @@ defmodule Eth.MixProject do
       aliases: aliases(),
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
-      listeners: [Phoenix.CodeReloader]
+      listeners: [Phoenix.CodeReloader],
+      # PLTs en priv/plts para cachearlos en CI
+      dialyzer: [
+        plt_local_path: "priv/plts",
+        plt_core_path: "priv/plts",
+        # En MIX_ENV=test se analiza test/support, que usa ExUnit
+        plt_add_apps: [:ex_unit, :mix],
+        ignore_warnings: ".dialyzer_ignore.exs"
+      ]
     ]
   end
 
@@ -33,6 +41,8 @@ defmodule Eth.MixProject do
 
   # Specifies which paths to compile per environment.
   defp elixirc_paths(:test), do: ["lib", "test/support"]
+  # dev/: herramientas solo de desarrollo (p. ej. Eth.Dev.TailwindPoller)
+  defp elixirc_paths(:dev), do: ["lib", "dev"]
   defp elixirc_paths(_), do: ["lib"]
 
   # Specifies your project dependencies.
