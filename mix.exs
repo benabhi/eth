@@ -12,6 +12,21 @@ defmodule Eth.MixProject do
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader],
+      # Cobertura mínima global (RNF-8). Se excluye solo boilerplate generado o de soporte
+      # de tests; todo módulo propio cuenta.
+      test_coverage: [
+        summary: [threshold: 70],
+        ignore_modules: [
+          Eth.Application,
+          Eth.DataCase,
+          Eth.Repo,
+          EthWeb,
+          EthWeb.ConnCase,
+          EthWeb.CoreComponents,
+          EthWeb.PageHTML,
+          EthWeb.Telemetry
+        ]
+      ],
       # PLTs en priv/plts para cachearlos en CI
       dialyzer: [
         plt_local_path: "priv/plts",
