@@ -6,7 +6,8 @@ defmodule Eth.Engine.Opportunity do
   en tiempo de consulta con `Eth.Engine.Query`.
 
   `asks` y `bids` guardan solo las órdenes consumidas por el recorrido: alcanzan para
-  recalcular con límites (la cantidad con límites nunca es mayor).
+  recalcular con límites (la cantidad con límites nunca es mayor). `bid_issued` es la
+  creación de la orden de compra más reciente del rango consumido (anti-scam AS-6).
   """
 
   alias Eth.Engine.Locations
@@ -29,6 +30,7 @@ defmodule Eth.Engine.Opportunity do
     :jumps,
     :secure_jumps,
     :last_modified,
+    :bid_issued,
     remote_sale: false,
     asks: [],
     bids: []
@@ -51,6 +53,7 @@ defmodule Eth.Engine.Opportunity do
           jumps: non_neg_integer(),
           secure_jumps: non_neg_integer() | nil,
           last_modified: DateTime.t(),
+          bid_issued: DateTime.t() | nil,
           remote_sale: boolean(),
           asks: [{float(), pos_integer()}],
           bids: [{float(), pos_integer(), pos_integer()}]

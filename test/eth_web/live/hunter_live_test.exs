@@ -5,7 +5,7 @@ defmodule EthWeb.HunterLiveTest do
 
   alias Eth.Engine.Coordinator
   alias Eth.EngineFixture, as: F
-  alias Eth.Market.TableOwner
+  alias Eth.Market.{History, HistoryStats, TableOwner}
 
   @moduletag :tmp_dir
   @moduletag :capture_log
@@ -80,5 +80,57 @@ defmodule EthWeb.HunterLiveTest do
 
     view |> element("#freeze") |> render_click()
     refute render(view) =~ "cambio pendiente"
+  end
+
+  describe "anti-scam (RF-4.8)" do
+    setup do
+      start_supervised!(History)
+
+      # Historial estable a 4,5 en The Forge: una compra a 50 es 11× la mediana.
+      as_of = HistoryStats.last_day(DateTime.utc_now())
+
+      stats =
+        0..29
+        |> Enum.map(
+          &%{"date" => Date.to_iso8601(Date.add(as_of, -&1)), "average" => 4.5, "volume" => 1_000}
+        )
+        |> HistoryStats.compute(as_of)
+
+      :ets.insert(:eth_history_stats, {{10_000_002, @tritanium}, stats})
+      :ok
+    end
+
+    test "una SCAM se oculta por defecto y, si se muestra, tiene las acciones bloqueadas",
+         %{conn: conn} do
+      publish_market(50.0)
+      {:ok, view, _html} = live(conn, ~p"/")
+      refute has_element?(view, "#opportunities tr[id^='opp-']")
+
+      {:ok, view, _html} = live(conn, ~p"/?shield=all")
+      assert has_element?(view, "#opportunities", "☠ SCAM")
+
+      view |> element("#opportunities tr[id^='opp-']") |> render_click()
+      assert has_element?(view, "#shield-alert", "SCAM ALERT")
+      assert has_element?(view, "#shield-alert", "Compra a 11,1× la mediana de 7 días")
+      assert has_element?(view, "#copy-detail[disabled]")
+      assert has_element?(view, "#set-route[disabled]")
+      refute has_element?(view, "#copy-detail[data-text]")
+
+      view |> element("#report-false-positive") |> render_click()
+      assert render(view) =~ "Falso positivo registrado"
+
+      assert [%{opportunity_snapshot: %{"status" => "scam"}}] =
+               Eth.Repo.all(Eth.Engine.ScamReport)
+    end
+
+    test "una oportunidad legítima muestra su historial", %{conn: conn} do
+      publish_market(4.8)
+      {:ok, view, _html} = live(conn, ~p"/?min_profit=1k")
+
+      view |> element("#opportunities tr[id^='opp-']") |> render_click()
+      refute has_element?(view, "#shield-alert")
+      assert has_element?(view, "#history svg polyline")
+      assert has_element?(view, "#history", "30 / 30")
+    end
   end
 end

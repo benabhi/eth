@@ -14,19 +14,27 @@ defmodule EthWeb.HunterLive do
     partida salen de su contexto en vivo (RF-5.5 a RF-5.8); los filtros siguen pudiendo
     sobrescribirlos. En modo invitado se cargan a mano.
   - Acciones in-game (RF-5.9, RF-6.7): fijar ruta y abrir mercado, solo por clic.
+  - Anti-scam (RF-4.8): insignias con el estado, SCAM oculto por defecto, motivos en el
+    detalle, Multibuy y Ruta bloqueados en una SCAM y "Reportar falso positivo".
+  - Historial (RF-1.12, RF-6.5): sparkline de 30 días, mediana, volumen y liquidez; las
+    estadísticas nuevas se reflejan en vivo (`market:history`).
 
-  Implementa: RF-5.9, RF-6.2, RF-6.3, RF-6.4, RF-6.5, RF-6.6, RF-6.7, RF-6.10.
+  Implementa: RF-4.7, RF-4.8, RF-5.9, RF-6.2, RF-6.3, RF-6.4, RF-6.5, RF-6.6, RF-6.7,
+  RF-6.10.
   """
   use EthWeb, :live_view
 
-  alias Eth.{Characters, Clock, Engine, Sde}
+  alias Eth.{Characters, Clock, Engine, Market, Sde}
   alias Eth.Characters.Pilot
   alias Eth.Engine.Query
   alias EthWeb.{Format, HunterParams}
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: Phoenix.PubSub.subscribe(Eth.PubSub, Engine.topic())
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(Eth.PubSub, Engine.topic())
+      Phoenix.PubSub.subscribe(Eth.PubSub, Market.history_topic())
+    end
 
     socket =
       socket
@@ -85,8 +93,26 @@ defmodule EthWeb.HunterLive do
     {:noreply, put_flash(socket, :info, gettext("Multibuy copiado al portapapeles"))}
   end
 
+  def handle_event("report_false_positive", _params, socket) do
+    with %{} = row <- socket.assigns.selected_row,
+         true <- row.shield.status in [:scam, :suspicious],
+         {:ok, _report} <- Engine.report_false_positive(row) do
+      {:noreply,
+       put_flash(
+         socket,
+         :info,
+         gettext("Falso positivo registrado: sirve para calibrar el escudo")
+       )}
+    else
+      _ -> {:noreply, put_flash(socket, :error, gettext("No se pudo registrar el reporte"))}
+    end
+  end
+
+  # Una oportunidad SCAM tiene las acciones bloqueadas (RF-4.8); se verifica también acá,
+  # no solo deshabilitando el botón.
   def handle_event("set_route", _params, socket) do
     with %{} = row <- socket.assigns.selected_row,
+         false <- scam?(row),
          %{} = pilot <- socket.assigns.pilot,
          nil <- action_blocked(pilot, :waypoint) do
       opp = row.opportunity
@@ -147,6 +173,13 @@ defmodule EthWeb.HunterLive do
   end
 
   def handle_info({:opportunities_updated, _meta}, socket), do: {:noreply, load_rows(socket)}
+
+  # Estadísticas de historial nuevas (RF-1.12): cambian anti-scam, liquidez y TVS.
+  def handle_info({:history_updated, _count}, %{assigns: %{frozen: true}} = socket) do
+    {:noreply, update(socket, :pending, &(&1 + 1))}
+  end
+
+  def handle_info({:history_updated, _count}, socket), do: {:noreply, load_rows(socket)}
 
   # `EthWeb.PilotHook` ya actualizó @pilot; solo se recalcula si cambió lo que usa el motor.
   def handle_info({:character, _id, _event, _public}, socket) do
@@ -255,6 +288,49 @@ defmodule EthWeb.HunterLive do
   # con nombres que terminan en número ("Navy Cap Booster 400").
   @spec multibuy(map()) :: String.t()
   def multibuy(row), do: "#{row.opportunity.type_name}\t#{row.quantity}"
+
+  ## Anti-scam e historial (RF-4.7, RF-4.8, RF-6.5)
+
+  defp scam?(row), do: row.shield.status == :scam
+
+  defp shield_label(:scam), do: gettext("☠ SCAM")
+  defp shield_label(:suspicious), do: gettext("⚠ sospechosa")
+  defp shield_label(:no_history), do: gettext("sin historial")
+  defp shield_label(:ok), do: gettext("ok")
+
+  defp shield_class(:scam), do: "badge-error"
+  defp shield_class(:suspicious), do: "badge-warning"
+  defp shield_class(_status), do: "badge-ghost"
+
+  @doc false
+  # Puntos `"x,y x,y …"` de un sparkline SVG (viewBox 0 0 120 32) con los promedios
+  # diarios: une los días con operaciones, cada uno en su posición del calendario. `nil`
+  # si no hubo ninguno; un único día se dibuja como un trazo corto.
+  @spec sparkline([float() | nil]) :: String.t() | nil
+  def sparkline(values) do
+    points =
+      values
+      |> Enum.with_index()
+      |> Enum.reject(fn {value, _i} -> is_nil(value) end)
+
+    case points do
+      [] ->
+        nil
+
+      [{_value, i}] ->
+        x = i * 120 / max(length(values) - 1, 1)
+        "#{Float.round(max(x - 2, 0.0), 1)},16 #{Float.round(min(x + 2, 120.0), 1)},16"
+
+      _many ->
+        {low, high} = points |> Enum.map(&elem(&1, 0)) |> Enum.min_max()
+        span = if high - low > 0, do: high - low, else: 1.0
+        step = 120 / max(length(values) - 1, 1)
+
+        Enum.map_join(points, " ", fn {value, i} ->
+          "#{Float.round(i * step, 1)},#{Float.round(30 - (value - low) / span * 28, 1)}"
+        end)
+    end
+  end
 
   defp sec_style(nil), do: ""
   defp sec_style(sec), do: "color: #{Sde.security_color(sec)}"

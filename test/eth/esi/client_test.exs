@@ -70,6 +70,21 @@ defmodule Eth.Esi.ClientTest do
                Esi.market_orders(10_000_002, 2, ~s("e1"))
     end
 
+    test "pide el historial de un tipo en una región y los precios globales" do
+      Req.Test.stub(Esi.Client, fn conn ->
+        send(self(), {:request, conn.request_path, conn.query_string})
+        EsiStub.respond(conn, 200, [], expires: ~U[2026-09-30 11:05:00Z])
+      end)
+
+      assert {:ok, %Response{expires: ~U[2026-09-30 11:05:00Z]}} =
+               Esi.market_history(10_000_002, 34)
+
+      assert_received {:request, "/markets/10000002/history", "type_id=34"}
+
+      assert {:ok, %Response{}} = Esi.market_prices()
+      assert_received {:request, "/markets/prices", ""}
+    end
+
     test "los errores HTTP y de transporte se devuelven como error" do
       Req.Test.stub(Esi.Client, fn conn -> EsiStub.respond(conn, 502, %{"error" => "bad"}) end)
       assert {:error, {:http, %Response{status: 502}}} = Esi.status()

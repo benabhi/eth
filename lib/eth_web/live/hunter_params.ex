@@ -9,7 +9,7 @@ defmodule EthWeb.HunterParams do
 
   alias Eth.Engine.Query
 
-  @fields ~w(search route_mode max_jumps min_profit min_roi capital cargo_m3 accounting sort)
+  @fields ~w(search route_mode max_jumps min_profit min_roi capital cargo_m3 accounting shield liquid_only sort)
 
   @doc "Campos del formulario."
   @spec fields() :: [String.t()]
@@ -32,6 +32,8 @@ defmodule EthWeb.HunterParams do
       "capital" => "",
       "cargo_m3" => Integer.to_string(round(d.cargo_m3)),
       "accounting" => Integer.to_string(d.accounting),
+      "shield" => Atom.to_string(d.shield),
+      "liquid_only" => to_string(d.liquid_only),
       "sort" => Atom.to_string(d.sort)
     }
     |> Map.merge(pilot_defaults(pilot))
@@ -67,6 +69,8 @@ defmodule EthWeb.HunterParams do
       capital: parse_isk(form["capital"]),
       cargo_m3: parse_number(form["cargo_m3"]),
       accounting: parse_integer(form["accounting"]) |> clamp_level(),
+      shield: parse_shield(form["shield"]),
+      liquid_only: form["liquid_only"] == "true",
       sort: parse_sort(form["sort"])
     }
   end
@@ -127,6 +131,12 @@ defmodule EthWeb.HunterParams do
 
   defp clamp_level(nil), do: Query.defaults().accounting
   defp clamp_level(n), do: min(n, 5)
+
+  @shield_modes ~w(all hide_scam safe)a
+
+  defp parse_shield(value) do
+    Enum.find(@shield_modes, Query.defaults().shield, &(Atom.to_string(&1) == value))
+  end
 
   defp parse_sort(value) do
     Enum.find(Query.sorts(), :tvs, &(Atom.to_string(&1) == value))

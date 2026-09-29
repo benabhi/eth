@@ -11,7 +11,9 @@ defmodule EthWeb.ControlLive do
 
   Se actualiza por PubSub; un tick por segundo refresca las cuentas regresivas.
 
-  Implementa: RF-8.1, RF-8.2, RF-8.3, RF-8.6, RF-8.7, RF-8.8, RF-8.9.
+  Incluye el estado de la cola de historial (RF-1.12).
+
+  Implementa: RF-1.12, RF-8.1, RF-8.2, RF-8.3, RF-8.6, RF-8.7, RF-8.8, RF-8.9.
   """
   use EthWeb, :live_view
 
@@ -149,6 +151,7 @@ defmodule EthWeb.ControlLive do
       server: ServerStatus.current(),
       budget: Budget.snapshot(),
       market_budget: Budget.group(Eth.GameRules.get(:market_budget_group)),
+      history: Market.history_status(),
       memory: %{total: :erlang.memory(:total), ets: :erlang.memory(:ets)},
       next_downtime: ServerStatus.next_downtime(now)
     )

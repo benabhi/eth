@@ -6,7 +6,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.1 |
+| Versión | 1.2 |
 | Fecha | 2026-09-29 |
 | Estado | Base para desarrollo — decisiones a confirmar en §15.2 |
 | Autor | Hernan Jalabert |
@@ -17,6 +17,7 @@
 | Versión | Fecha | Cambios |
 |---|---|---|
 | 0.1 | 2026-09 | Borrador inicial de ideas. |
+| 1.2 | 2026-09-29 | F5 implementada: notas de implementación de RF-1.9, RF-1.12, RF-4.7, RF-4.8 y RF-6.5; historial sin Oban (D-13); anti-scam y liquidez en tiempo de consulta (D-14); columnas de `market_history_stats` y parámetros de B.7 según el código. |
 | 1.1 | 2026-09-29 | Trading por órdenes: clasificación **directo** frente a **por órdenes** (RF-4.1), station trading en la misma estación (RF-4.16), órdenes propias (RF-4.17), selector de familia en el Cazador (RF-6.12) y alertas de órdenes superadas (RF-10.5). Rediseño visual final con identidad sobria y futurista inspirada en EVE, iconografía, responsividad completa (RNF-5.4, RNF-5.9–5.12, §9.9). Hoja de ruta reordenada: F9 trading por órdenes, F10 rediseño visual, F11 endurecimiento y v1.0, F12 evolución. |
 | 1.0 | 2026-09-28 | Reestructuración completa: verificación técnica contra la documentación vigente de ESI, SSO, SDE y zKillboard; corrección de supuestos (§1.6); requisitos con prioridad, fase y criterios de aceptación; arquitectura OTP; modelo de datos; algoritmos y fórmulas; wireframes; entorno Windows/Docker; estrategia de calidad; hoja de ruta; riesgos y trazabilidad con el borrador. |
 
@@ -454,6 +455,8 @@ Los estados *Degradado* y *Viejo* son derivados: dependen de la edad del último
 
 Cargar `/markets/prices` (precio promedio y ajustado por tipo) cada vez que expire. Se usa en el pre-filtro anti-scam (AS-3) y para estimar el valor de la carga cuando no hay historial.
 
+**Implementación v1 (2026-09-29):** `Eth.Market.Prices`, una respuesta sin paginar (≈ 15.800 tipos, caché de ESI de 1 h) con `If-None-Match`. Pausa en el downtime y persiste la lista en `priv/data/market/prices.json`, que se restaura al arrancar y es la fuente en modo Replay.
+
 #### RF-1.10 · Reinicio en caliente — S · F1
 
 Al apagarse y cada 10 min, persistir en disco (volumen de datos) la generación vigente de cada fuente con sus metadatos. Al arrancar, cargar las que tengan `Last-Modified` < 15 min y respetar el `Expires` guardado antes de volver a pedirlas. Las regiones restauradas se marcan como "Restaurado".
@@ -473,6 +476,14 @@ Con `ETH_DATA_SOURCE=replay`, el sistema reproduce snapshots grabados (`mix eth.
 - *(C)* Precarga opcional desde los datasets diarios de EVE Ref.
 
 **CA:** nunca más de 250 requests de historial en una ventana de 60 s; un par ya consultado hoy no se vuelve a pedir.
+
+**Implementación v1 (2026-09-29):**
+
+- **Verificado contra ESI real:** la ruta no envía cabeceras `X-Ratelimit-*`, así que el ritmo lo impone `Eth.Market.RateWindow` (ventana deslizante de 60 s, probada con propiedades), con 4 requests en vuelo. El día `D` se publica después del downtime de `D + 1`; `Expires` vence en el downtime siguiente.
+- **Ventanas:** de calendario, terminadas en el último día publicado (`as_of`); un día sin operaciones cuenta como volumen 0. Los promedios de 7 y 30 días son ponderados por volumen; las medianas y el desvío, sobre los promedios diarios. Se guardan también la mediana de 30 días (referencia de AS-1/AS-2 con pocos datos) y los 30 días para el sparkline.
+- **Demanda:** tras cada evaluación, el `Engine.Coordinator` declara los pares (región de destino y de origen, tipo) priorizados por el TVS del modo invitado, con los sospechosos sin historial primero (AS-3). Cada declaración reemplaza la anterior. Un 400/404/422 guarda estadísticas vacías, que no se vuelven a pedir ese día.
+- **Proceso:** `Eth.Market.History` (GenServer, sin Oban: D-13). Anuncia `{:history_updated, n}` en `market:history` agrupado cada 5 s para refrescar el Cazador. Borra filas con más de 30 días al arrancar.
+- **Medido (5 hubs, 2026-09-29):** ≈ 430 pares cubiertos en menos de 3 min tras el arranque, siempre a ≤ 250 req/min.
 
 ### M2 · Datos estáticos y ruteo
 
@@ -628,6 +639,8 @@ Calcular la cantidad óptima recorriendo el libro: las órdenes de venta de meno
 
 Excluir (o marcar, según el filtro) los tipos con pocos días de operaciones en 30 días (*calibrable*: < 5) y calcular un **índice de liquidez** 0–1 a partir del volumen diario de 7 días frente a la cantidad a mover y de la profundidad de las órdenes de compra del destino. En modo Listado: descartar si el tiempo estimado de venta supera el máximo (*calibrable*: 7 días).
 
+**Implementación v1 (2026-09-29):** `Eth.Engine.Liquidity`. Índice `L = norm(volumen_7d / cantidad, 1 / full_at_days)` con la normalización de §8.9: vale 1 si la cantidad no supera el volumen de `full_at_days` días (por defecto 1). En la familia directo la profundidad del destino ya acota la cantidad en el walk-the-book, así que no entra como factor aparte. Sin historial, `L = 0,5`. Los ilíquidos se **marcan** por defecto y el filtro "Solo líquidos" los excluye. El tiempo de venta del modo Listado queda para F9.
+
 #### RF-4.8 · Escudo anti-scam — M · F5
 
 - Aplicar las reglas AS-1…AS-8 (§8.7) a los candidatos con margen o ROI extremos y a todo candidato con historial disponible.
@@ -636,6 +649,8 @@ Excluir (o marcar, según el filtro) los tipos con pocos días de operaciones en
 - Botón "Reportar falso positivo" (registro local para calibrar los umbrales).
 
 **CA:** un fixture de *margin trading scam* (compra inflada 11× + venta inflada) resulta en `scam`; una oportunidad legítima con historial estable resulta en `ok`.
+
+**Implementación v1 (2026-09-29):** `Eth.Engine.Shield` (función pura) se evalúa en la consulta personalizada (D-14) sobre las órdenes que consume la cantidad del piloto: `bid_destino` es la compra más alta consumida y `ask_origen` la venta más barata consumida. Para AS-6 la oportunidad guarda la creación (`issued`) más reciente de las compras del rango consumido. Estados en código: `:ok`, `:no_history`, `:suspicious` y `:scam`. AS-8 sigue siendo el factor de acceso de la Certeza hasta F7. El filtro por defecto oculta las SCAM ("Mostrar todo" las muestra con TVS 0 y acciones bloqueadas, también del lado del servidor). Los falsos positivos se guardan en `scam_reports` con una foto de la evaluación. Con datos reales detectó compras a 98× y 7.911× la mediana de 7 días. Costo: la consulta personalizada con escudo mide p50 11 ms y p95 22 ms sobre 839 oportunidades (RNF-1.1).
 
 #### RF-4.9 · Frescura y ciclo de vida de las oportunidades — M · F3
 
@@ -831,7 +846,7 @@ Fila expandible (*drawer*) con pestañas:
 
 - **Cálculo:** líneas, precios promedio y marginales, impuestos y desglose de TVS y Certeza.
 - **Libro:** profundidad en el origen y el destino, y órdenes consumidas.
-- **Historial:** sparkline de 30 días, mediana, volumen y resultado anti-scam.
+- **Historial:** sparkline de 30 días, mediana, volumen y resultado anti-scam. *(F5: implementado como secciones "Anti-scam" e "Historial" del panel actual, que todavía no usa pestañas; las pestañas llegan con el rediseño de F10.)*
 - **Ruta:** sistemas con su seguridad, kills/h, amenaza y gates acampados.
 - **Combo/Retorno.**
 
@@ -1281,7 +1296,7 @@ Ver §3.4. Las estructuras de dominio (`%Order{}`, `%Opportunity{}`, `%Combo{}`,
 | `ship_profiles` | id, operator_id, ship_type_id, ship_item_id (nullable), name, cargo_m3, evasion_class, max_cargo_value | Único por `ship_item_id`; *fallback* por (operador, casco). |
 | `structures` | id (= structure_id), name, solar_system_id, region_id, type_id, owner_id, public_market, broker_fee_override, orders_count, last_seen_at | |
 | `structure_access` | structure_id, character_id, status (`ok`/`forbidden`/`unknown`), checked_at, last_error | |
-| `market_history_stats` | region_id, type_id, as_of, median_7d, avg_7d, avg_30d, stddev_30d, volume_avg_7d, volume_avg_30d, days_traded_30d, fetched_at | PK (region_id, type_id). |
+| `market_history_stats` | region_id, type_id, as_of, median_7d, median_30d, avg_7d, avg_30d, stddev_30d, volume_avg_7d, volume_avg_30d, days_traded_30d, daily_avg (float[30]), daily_volume (bigint[30]), fetched_at | PK (region_id, type_id). |
 | `type_volumes` | type_id, packaged_volume, sde_build | Solo si el SDE no trae el volumen empaquetado. |
 | `system_activity_hourly` | solar_system_id, hour, ship_kills, pod_kills, npc_kills, jumps | PK (system, hour); retención de 30 días. |
 | `filter_presets` | id, operator_id, name, filters (jsonb), notify | |
@@ -1972,13 +1987,15 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | D-10 | Centro de control en mosaico en lugar de tabla | Escala a ~70 regiones y resalta los problemas | Tabla del borrador |
 | D-11 | Rediseño visual completo al final de las funciones (F10), antes del endurecimiento | Diseñar sobre funciones estables evita rehacer pantallas; la v1.0 se verifica sobre la interfaz definitiva | Rediseñar pantalla por pantalla durante cada fase |
 | D-12 | Trading por órdenes como recomendación: la aplicación sugiere precios y el operador publica en el cliente | ESI no permite crear ni modificar órdenes; respeta RNF-14.2 (sin automatización) | Automatizar la publicación (imposible e indebido) |
+| D-13 | Historial con un GenServer propio (`Eth.Market.History`), sin Oban (desvío de D-06 para este caso) | El refresco post-DT es la misma cola: al vencer las estadísticas, la próxima demanda vuelve a pedir solo los pares relevantes. Oban no está entre las dependencias y no aporta durabilidad útil (los datos son regenerables) | Job de Oban post-DT |
+| D-14 | Anti-scam y liquidez en la consulta personalizada, no en la evaluación universal | El historial llega de a poco (≤ 250/min): leerlo de ETS en cada consulta lo refleja al instante sin reevaluar el universo (400–600 ms). Además el escudo mira las órdenes que consume la cantidad del piloto | Anotar en el Coordinator y reevaluar por cada lote de historial |
 
 ### 15.2 Pendientes de confirmar
 
 | ID | Pregunta | Propuesta por defecto |
 |---|---|---|
 | P-01 | ¿Licencia del repositorio? | MIT (o repo privado sin licencia) |
-| P-02 | ¿Umbrales anti-scam por defecto (sospechoso 1,5× / scam 3× la mediana de 7 días)? | Sí; ajustar con datos reales en F5 |
+| P-02 | ¿Umbrales anti-scam por defecto (sospechoso 1,5× / scam 3× la mediana de 7 días)? | Sí; en F5 se implementaron así. Calibrar con los reportes de falso positivo (`scam_reports`) |
 | P-03 | ¿Se piensa exponer la app fuera de localhost (LAN o Internet)? | No en v1 (solo loopback) |
 | P-04 | ¿Formato numérico por defecto? | Estilo EVE (`1,234,567.89`), con opción en español |
 | P-05 | Reglas vigentes de las órdenes: paso mínimo de precio (tick), costo de modificar una orden (relist) y límite de órdenes por habilidades | Verificar contra el Anexo C y el SDE antes de F9; hasta entonces, sin implementar |
@@ -2122,13 +2139,20 @@ Aproximación de la escala del cliente. En el tema claro se usan como fondo de i
 | `circuit_breaker` | 5 fallos ⇒ 10 min | Por poller |
 | `market_budget_reserve` | 10 % | Reserva del grupo de mercado |
 | `error_limit_pause_at` | 20 | `X-ESI-Error-Limit-Remain` |
-| `history_rate_per_min` | 250 | Cola de historial |
+| `history_max_per_min` / `history_concurrency` | 250 / 4 | Cola de historial (RF-1.12) |
+| `history_announce_ms` | 5,000 | Agrupa los avisos de historial nuevo al Cazador |
 | `staleness_min` | 5 fresco · 15 degradado · 30 excluido | Frescura |
-| `scam.ratio_suspicious` / `scam.ratio_scam` | 1.5 / 3.0 | AS-1, AS-2 |
-| `scam.ratio_global_prefilter` | 5.0 | AS-3 |
-| `scam.new_order_hours` | 2 | AS-6 |
-| `scam.min_days_traded_30d` | 3 | AS-7 |
-| `liquidity.min_days_traded_30d` | 5 | RF-4.7 |
+| `anti_scam.suspicious_bid_ratio` / `anti_scam.scam_bid_ratio` | 1.5 / 3.0 | AS-1, AS-2 |
+| `anti_scam.global_price_ratio` | 5.0 | AS-3 |
+| `anti_scam.origin_ask_ratio` | 1.5 | AS-4 |
+| `anti_scam.fresh_order_minutes` | 120 | AS-6 |
+| `anti_scam.min_days_traded` | 3 | AS-7 (días operados en 30) |
+| `anti_scam.min_days_7d` | 3 | Días operados en 7 para usar la mediana de 7 días (si no, la de 30) |
+| `anti_scam.no_history_max_roi` | 100 % | AS-7: ROI mayor sin historial ⇒ sospechoso |
+| `anti_scam.certainty` | ok 1 · sin historial 0,7 · sospechoso 0,5 · scam 0 | C_scam (§8.9) |
+| `liquidity.min_days_traded` | 5 | RF-4.7 |
+| `liquidity.full_at_days` | 1 | Índice de liquidez = 1 si la cantidad ≤ volumen de N días |
+| `default_liquidity` | 0.5 | Índice sin historial |
 | `listing.max_days_to_sell` | 7 | Modo Listado |
 | `radar.window_min` / `radar.half_life_min` | 15 / 10 | Mapa de calor |
 | `radar.min_kills` / `radar.p_value` | 3 / 0.01 | Alertas |

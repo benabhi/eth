@@ -130,4 +130,22 @@ defmodule Eth.Esi do
       group: @market_group
     )
   end
+
+  @doc """
+  Precios de referencia globales (`/markets/prices`): `average_price` y `adjusted_price`
+  por tipo, en una sola respuesta sin paginar (caché de ESI de 1 h).
+  """
+  @spec market_prices(String.t() | nil) :: {:ok, Response.t()} | {:error, Client.error()}
+  def market_prices(etag \\ nil), do: Client.get("/markets/prices", etag: etag)
+
+  @doc """
+  Historial diario de un tipo en una región (`/markets/{region_id}/history`): un día por
+  elemento con `date`, `average`, `highest`, `lowest`, `order_count` y `volume`. ESI lo
+  actualiza una vez por día (caché hasta el downtime siguiente) y no informa su rate
+  limit por cabeceras: el ritmo lo acota `Eth.Market.History` (RF-1.12).
+  """
+  @spec market_history(pos_integer(), pos_integer()) ::
+          {:ok, Response.t()} | {:error, Client.error()}
+  def market_history(region_id, type_id),
+    do: Client.get("/markets/#{region_id}/history", params: [type_id: type_id])
 end

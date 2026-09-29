@@ -2,11 +2,11 @@ defmodule Eth.Engine do
   @moduledoc """
   API pública del motor de evaluación para la web y otros contextos (RNF-7.3).
 
-  Implementa: RF-4.13, RF-4.14.
+  Implementa: RF-4.8, RF-4.13, RF-4.14.
   """
 
-  alias Eth.Clock
-  alias Eth.Engine.{Coordinator, Opportunity, Query}
+  alias Eth.{Clock, Events, Repo}
+  alias Eth.Engine.{Coordinator, Opportunity, Query, ScamReport}
 
   @doc "Tópico con los anuncios de nueva versión de oportunidades."
   @spec topic() :: String.t()
@@ -47,6 +47,29 @@ defmodule Eth.Engine do
     end
   rescue
     ArgumentError -> nil
+  end
+
+  @doc """
+  Registra un falso positivo del anti-scam (RF-4.8) a partir de una fila personalizada,
+  con un comentario opcional.
+  """
+  @spec report_false_positive(map(), String.t() | nil) ::
+          {:ok, ScamReport.t()} | {:error, Ecto.Changeset.t()}
+  def report_false_positive(row, reason \\ nil) do
+    %ScamReport{}
+    |> ScamReport.changeset(%{opportunity_snapshot: ScamReport.snapshot(row), reason: reason})
+    |> Repo.insert()
+    |> tap(fn
+      {:ok, _report} ->
+        Events.emit(
+          :action,
+          "Usuario",
+          "Falso positivo reportado: #{row.opportunity.type_name} (#{row.shield.status})"
+        )
+
+      _error ->
+        :ok
+    end)
   end
 
   @doc "Consulta personalizada (RF-4.14): `{filas, total}`."

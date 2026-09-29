@@ -48,7 +48,8 @@ config :eth, :start_workers, false
 config :eth, Eth.GameRules,
   downtime_window_utc: {~T[00:00:00], ~T[00:00:00]},
   backoff_base_ms: 50,
-  poll_jitter_ms: 0..0
+  poll_jitter_ms: 0..0,
+  history_announce_ms: 20
 
 # In test we don't send emails
 config :eth, Eth.Mailer, adapter: Swoosh.Adapters.Test
