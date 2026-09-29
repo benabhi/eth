@@ -207,6 +207,8 @@ config :eth, Eth.GameRules,
     # Prior de λ (kills por ventana) por banda cuando no hay datos del sistema.
     lambda_prior: %{highsec: 0.05, lowsec: 0.2, nullsec: 0.3},
     base_risk_max: 0.2,
+    # Riesgo base por banda mientras no hay saltos muestreados (RF-3.7).
+    base_risk_prior: %{highsec: 0.0005, lowsec: 0.01, nullsec: 0.02},
     # Suavizado del riesgo base: kills / (saltos + k) para sistemas con poco tráfico.
     base_risk_smoothing_jumps: 50,
     activity_retention_days: 30,
