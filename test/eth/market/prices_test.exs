@@ -1,5 +1,5 @@
 defmodule Eth.Market.PricesTest do
-  use ExUnit.Case, async: false
+  use Eth.DataCase, async: false
 
   alias Eth.Esi.Budget
   alias Eth.EsiStub

@@ -24,7 +24,9 @@ defmodule Eth.Market.Supervisor do
         do: children ++ [Eth.Market.SnapshotSaver],
         else: children
 
-    # Al final: con rest_for_one, una caída de los precios no reinicia a los pollers.
-    Supervisor.init(children ++ [Eth.Market.Prices], strategy: :rest_for_one)
+    # Al final: con rest_for_one, una caída de precios o historial no reinicia a los pollers.
+    Supervisor.init(children ++ [Eth.Market.Prices, Eth.Market.History],
+      strategy: :rest_for_one
+    )
   end
 end

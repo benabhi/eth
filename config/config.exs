@@ -167,7 +167,12 @@ config :eth, Eth.GameRules,
   default_liquidity: 0.5,
   # Downtime diario de Tranquility (UTC) (RF-1.8)
   downtime_window_utc: {~T[10:59:00], ~T[11:15:00]},
-  status_poll_ms: 60_000
+  status_poll_ms: 60_000,
+  # Historial bajo demanda (RF-1.12, RNF-3.5): ESI admite 300 req/min; se deja margen.
+  history_max_per_min: 250,
+  history_concurrency: 4,
+  # Agrupa los anuncios de estadísticas nuevas para no re-consultar el Cazador por cada una.
+  history_announce_ms: 5_000
 
 # Configure esbuild (the version is required)
 config :esbuild,
