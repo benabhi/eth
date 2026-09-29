@@ -6,7 +6,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.5 |
+| Versión | 1.6 |
 | Fecha | 2026-09-29 |
 | Estado | Base para desarrollo — decisiones a confirmar en §15.2 |
 | Autor | Hernan Jalabert |
@@ -17,6 +17,7 @@
 | Versión | Fecha | Cambios |
 |---|---|---|
 | 0.1 | 2026-09 | Borrador inicial de ideas. |
+| 1.6 | 2026-09-29 | **Sin instancia pública:** se descarta el módulo M11 (multiusuario, suscripciones con ISK, reclamo de contratos y ranking público) y la fase F13 (D-20). La herramienta es de **uso personal y autoalojada**: cada piloto la descarga y la usa con sus personajes (§2.3, D-01, RNF-10.5–10.7). La gamificación del tablón de caza (RF-6.13) y el registro del cazador (RF-7.7) se mantienen, en versión personal. |
 | 1.5 | 2026-09-29 | **Tablón de caza:** la interfaz adopta la metáfora de un tablón de contratos de caza, gamificada y profesional (RF-6.13, §9.9, D-19); la ficha del trade se despliega bajo la fila (RF-6.5); registro del cazador (RF-7.7); Centro de control con pestañas y estética de consola de operaciones (RF-8.10); nuevo módulo M11 (Comunidad: multiusuario, suscripción con ISK, reclamo de contratos y ranking de cazadores) en una fase posterior a v1.0 (F13, D-20). |
 | 1.4 | 2026-09-29 | Combos (RF-4.10) y retorno (RF-4.11) descartados (D-18): F7 pasa a ser "Estructuras" (RF-1.6, RF-9.6 y acceso por personaje); mockups de §9 con un trade individual. |
 | 1.3 | 2026-09-29 | F6 implementada: notas de implementación de RF-2.5, RF-3.1–3.8, RF-8.5 y RF-9.5; killmail.stream diferido (D-15); caminos desde la matriz (D-16); caché de `GameRules` (D-17); tabla `system_activity_samples` y parámetros del radar en B.7. |
@@ -70,7 +71,9 @@ EVE Trade Hunter es un asistente táctico para comerciantes-transportistas de EV
 
 El sistema escanea de forma autónoma el mercado de todo New Eden, ajusta cada operación a la bodega y al capital del piloto, vigila las amenazas de la ruta en tiempo real y bloquea las estafas de manipulación de mercado. Además, acompaña al piloto durante el viaje y, al terminar, mide el beneficio real obtenido.
 
-La interfaz se presenta como un **tablón de caza**: cada oportunidad es un *contrato* con su recompensa (beneficio), su rango (TVS), su peligro (riesgo de ruta) y su plazo, que el piloto sale a cazar. La gamificación es de lenguaje y de ritmo, no de adorno: la herramienta sigue siendo profesional, densa y exacta. Más adelante (M11, después de v1.0) la instancia podrá abrirse a otros pilotos que, con una suscripción pagada en ISK dentro del juego, **reclamen** contratos para cazarlos con exclusividad temporal dentro de la aplicación y compitan en un ranking de cazadores.
+La interfaz se presenta como un **tablón de caza**: cada oportunidad es un *contrato* con su recompensa (beneficio), su rango (TVS), su peligro (riesgo de ruta) y su plazo, que el piloto sale a cazar. La gamificación es de lenguaje y de ritmo, no de adorno: la herramienta sigue siendo profesional, densa y exacta, y el progreso del piloto (su registro de caza) es personal.
+
+Es una herramienta **para descargar y usar en la propia computadora**: cada piloto la instala, registra su propia aplicación de EVE y la usa con su personaje o sus personajes. No hay servidor central ni cuentas compartidas.
 
 ### 1.3 Pilares diferenciales
 
@@ -105,7 +108,7 @@ La interfaz se presenta como un **tablón de caza**: cada oportunidad es un *con
 - Billeteras y órdenes corporativas.
 - Jump freighters con cynos, puentes Ansiblex, espacio de agujeros de gusano y Thera (futuro: integración con EVE-Scout).
 - Automatizar acciones del cliente del juego más allá de lo que ESI permite (fijar waypoints, abrir la ventana de mercado). Nunca bots.
-- Instancia pública multiusuario (suscripciones con ISK, reclamo de contratos y ranking de cazadores): planificada **después de v1.0** como módulo M11 (F13, D-20). v1.0 sigue siendo de operador único.
+- Instancia pública o multiusuario (servidor central, cuentas de terceros, suscripciones, reclamo de contratos o rankings entre usuarios): **descartada** (D-20). Cada piloto ejecuta su propia instancia.
 - PLEX: desde julio de 2025 opera en un mercado global único y no admite arbitraje geográfico.
 
 ### 1.6 Correcciones clave respecto del borrador 0.1
@@ -164,15 +167,14 @@ flowchart LR
 | Corredor de bloqueo | Blockade Runner | Carga de alto valor y poco volumen por low/null; el radar es crítico, pero su nave tolera más riesgo. |
 | Piloto de freighter | Freighter | Volúmenes grandes entre hubs; muy sensible al **valor de la carga** (atractivo para gankers). |
 | Operador multi-personaje | Varios alts | Ver oportunidades para cada personaje según dónde esté y qué nave tenga. |
-| Suscriptor *(F13)* | Cualquiera | Ver el tablón de la instancia pública, reclamar contratos con exclusividad temporal, seguir su registro de caza y figurar en el ranking. |
 
 ### 2.3 Modelo de operación
 
 - **Instancia autoalojada** para **un operador** humano que vincula **1..N personajes** (main y alts). Los datos personales viven solo en esa instancia.
+- **Distribución:** cada piloto descarga la aplicación (repositorio o release), la levanta en su computadora con Docker y registra **su propia** aplicación en developers.eveonline.com (RNF-10.5–10.7). Así cada instancia usa su propio presupuesto de ESI por IP (§2.4) y ningún dato sale de la máquina del piloto.
 - **Modo invitado:** sin login, con capital, bodega y habilidades ingresados a mano y sin acciones in-game. Útil para probar la app y durante el desarrollo.
 - **Personaje activo:** su contexto (ubicación, nave, billetera, impuestos) personaliza el Cazador; los demás personajes mantienen la sesión con polling reducido.
 - **Datos universales compartidos:** el escaneo de mercado, el radar y el ruteo son comunes; la personalización se aplica en tiempo de consulta (RF-4.14).
-- **Evolución a multiusuario** (M11, F13, después de v1.0): cuentas por personaje de EVE, suscripción pagada en ISK, reclamo de contratos y ranking de cazadores; exige HTTPS, separación de datos por usuario y cuotas (RNF-4.12). La separación actual entre datos universales y personales lo facilita.
 
 ### 2.4 Restricciones
 
@@ -888,7 +890,7 @@ Al hacer clic en una fila, **la propia fila se despliega** hacia abajo y muestra
 La grilla se presenta como un tablón de contratos de caza, con una gamificación **sobria** (§9.9):
 
 - **Contrato:** cada oportunidad es un contrato con **recompensa** (beneficio neto), **rango** según el TVS (S ≥ 90 · A ≥ 75 · B ≥ 50 · C ≥ 25 · D; *calibrable*), **peligro** según el riesgo de ruta (Bajo · Moderado · Alto · Extremo, a partir de `1 − C_ruta`; *calibrable*), **plazo** (ETA) y **vigencia** (edad de los datos y cuánto le queda antes de expirar).
-- **Sellos:** estados de contrato legibles de un vistazo: NUEVO, MEJORÓ, EN RIESGO (alerta en ruta), SCAM · BLOQUEADO, EXPIRADO y, desde F13, RECLAMADO (RF-11.3).
+- **Sellos:** estados de contrato legibles de un vistazo: NUEVO, MEJORÓ, EN RIESGO (alerta en ruta), SCAM · BLOQUEADO, EXPIRADO.
 - **Ritmo:** los contratos nuevos entran con una animación breve y los que expiran se sellan antes de salir (RF-6.3); un contador en la cabecera resume "contratos abiertos · recompensa total disponible".
 - **Sin trampas:** el rango y el peligro son vistas de TVS y Certeza, no métricas nuevas; siempre se puede ver el número exacto y su desglose (explicabilidad).
 
@@ -993,7 +995,7 @@ Listado de viajes con el beneficio total, el ISK/h real y el error de predicció
 
 #### RF-7.7 · Registro del cazador — S · F10
 
-Perfil de caza del piloto a partir de los viajes cerrados (RF-7.5): contratos completados, recompensa total (P&L real), ISK/h promedio, precisión de las predicciones, mejor contrato y racha de días con contratos cerrados. Es un resumen motivador y honesto: solo muestra datos reales, sin puntos ni recompensas inventadas. Es la base del ranking de cazadores de F13 (RF-11.6).
+Perfil de caza del piloto a partir de los viajes cerrados (RF-7.5): contratos completados, recompensa total (P&L real), ISK/h promedio, precisión de las predicciones, mejor contrato y racha de días con contratos cerrados. Es un resumen motivador y honesto: solo muestra datos reales, sin puntos ni recompensas inventadas. Es personal: compara al piloto consigo mismo (semana, mes, histórico y por personaje) y nunca se publica.
 
 ### M8 · Centro de control (monitor del sistema)
 
@@ -1136,45 +1138,6 @@ Envío opcional de alertas a un webhook configurado por el usuario.
 
 Aviso (en la app y, si está activo, del navegador) cuando una orden propia deja de ser la mejor, con el precio sugerido y un acceso a "Abrir mercado". Anti-spam por orden (`notify.cooldown_min`).
 
-### M11 · Comunidad: tablón público, suscripciones, reclamos y ranking *(después de v1.0)*
-
-Objetivo a futuro: publicar la instancia para que otros pilotos usen el tablón con una suscripción pagada en ISK, **reclamen** contratos para cazarlos con exclusividad temporal y compitan en un ranking. Todo el módulo es de prioridad C y fase F13; sus reglas finas dependen de P-07 a P-11.
-
-#### RF-11.1 · Cuentas de usuario — C · F13
-
-Cada usuario entra con EVE SSO; su cuenta es su personaje principal (con alts opcionales). Roles: **operador** (administra la instancia), **suscriptor** (tablón completo y reclamos) y **visitante** (tablón limitado: por ejemplo, contratos de rango C–D o con demora). Los datos personales de cada usuario (tokens, billetera, viajes) son privados y están separados por usuario.
-
-#### RF-11.2 · Suscripción pagada con ISK — C · F13
-
-- El usuario transfiere ISK a un **personaje banco** del operador escribiendo en el motivo un **código de referencia** que la aplicación le muestra.
-- La aplicación lee el diario de la billetera del banco (`/characters/{id}/wallet/journal`, `esi-wallet.read_character_wallet.v1`, respetando su caché): una entrada `ref_type = player_donation` del pagador (`first_party_id`) con el código en `reason` acredita días de suscripción según la tarifa (*calibrable*). Campos verificados contra ESI real el 2026-09-29.
-- Sin pagos con dinero real ni intermediarios: solo ISK dentro del juego (RNF-14.2). Las acreditaciones y su origen quedan registradas y son auditables.
-
-**CA:** una transferencia con el código correcto acredita la suscripción en el ciclo siguiente a que ESI la publique; una sin código, o de otro personaje, no acredita nada y queda para revisión manual.
-
-#### RF-11.3 · Reclamo de contratos — C · F13
-
-- Un suscriptor **reclama** un contrato del tablón: queda reservado a su nombre durante una ventana de exclusividad (*calibrable*, por ejemplo ETA × 1,5 con un tope de 60 min) y los demás usuarios lo ven sellado como RECLAMADO (o no lo ven, según P-09).
-- Límite de reclamos simultáneos por usuario (*calibrable*) y enfriamiento para evitar acaparar.
-- El reclamo termina al vencer la ventana, al cancelarlo, cuando el contrato expira en el mercado o al completarse (detectado con el viaje activo, M7).
-- **Honestidad:** la exclusividad es **dentro de la aplicación**. En el juego las órdenes siguen siendo públicas y cualquiera puede tomarlas; la interfaz lo dice explícitamente al reclamar.
-
-#### RF-11.4 · Tablón compartido — C · F13
-
-El tablón universal es común a todos; la personalización (capital, bodega, impuestos, ruta) sigue siendo por usuario (RF-4.14). Los contratos reclamados muestran el sello y el tiempo restante; el propio usuario ve sus reclamos destacados y un acceso a su viaje.
-
-#### RF-11.5 · Administración — C · F13
-
-El operador ve suscripciones, pagos acreditados y pendientes de revisión, reclamos activos y el uso por usuario, y puede ajustar tarifas, ventanas de exclusividad y límites.
-
-#### RF-11.6 · Ranking de cazadores — C · F13
-
-Clasificación de los mejores cazadores de la instancia a partir de sus registros (RF-7.7), **solo con datos verificados** (viajes cerrados y reconciliados con la billetera, RF-7.5), nunca con lo que el usuario declara.
-
-- **Tablas:** por recompensa total, por ISK/h y por contratos completados, en ventanas semanal, mensual e histórica; con un mínimo de contratos para entrar (*calibrable*) y la precisión de predicción como desempate.
-- **Privacidad:** participar es opcional (*opt-in*); se muestra el nombre del personaje y, si el usuario lo elige, un alias. Nunca se publican la billetera, las rutas ni los contratos concretos.
-- **Integridad:** un contrato cuenta una sola vez aunque lo completen varios usuarios; se excluyen los viajes cerrados a mano sin reconciliación.
-
 ---
 
 ## 5. Requisitos no funcionales
@@ -1226,7 +1189,6 @@ Clasificación de los mejores cazadores de la instancia a partir de sus registro
 - **RNF-4.9** En CI: `mix sobelow`, `mix deps.audit` y `mix hex.audit`.
 - **RNF-4.10** "Olvidar personaje" revoca el token en el SSO y borra los datos personales asociados.
 - **RNF-4.11** Nunca `String.to_atom/1` sobre datos externos.
-- **RNF-4.12** *(F13)* Instancia pública: solo HTTPS, autenticación obligatoria, autorización por rol en cada acción, separación estricta de datos por usuario, límites de uso por usuario y por IP, y revisión de seguridad antes de abrirla (P-03).
 
 ### RNF-5 · Usabilidad, accesibilidad y UX
 
@@ -1276,6 +1238,9 @@ Estrategia detallada en §11. Mínimos: cobertura ≥ 85 % en `Eth.Engine`, `Eth
 - **RNF-10.2** Producción: `mix release` + Dockerfile multi-etapa (`mix phx.gen.release --docker`); `runtime.exs` configurado 100 % por variables de entorno.
 - **RNF-10.3** Migraciones automáticas al iniciar el release (`Eth.Release.migrate/0`).
 - **RNF-10.4** Los datos regenerables (SDE procesado, matrices, snapshots) viven en un volumen propio, nunca en la imagen.
+- **RNF-10.5** **Distribución para uso personal:** la aplicación se descarga (clon del repositorio o release versionado) y se levanta con un solo `docker compose up`, sin compilar nada en el host. Funciona igual en Windows, macOS y Linux con Docker.
+- **RNF-10.6** **Guía de instalación** en el README, en español, paso a paso: requisitos, registrar la aplicación en developers.eveonline.com (callback `http://localhost:4000/auth/eve/callback` y la lista de scopes de RF-5.2), completar `.env` (con un comando para generar `ETH_VAULT_KEY`), levantar, iniciar sesión y actualizar a una versión nueva sin perder datos. Ajustes → Primer arranque (RF-9.1) guía los mismos pasos dentro de la app.
+- **RNF-10.7** **Actualizaciones** sin pérdida de datos: releases con versión semántica y notas de cambios; las migraciones corren solas (RNF-10.3) y los volúmenes (base, SDE, snapshots) se conservan.
 
 ### RNF-11 · Entorno de desarrollo (Windows + VS Code + Docker)
 
@@ -1308,9 +1273,9 @@ Estrategia detallada en §11. Mínimos: cobertura ≥ 85 % en `Eth.Engine`, `Eth
 ### RNF-14 · Cumplimiento (CCP y terceros)
 
 - **RNF-14.1** Cumplir la licencia para desarrolladores de CCP y mostrar en el pie de página el aviso de propiedad intelectual de CCP que exija (texto exacto según la licencia vigente).
-- **RNF-14.2** Solo endpoints oficiales; ninguna automatización del cliente del juego; ninguna función relacionada con RMT. Las suscripciones de M11 se pagan **solo con ISK dentro del juego**, nunca con dinero real, y la aplicación no compra ni vende ISK.
+- **RNF-14.2** Solo endpoints oficiales; ninguna automatización del cliente del juego; ninguna función relacionada con RMT ni con cobros de ningún tipo.
 - **RNF-14.3** Terceros: respetar las reglas de zKillboard (User-Agent, límites) y, si se usan datasets de EVE Ref, su licencia y atribución.
-- **RNF-14.4** Privacidad: los datos de los personajes se guardan solo en la instancia del operador; en la instancia pública (F13), cada usuario ve únicamente los suyos y el ranking solo muestra a quienes lo aceptaron (RF-11.6).
+- **RNF-14.4** Privacidad: los datos de los personajes se guardan solo en la instancia local del piloto; la aplicación no envía datos personales a ningún servicio propio ni de terceros (solo consulta ESI, SSO, zKillboard y el servidor de imágenes de CCP).
 
 ### RNF-15 · Configurabilidad de las reglas del juego
 
@@ -1829,7 +1794,7 @@ Estados de los mosaicos de región:
 | Familia directo / por órdenes | Íconos propios (F9) | `primary` / `secondary` | "DIRECTO" / "ORDEN" |
 | Rango del contrato (F10) | Insignia con letra S–D | escala propia de la paleta | "RANGO A · TVS 79" |
 | Peligro (F10) | Indicador de 4 niveles | `success` → `error` | "Peligro alto · gatecamp en Tama" |
-| Sello de contrato (F10) | Sello rectangular | según el estado | NUEVO · MEJORÓ · EN RIESGO · SCAM · EXPIRADO · RECLAMADO |
+| Sello de contrato (F10) | Sello rectangular | según el estado | NUEVO · MEJORÓ · EN RIESGO · SCAM · EXPIRADO |
 
 Los emojis de esta tabla son marcadores del documento: en el rediseño (F10, §9.9) se reemplazan por íconos SVG del set único (RNF-5.10).
 
@@ -2038,9 +2003,9 @@ Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una
 | **F8** Viaje activo | Acompañamiento y ciclo cerrado | RF-7.1–7.6; RF-10.2, 10.3 | Viaje real completado con P&L reconciliado |
 | **F9** Trading por órdenes | Más estrategias | RF-4.1 (Listado y compra por orden), 4.16, 4.17; RF-6.12; RF-10.5; scope 13 | Station trading y órdenes propias con datos reales; familias diferenciadas en el Cazador; alertas de órdenes superadas |
 | **F10** Rediseño: tablón de caza | Interfaz final | RNF-5.4, 5.9–5.12; §9.9 en todas las vistas; RF-6.13 (tablón), RF-6.5 (ficha expandible), RF-7.7 (registro del cazador), RF-8.10 (Centro de control por pestañas) | Mockups aprobados; todas las vistas migradas; CA de §9.9, RF-6.13 y RF-8.10 |
-| **F11** Endurecimiento | **v1.0** | RNF de rendimiento, seguridad y accesibilidad; RF-6.9, 9.7; release de producción | Checklist §11.4 completo; benchmarks dentro de RNF-1 |
+| **F11** Endurecimiento | **v1.0** | RNF de rendimiento, seguridad y accesibilidad; RF-6.9, 9.7; release descargable y guía de instalación (RNF-10.5–10.7) | Checklist §11.4 completo; benchmarks dentro de RNF-1 |
 | **F12** v1.x | Evolución | RF-10.4, vista geográfica de regiones, EVE-Scout/Thera | Según priorización |
-| **F13** Comunidad | Instancia pública con suscripciones | M11 (RF-11.1–11.6), RNF-4.12, RNF-14.2 | P-03 y P-07–P-11 resueltas; revisión de seguridad aprobada; una suscripción con ISK acreditada, un reclamo completo de punta a punta y el ranking con datos reconciliados |
+
 
 El rediseño visual (F10) va después de completar las funciones y antes del endurecimiento, para que la verificación de accesibilidad y rendimiento de la v1.0 se haga sobre la interfaz definitiva (D-11).
 
@@ -2062,9 +2027,6 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | R-10 | Deriva de la API de ESI | Media | Medio | `X-Compatibility-Date` fija, tests de contrato, alertas por la cabecera `Warning` |
 | R-11 | Station trading con mucha competencia (guerras de 0,01 ISK) o márgenes que se evaporan | Alta | Medio | Métrica de competencia, Certeza baja y explicada, seguimiento de órdenes superadas (RF-4.17) |
 | R-12 | El rediseño visual rompe la usabilidad o se parece demasiado a recursos de CCP | Media | Medio | Mockups aprobados antes de programar, IDs estables, CA de accesibilidad, RNF-5.12 |
-| R-13 | *(F13)* Suscriptores que esperan exclusividad real en el juego | Media | Medio | Aviso explícito al reclamar (RF-11.3): la reserva es solo dentro de la app; ventanas cortas y límites de reclamos |
-| R-14 | *(F13)* Pagos en ISK mal acreditados | Baja | Medio | Código de referencia obligatorio, registro auditable y revisión manual de lo que no coincide (RF-11.2) |
-| R-15 | *(F13)* Ranking manipulado con viajes falsos | Media | Bajo | Solo cuentan viajes reconciliados con la billetera; un contrato cuenta una vez (RF-11.6) |
 
 ---
 
@@ -2111,7 +2073,7 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 
 | ID | Decisión | Motivo | Alternativa descartada |
 |---|---|---|---|
-| D-01 | Instancia autoalojada para un operador con N personajes + modo invitado | Coincide con el uso previsto (localhost, `.env`) y simplifica la seguridad | SaaS multiusuario (futuro) |
+| D-01 | Instancia autoalojada para un operador con N personajes + modo invitado; cada piloto descarga y ejecuta la suya | Coincide con el uso previsto (localhost, `.env`), simplifica la seguridad y reparte el presupuesto de ESI por IP | SaaS multiusuario (descartado, D-20) |
 | D-02 | PostgreSQL 18 en Docker con volumen nombrado | Default de Phoenix, robusto y sin los problemas de SQLite sobre bind mounts de Windows | SQLite |
 | D-03 | Estrategia Ueberauth propia para EVE SSO | `ueberauth_eve_sso` no se mantiene desde 2019 | Depender de ese paquete |
 | D-04 | Kills en vivo desde zKillboard R2Z2 (+ killmail.stream como alternativa); línea base con ESI | ESI no ofrece un stream en vivo; RedisQ fue discontinuado | ESI `system_kills` solo (resolución de 1 h) |
@@ -2130,7 +2092,7 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | D-17 | `Eth.GameRules` lee la configuración una vez y la guarda como mapa en `persistent_term` | `Application.get_env/2` copiaba toda la configuración en cada lectura y la consulta lee reglas miles de veces (p95 de ~100 a ~25 ms). `config/*.exs` solo cambia con un reinicio; los tests que la cambian llaman a `GameRules.reload/0` | Pasar un snapshot de reglas por todas las funciones del motor |
 | D-18 | Sin combos (RF-4.10) ni retorno (RF-4.11): cada fila del Cazador es un trade individual | Se implementaron en F7 y se retiraron antes de integrarse (2026-09-29): las filas de paquete y las insignias de retorno ensuciaban la tabla y hacían más difícil elegir un buen trade | Mostrarlos como filas o insignias en la tabla principal |
 | D-19 | Interfaz como **tablón de caza**, gamificada con sobriedad | Hace más claro y motivador elegir un trade (contratos con rango, recompensa y peligro) sin perder la densidad ni la exactitud de una herramienta profesional | Gamificación con puntos y recompensas ficticias; o una tabla sin lenguaje propio |
-| D-20 | Multiusuario, suscripción con ISK, reclamos y ranking (M11) **después de v1.0**, en F13 | Requiere separar datos por usuario, exponer la app con seguridad y definir reglas de exclusividad; v1.0 sigue siendo de operador único (D-01) | Diseñar el multiusuario ahora, retrasando v1.0 |
+| D-20 | **Sin instancia pública ni multiusuario:** se descartan cuentas de terceros, suscripciones con ISK, reclamos de contratos y rankings entre usuarios (antes M11/F13) | La herramienta es personal: cada piloto la descarga y la usa con sus personajes; evita exponer datos y tokens, operar un servidor y el límite de ESI por IP compartido | Instancia pública con suscripciones (versión 1.5 del ERS) |
 
 ### 15.2 Pendientes de confirmar
 
@@ -2138,12 +2100,7 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 |---|---|---|
 | P-01 | ¿Licencia del repositorio? | MIT (o repo privado sin licencia) |
 | P-02 | ¿Umbrales anti-scam por defecto (sospechoso 1,5× / scam 3× la mediana de 7 días)? | Sí; en F5 se implementaron así. Calibrar con los reportes de falso positivo (`scam_reports`) |
-| P-03 | ¿Se piensa exponer la app fuera de localhost (LAN o Internet)? | No en v1 (solo loopback); **sí en F13** (M11), con RNF-4.12 |
-| P-07 | Tarifa de suscripción en ISK y duración que acredita | Definir antes de F13 (por ejemplo, un monto por 30 días) |
-| P-08 | Ventana de exclusividad de un reclamo y cuántos reclamos simultáneos por usuario | ETA × 1,5 con tope de 60 min; 2 reclamos a la vez |
-| P-09 | ¿Los demás usuarios ven los contratos reclamados (sellados) o se ocultan? | Se ven sellados como RECLAMADO, sin el detalle |
-| P-10 | ¿Qué ve un visitante sin suscripción? | Contratos de rango C–D, o todos con demora (*calibrable*) |
-| P-11 | Ranking: ¿qué tabla es la principal y cuál es el mínimo de contratos para entrar? | Recompensa total mensual; mínimo 10 contratos reconciliados |
+| P-03 | ¿Se piensa exponer la app fuera de localhost (LAN o Internet)? | No: uso local (solo loopback). Quien quiera usarla en su LAN puede, con HTTPS y lista blanca (RNF-4.5) |
 | P-04 | ¿Formato numérico por defecto? | Estilo EVE (`1,234,567.89`), con opción en español |
 | P-05 | Reglas vigentes de las órdenes: paso mínimo de precio (tick), costo de modificar una orden (relist) y límite de órdenes por habilidades | Verificar contra el Anexo C y el SDE antes de F9; hasta entonces, sin implementar |
 | P-05 | ¿Nombres de ítems para Multibuy en inglés o según el idioma del cliente del juego? | Inglés por defecto, configurable |
@@ -2190,8 +2147,6 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | Tablón de caza | Presentación del Cazador como un tablón de contratos (RF-6.13). |
 | Contrato | Una oportunidad vista en el tablón: recompensa, rango, peligro, plazo y vigencia. |
 | Rango | Letra S–D que resume el TVS de un contrato. |
-| Reclamo | *(F13)* Reserva temporal de un contrato para un suscriptor, solo dentro de la app (RF-11.3). |
-| Ranking de cazadores | *(F13)* Clasificación de los usuarios por resultados reales verificados (RF-11.6). |
 | Killmail / `zkb` | Registro de una destrucción / metadatos de zKillboard (valor, ubicación, marcas). |
 | Highsec / Lowsec / Nullsec | Bandas de seguridad del espacio (≥ 0,45 · 0–0,45 · ≤ 0). |
 | J-space / Pochven | Espacio de agujeros de gusano / región triglavian sin stargates hacia K-space. |
