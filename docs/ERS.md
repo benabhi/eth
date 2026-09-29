@@ -6,7 +6,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.3 |
+| Versión | 1.5 |
 | Fecha | 2026-09-29 |
 | Estado | Base para desarrollo — decisiones a confirmar en §15.2 |
 | Autor | Hernan Jalabert |
@@ -17,6 +17,8 @@
 | Versión | Fecha | Cambios |
 |---|---|---|
 | 0.1 | 2026-09 | Borrador inicial de ideas. |
+| 1.5 | 2026-09-29 | **Tablón de caza:** la interfaz adopta la metáfora de un tablón de contratos de caza, gamificada y profesional (RF-6.13, §9.9, D-19); la ficha del trade se despliega bajo la fila (RF-6.5); registro del cazador (RF-7.7); Centro de control con pestañas y estética de consola de operaciones (RF-8.10); nuevo módulo M11 (Comunidad: multiusuario, suscripción con ISK, reclamo de contratos y ranking de cazadores) en una fase posterior a v1.0 (F13, D-20). |
+| 1.4 | 2026-09-29 | Combos (RF-4.10) y retorno (RF-4.11) descartados (D-18): F7 pasa a ser "Estructuras" (RF-1.6, RF-9.6 y acceso por personaje); mockups de §9 con un trade individual. |
 | 1.3 | 2026-09-29 | F6 implementada: notas de implementación de RF-2.5, RF-3.1–3.8, RF-8.5 y RF-9.5; killmail.stream diferido (D-15); caminos desde la matriz (D-16); caché de `GameRules` (D-17); tabla `system_activity_samples` y parámetros del radar en B.7. |
 | 1.2 | 2026-09-29 | F5 implementada: notas de implementación de RF-1.9, RF-1.12, RF-4.7, RF-4.8 y RF-6.5; historial sin Oban (D-13); anti-scam y liquidez en tiempo de consulta (D-14); columnas de `market_history_stats` y parámetros de B.7 según el código. |
 | 1.1 | 2026-09-29 | Trading por órdenes: clasificación **directo** frente a **por órdenes** (RF-4.1), station trading en la misma estación (RF-4.16), órdenes propias (RF-4.17), selector de familia en el Cazador (RF-6.12) y alertas de órdenes superadas (RF-10.5). Rediseño visual final con identidad sobria y futurista inspirada en EVE, iconografía, responsividad completa (RNF-5.4, RNF-5.9–5.12, §9.9). Hoja de ruta reordenada: F9 trading por órdenes, F10 rediseño visual, F11 endurecimiento y v1.0, F12 evolución. |
@@ -66,7 +68,9 @@ Este documento especifica **qué** debe hacer EVE Trade Hunter, **bajo qué rest
 
 EVE Trade Hunter es un asistente táctico para comerciantes-transportistas de EVE Online bajo la filosofía **"Cero Fricción" (Zero-Touch)**: el piloto abre la aplicación y, sin configurar nada, ve las oportunidades de arbitraje que **puede ejecutar ahora mismo** con su billetera real, su nave actual, su ubicación física, sus habilidades y sus impuestos exactos (vía EVE SSO).
 
-El sistema escanea de forma autónoma el mercado de todo New Eden, optimiza el espacio de bodega, planifica el retorno, vigila las amenazas de la ruta en tiempo real y bloquea las estafas de manipulación de mercado. Además, acompaña al piloto durante el viaje y, al terminar, mide el beneficio real obtenido.
+El sistema escanea de forma autónoma el mercado de todo New Eden, ajusta cada operación a la bodega y al capital del piloto, vigila las amenazas de la ruta en tiempo real y bloquea las estafas de manipulación de mercado. Además, acompaña al piloto durante el viaje y, al terminar, mide el beneficio real obtenido.
+
+La interfaz se presenta como un **tablón de caza**: cada oportunidad es un *contrato* con su recompensa (beneficio), su rango (TVS), su peligro (riesgo de ruta) y su plazo, que el piloto sale a cazar. La gamificación es de lenguaje y de ritmo, no de adorno: la herramienta sigue siendo profesional, densa y exacta. Más adelante (M11, después de v1.0) la instancia podrá abrirse a otros pilotos que, con una suscripción pagada en ISK dentro del juego, **reclamen** contratos para cazarlos con exclusividad temporal dentro de la aplicación y compitan en un ranking de cazadores.
 
 ### 1.3 Pilares diferenciales
 
@@ -75,22 +79,23 @@ El sistema escanea de forma autónoma el mercado de todo New Eden, optimiza el e
 | 1 | **Omnisciencia** | Cruza todas las regiones (y las estructuras accesibles) simultáneamente y descubre rutas invisibles para las herramientas centradas en hubs. |
 | 2 | **Cero fatiga de clics** | Lee billetera, habilidades, standings, nave y ubicación en vivo: oculta lo impagable y calcula el margen al centavo. |
 | 3 | **Triángulo de ruta** | Mide "piloto → compra → venta" y lo convierte en **ISK/hora**, no solo en margen bruto. |
-| 4 | **Logística autónoma** | Agrupa objetos en un mismo viaje (Tetris) y busca carga de retorno automáticamente. |
+| 4 | **Logística clara** | Cada fila es un trade concreto (un tipo, una compra, una venta) ajustado a la bodega y al capital, también en estructuras Upwell. *(Combos y retorno se descartaron: D-18.)* |
 | 5 | **Inteligencia de amenazas adaptativa** | Ajusta la viabilidad en vivo según las muertes recientes, la nave del piloto y el **valor de la carga**. |
 | 6 | **Inmunidad a estafas** | Cruza anomalías con el historial de precios y bloquea las trampas de *margin trading*. |
 | 7 | **Acompañamiento en ruta** *(nuevo)* | Durante el viaje revalida las órdenes, alerta amenazas en la ruta y sugiere desvíos o mejores destinos. |
 | 8 | **Ciclo cerrado** *(nuevo)* | Compara el beneficio proyectado con el real (transacciones de la billetera) y calibra la Certeza. |
 | 9 | **Explicabilidad** *(nuevo)* | Todo número (margen, TVS, Certeza) tiene un desglose "¿por qué?" a un clic. |
+| 10 | **Tablón de caza** *(nuevo)* | Los trades se leen como contratos con rango, recompensa, peligro y plazo; el piloto sigue su registro de caza. Profesional antes que lúdico (§9.9). |
 
 ### 1.4 Alcance (v1.0)
 
 - Adquisición concurrente y respetuosa de órdenes de mercado de todas las regiones K-space y de estructuras Upwell accesibles (ESI).
 - Datos estáticos (SDE) para mapa, estaciones y objetos; ruteo local con modos de seguridad.
 - Radar de amenazas en vivo (zKillboard R2Z2) con línea base histórica (ESI).
-- Motor de evaluación: arbitraje instantáneo entre ubicaciones con profundidad de libro, impuestos exactos, liquidez, anti-scam, combos, retorno, TVS y Certeza.
+- Motor de evaluación: arbitraje instantáneo entre ubicaciones con profundidad de libro, impuestos exactos, liquidez, anti-scam, TVS y Certeza.
 - Dos familias de trading claramente diferenciadas (RF-4.1): **directo** (comprar a órdenes de venta y vender a órdenes de compra, sin esperas) y **por órdenes** (con órdenes propias: Listado, compra por orden y **station trading** en la misma estación, RF-4.16), con seguimiento de las órdenes propias (RF-4.17).
 - Contexto personal vía EVE SSO (billetera, habilidades, standings, ubicación, nave), con multi-personaje y modo invitado.
-- UI web reactiva (Phoenix LiveView): Cazador, Viaje activo, Centro de control y Ajustes, con una identidad visual final sobria, futurista y responsiva inspirada en EVE Online (§9.9).
+- UI web reactiva (Phoenix LiveView): Tablón de caza (Cazador), Viaje activo, Centro de control y Ajustes, con una identidad visual final sobria, futurista y responsiva inspirada en EVE Online y el lenguaje de un tablón de contratos de caza (§9.9).
 - Infraestructura con Docker Compose (desarrollo en Windows + VS Code) y release de producción.
 
 ### 1.5 Fuera de alcance (no-objetivos de v1.0)
@@ -100,7 +105,7 @@ El sistema escanea de forma autónoma el mercado de todo New Eden, optimiza el e
 - Billeteras y órdenes corporativas.
 - Jump freighters con cynos, puentes Ansiblex, espacio de agujeros de gusano y Thera (futuro: integración con EVE-Scout).
 - Automatizar acciones del cliente del juego más allá de lo que ESI permite (fijar waypoints, abrir la ventana de mercado). Nunca bots.
-- SaaS multiusuario/multi-tenant: la arquitectura no lo impide, pero no se implementa.
+- Instancia pública multiusuario (suscripciones con ISK, reclamo de contratos y ranking de cazadores): planificada **después de v1.0** como módulo M11 (F13, D-20). v1.0 sigue siendo de operador único.
 - PLEX: desde julio de 2025 opera en un mercado global único y no admite arbitraje geográfico.
 
 ### 1.6 Correcciones clave respecto del borrador 0.1
@@ -155,10 +160,11 @@ flowchart LR
 
 | Perfil | Nave típica | Qué necesita del sistema |
 |---|---|---|
-| Transportista de highsec | Iteron Mark V, DST | Rutas seguras, ISK/h, combos que llenen la bodega, alertas de ganking en sistemas conocidos. |
+| Transportista de highsec | Iteron Mark V, DST | Rutas seguras, ISK/h, trades que aprovechen la bodega, alertas de ganking en sistemas conocidos. |
 | Corredor de bloqueo | Blockade Runner | Carga de alto valor y poco volumen por low/null; el radar es crítico, pero su nave tolera más riesgo. |
 | Piloto de freighter | Freighter | Volúmenes grandes entre hubs; muy sensible al **valor de la carga** (atractivo para gankers). |
 | Operador multi-personaje | Varios alts | Ver oportunidades para cada personaje según dónde esté y qué nave tenga. |
+| Suscriptor *(F13)* | Cualquiera | Ver el tablón de la instancia pública, reclamar contratos con exclusividad temporal, seguir su registro de caza y figurar en el ranking. |
 
 ### 2.3 Modelo de operación
 
@@ -166,7 +172,7 @@ flowchart LR
 - **Modo invitado:** sin login, con capital, bodega y habilidades ingresados a mano y sin acciones in-game. Útil para probar la app y durante el desarrollo.
 - **Personaje activo:** su contexto (ubicación, nave, billetera, impuestos) personaliza el Cazador; los demás personajes mantienen la sesión con polling reducido.
 - **Datos universales compartidos:** el escaneo de mercado, el radar y el ruteo son comunes; la personalización se aplica en tiempo de consulta (RF-4.14).
-- **Evolución a multiusuario** (fuera de alcance): requeriría multi-tenant en la DB, HTTPS obligatorio y cuotas; la separación entre datos universales y personales lo facilita.
+- **Evolución a multiusuario** (M11, F13, después de v1.0): cuentas por personaje de EVE, suscripción pagada en ISK, reclamo de contratos y ranking de cazadores; exige HTTPS, separación de datos por usuario y cuotas (RNF-4.12). La separación actual entre datos universales y personales lo facilita.
 
 ### 2.4 Restricciones
 
@@ -314,7 +320,7 @@ lib/
 │   ├── routing/        # Grafo, matrices de distancia, modos de ruta, anclas de waypoints
 │   ├── market/         # Pollers, tablas ETS, estructuras, precios, historial
 │   ├── threat/         # Kill feed, radar, línea base, clasificación
-│   ├── engine/         # Screening, walk-the-book, impuestos, anti-scam, combos, retorno, scoring
+│   ├── engine/         # Screening, walk-the-book, impuestos, anti-scam, riesgo de ruta, scoring
 │   ├── characters/     # Sesiones de personaje, contexto y perfiles de nave
 │   ├── accounts/       # Operador, scope de sesión y ajustes
 │   ├── tracking/       # Viajes activos y P&L
@@ -435,6 +441,14 @@ Los estados *Degradado* y *Viejo* son derivados: dependen de la edad del último
 - Las oportunidades en estructuras muestran una insignia de estructura y el estado de acceso del personaje activo.
 
 **CA:** una estructura con 403 no vuelve a pedirse para ese personaje antes de 24 h; ninguna orden aparece dos veces.
+
+**Implementación v1 (2026-09-29, F7):**
+
+- **Verificado contra ESI real:** hay 50 estructuras públicas con mercado; `/universe/structures/{id}` y `/markets/structures/{id}` responden con el token del personaje; las órdenes de estructura **no traen `system_id`** (se completa con el de la estructura) y no informan rate limit por cabeceras.
+- **Procesos:** `Eth.Market.StructureManager` sincroniza la lista pública cada hora, resuelve nombre y sistema (hasta 60 por ciclo) y mantiene un `Eth.Market.StructurePoller` por estructura seguida; el `Fetcher` es el mismo de las regiones (páginas, ETag y consistencia).
+- **Acceso:** el poller prueba primero a los personajes con acceso comprobado y nunca a uno con un 403 de menos de 24 h; ante un 403 pasa enseguida al siguiente. El acceso se publica en ETS para la Certeza de acceso (AS-8): NPC 1, privada verificada 0,95, pública 0,9, sin verificar o sin acceso 0,5.
+- **Duplicados:** se deduplica por **ubicación** en lugar de por `order_id`: si una estructura se lee directo, sus órdenes se descartan de la fuente regional. Es equivalente, porque el endpoint de la estructura trae su libro completo; un test verifica que ninguna orden cuenta dos veces.
+- **Medido (5 hubs):** 23 de las 50 públicas caen en las regiones habilitadas; todas se descargaron con acceso; 291 de 824 oportunidades usan una estructura en el origen o el destino. La consulta con estructuras mide p95 de 23–44 ms.
 
 #### RF-1.7 · Presupuesto de rate limit y guardas de error — M · F1
 
@@ -667,14 +681,18 @@ Excluir (o marcar, según el filtro) los tipos con pocos días de operaciones en
 #### RF-4.9 · Frescura y ciclo de vida de las oportunidades — M · F3
 
 - Edad de los datos = antigüedad máxima (`Last-Modified`) entre los libros usados. Fresco ≤ 5 min · Degradado ≤ 15 min · Viejo ≤ 30 min · Excluido > 30 min (*calibrable*).
-- ID estable por oportunidad (hash de modo, tipo, ubicación de compra y ubicación de venta; los combos, por par origen-destino) para seguir las filas entre ciclos.
+- ID estable por oportunidad (hash de modo, tipo, ubicación de compra y ubicación de venta) para seguir las filas entre ciclos.
 - Estados: nueva, vigente, mejoró, empeoró y expirada (visible unos 30 s antes de desaparecer).
 
-#### RF-4.10 · Combos (Tetris de arbitraje) — S · F7
+#### RF-4.10 · Combos (Tetris de arbitraje) — ~~S · F7~~ · Descartado (D-18)
+
+*Descartado el 2026-09-29 (D-18): se implementó y se retiró antes de integrarse porque las filas de paquete ensuciaban la tabla y dificultaban elegir un trade. Se conserva el ID; el texto original queda como referencia.*
 
 Para cada par (estación de compra, estación de venta), combinar oportunidades de distintos tipos en un paquete que maximice el beneficio respetando el capital, la bodega, el valor en riesgo y un máximo de líneas (*calibrable*: 25), con la heurística de §8.5. Se muestra como una fila expandible "📦 COMBO · N objetos".
 
-#### RF-4.11 · Retorno (backhaul) — S · F7
+#### RF-4.11 · Retorno (backhaul) — ~~S · F7~~ · Descartado (D-18)
+
+*Descartado el 2026-09-29 (D-18), por el mismo motivo que RF-4.10. Se conserva el ID; el texto original queda como referencia.*
 
 Para las mejores oportunidades A→B, buscar oportunidades B′→A′ con B′ y A′ a ≤ k saltos de B y A (*calibrable*: k = 0, máximo 3). Mostrar "🔄 Retorno: +X" y las métricas del ciclo completo (beneficio total e ISK/h de ida y vuelta).
 
@@ -829,9 +847,11 @@ Selector del personaje activo en la cabecera; los personajes no activos mantiene
 
 #### RF-6.2 · DataGrid táctico — M · F3
 
+*En F10 la grilla adopta el lenguaje del tablón de caza (RF-6.13): misma información y densidad, presentada como contratos.*
+
 - **Columnas:** Objeto y flete · Origen · Destino · Ruta y saltos · Finanzas (beneficio, inversión, ROI, impuestos) · ISK/h · TVS y Certeza · Acciones (§9.3).
 - **Orden** por clic en la cabecera (beneficio, ISK/h, ROI, inversión, saltos, TVS, Certeza, edad), con desempate estable por TVS. Por defecto: TVS descendente.
-- **Filas densas con insignias:** estructura, venta por rango, retorno, datos degradados, amenaza y anti-scam.
+- **Filas densas con insignias:** estructura (con el acceso del piloto), venta por rango, datos degradados, amenaza y anti-scam.
 - **Renderizado** con LiveView streams: hasta 200 filas visibles con "cargar más"; el orden y el filtrado se resuelven en el servidor.
 
 #### RF-6.3 · Actualización en vivo con estabilidad visual — M · F3
@@ -852,21 +872,33 @@ Selector del personaje activo en la cabecera; los personajes no activos mantiene
 - **URL:** el estado de los filtros vive en la URL, así la recarga y los marcadores conservan la vista (nunca incluye datos personales).
 - **Presets** guardados con nombre, opcionalmente con notificación (RF-10.3).
 
-#### RF-6.5 · Panel de detalle y explicabilidad — M · F3 (pestañas completas en F5–F7)
+#### RF-6.5 · Ficha del contrato (detalle y explicabilidad) — M · F3 (ficha expandible en F10)
 
-Fila expandible (*drawer*) con pestañas:
+Al hacer clic en una fila, **la propia fila se despliega** hacia abajo y muestra la ficha del contrato, sin columnas ni paneles laterales: la tabla conserva todo el ancho y el contexto de la fila queda a la vista. Una sola ficha abierta a la vez; se cierra con otro clic, `Esc` o al abrir otra; mientras está abierta, la grilla se congela (RF-6.3). En móvil la ficha ocupa la tarjeta completa. Pestañas de la ficha:
 
 - **Cálculo:** líneas, precios promedio y marginales, impuestos y desglose de TVS y Certeza.
 - **Libro:** profundidad en el origen y el destino, y órdenes consumidas.
 - **Historial:** sparkline de 30 días, mediana, volumen y resultado anti-scam. *(F5: implementado como secciones "Anti-scam" e "Historial" del panel actual, que todavía no usa pestañas; las pestañas llegan con el rediseño de F10.)*
 - **Ruta:** sistemas con su seguridad, kills/h, amenaza y gates acampados.
-- **Combo/Retorno.**
+
+*Implementación actual (F3–F7): panel lateral con secciones. F10 lo reemplaza por la ficha expandible con pestañas; las acciones (Multibuy, Fijar ruta, Abrir mercado, Reportar falso positivo) viven en el pie de la ficha.*
+
+#### RF-6.13 · Lenguaje de tablón de caza — S · F10
+
+La grilla se presenta como un tablón de contratos de caza, con una gamificación **sobria** (§9.9):
+
+- **Contrato:** cada oportunidad es un contrato con **recompensa** (beneficio neto), **rango** según el TVS (S ≥ 90 · A ≥ 75 · B ≥ 50 · C ≥ 25 · D; *calibrable*), **peligro** según el riesgo de ruta (Bajo · Moderado · Alto · Extremo, a partir de `1 − C_ruta`; *calibrable*), **plazo** (ETA) y **vigencia** (edad de los datos y cuánto le queda antes de expirar).
+- **Sellos:** estados de contrato legibles de un vistazo: NUEVO, MEJORÓ, EN RIESGO (alerta en ruta), SCAM · BLOQUEADO, EXPIRADO y, desde F13, RECLAMADO (RF-11.3).
+- **Ritmo:** los contratos nuevos entran con una animación breve y los que expiran se sellan antes de salir (RF-6.3); un contador en la cabecera resume "contratos abiertos · recompensa total disponible".
+- **Sin trampas:** el rango y el peligro son vistas de TVS y Certeza, no métricas nuevas; siempre se puede ver el número exacto y su desglose (explicabilidad).
+
+**CA:** cada rango y cada nivel de peligro se derivan de una regla documentada en el Anexo B.7; los tests de la grilla siguen usando los mismos IDs del DOM.
 
 #### RF-6.6 · Exportación Multibuy — M · F3
 
 - Una línea por objeto, `Nombre<TAB>Cantidad` por defecto (el separador espacio es ambiguo con nombres que terminan en número, como "Navy Cap Booster 400"); el espacio queda como opción.
 - Cantidades sin separadores de miles y nombres en el idioma de cliente elegido (inglés por defecto).
-- Copia al portapapeles con confirmación; en un combo, todas las líneas.
+- Copia al portapapeles con confirmación.
 
 **CA:** pegado verificado a mano en la ventana Multibuy del cliente, con al menos un nombre terminado en número (checklist de §11.4).
 
@@ -906,7 +938,7 @@ Temas de daisyUI, persistidos por navegador y sin parpadeo al cargar.
 
 #### RF-7.1 · Inicio de viaje — S · F8
 
-Desde una oportunidad o un combo, "Iniciar viaje" congela el plan (objetos, cantidades, precios, estaciones, ruta y beneficio proyectado) y ofrece fijar los waypoints. Un viaje activo por personaje.
+Desde una oportunidad, "Iniciar viaje" congela el plan (objetos, cantidades, precios, estaciones, ruta y beneficio proyectado) y ofrece fijar los waypoints. Un viaje activo por personaje.
 
 #### RF-7.2 · Seguimiento de etapas — S · F8
 
@@ -951,6 +983,10 @@ Reconciliar con `/wallet/transactions` (compras en el origen y ventas en el dest
 
 Listado de viajes con el beneficio total, el ISK/h real y el error de predicción. Los resultados alimentan la calibración de la Certeza (τ de vigencia de las órdenes y factores por nave).
 
+#### RF-7.7 · Registro del cazador — S · F10
+
+Perfil de caza del piloto a partir de los viajes cerrados (RF-7.5): contratos completados, recompensa total (P&L real), ISK/h promedio, precisión de las predicciones, mejor contrato y racha de días con contratos cerrados. Es un resumen motivador y honesto: solo muestra datos reales, sin puntos ni recompensas inventadas. Es la base del ranking de cazadores de F13 (RF-11.6).
+
 ### M8 · Centro de control (monitor del sistema)
 
 Rediseño del "monitor de GenServers": en lugar de una tabla, un **tablero operativo** en cinco zonas (wireframe en §9.6): salud global, mapa de regiones en mosaico, pipeline en vivo, radar y personajes, y registro de eventos. Está pensado para ver ~70 regiones de un vistazo y actuar con un clic. Una tabla escala mal a 70 filas y oculta lo importante: el mosaico hace saltar a la vista lo que está en rojo.
@@ -986,6 +1022,23 @@ Panel lateral con:
 #### RF-8.4 · Pipeline en vivo — S · F3
 
 Diagrama ESI → Snapshots ETS → Motor → Oportunidades → Clientes con métricas por etapa (req/s, regiones frescas, ms por ciclo, oportunidades activas, sesiones LiveView) y una animación cuando fluyen datos.
+
+#### RF-8.10 · Pestañas y acabado de consola de operaciones — S · F10
+
+El Centro de control crece con cada fase: se organiza en **pestañas** con URL propia (`/control/<pestaña>`), con la barra de salud global (RF-8.1) siempre visible arriba:
+
+| Pestaña | Contenido |
+|---|---|
+| **Resumen** | KPIs del sistema, pipeline en vivo (RF-8.4) y lo que requiere atención ahora (regiones con error, radar degradado, tokens por vencer). |
+| **Mercado** | Mapa de regiones (RF-8.2) con su detalle (RF-8.3), estructuras seguidas y su acceso, cola de historial. |
+| **Radar** | Estado del feed, sistemas calientes, últimas kills relevantes (RF-8.5) y línea base. |
+| **Personajes** | Sesiones y tokens (RF-8.6). |
+| **Registros** | Eventos del sistema filtrables (RF-8.7). |
+| **ESI** | Presupuestos por grupo, error limit, pausas y controles manuales (RF-8.8). |
+
+**Acabado:** estética de consola de operaciones (§9.9): paneles de instrumentos con indicadores de estado tipo LED, *sparklines* y contadores que se actualizan en vivo, cifras monoespaciadas y una rejilla sutil; el movimiento indica actividad real (datos que fluyen), nunca decoración.
+
+**CA:** cada pestaña se abre por URL; la barra de salud está en todas; ninguna pestaña supera una pantalla de alto en escritorio sin scroll interno.
 
 #### RF-8.5 · Panel del radar — S · F6
 
@@ -1073,6 +1126,45 @@ Envío opcional de alertas a un webhook configurado por el usuario.
 
 Aviso (en la app y, si está activo, del navegador) cuando una orden propia deja de ser la mejor, con el precio sugerido y un acceso a "Abrir mercado". Anti-spam por orden (`notify.cooldown_min`).
 
+### M11 · Comunidad: tablón público, suscripciones, reclamos y ranking *(después de v1.0)*
+
+Objetivo a futuro: publicar la instancia para que otros pilotos usen el tablón con una suscripción pagada en ISK, **reclamen** contratos para cazarlos con exclusividad temporal y compitan en un ranking. Todo el módulo es de prioridad C y fase F13; sus reglas finas dependen de P-07 a P-11.
+
+#### RF-11.1 · Cuentas de usuario — C · F13
+
+Cada usuario entra con EVE SSO; su cuenta es su personaje principal (con alts opcionales). Roles: **operador** (administra la instancia), **suscriptor** (tablón completo y reclamos) y **visitante** (tablón limitado: por ejemplo, contratos de rango C–D o con demora). Los datos personales de cada usuario (tokens, billetera, viajes) son privados y están separados por usuario.
+
+#### RF-11.2 · Suscripción pagada con ISK — C · F13
+
+- El usuario transfiere ISK a un **personaje banco** del operador escribiendo en el motivo un **código de referencia** que la aplicación le muestra.
+- La aplicación lee el diario de la billetera del banco (`/characters/{id}/wallet/journal`, `esi-wallet.read_character_wallet.v1`, respetando su caché): una entrada `ref_type = player_donation` del pagador (`first_party_id`) con el código en `reason` acredita días de suscripción según la tarifa (*calibrable*). Campos verificados contra ESI real el 2026-09-29.
+- Sin pagos con dinero real ni intermediarios: solo ISK dentro del juego (RNF-14.2). Las acreditaciones y su origen quedan registradas y son auditables.
+
+**CA:** una transferencia con el código correcto acredita la suscripción en el ciclo siguiente a que ESI la publique; una sin código, o de otro personaje, no acredita nada y queda para revisión manual.
+
+#### RF-11.3 · Reclamo de contratos — C · F13
+
+- Un suscriptor **reclama** un contrato del tablón: queda reservado a su nombre durante una ventana de exclusividad (*calibrable*, por ejemplo ETA × 1,5 con un tope de 60 min) y los demás usuarios lo ven sellado como RECLAMADO (o no lo ven, según P-09).
+- Límite de reclamos simultáneos por usuario (*calibrable*) y enfriamiento para evitar acaparar.
+- El reclamo termina al vencer la ventana, al cancelarlo, cuando el contrato expira en el mercado o al completarse (detectado con el viaje activo, M7).
+- **Honestidad:** la exclusividad es **dentro de la aplicación**. En el juego las órdenes siguen siendo públicas y cualquiera puede tomarlas; la interfaz lo dice explícitamente al reclamar.
+
+#### RF-11.4 · Tablón compartido — C · F13
+
+El tablón universal es común a todos; la personalización (capital, bodega, impuestos, ruta) sigue siendo por usuario (RF-4.14). Los contratos reclamados muestran el sello y el tiempo restante; el propio usuario ve sus reclamos destacados y un acceso a su viaje.
+
+#### RF-11.5 · Administración — C · F13
+
+El operador ve suscripciones, pagos acreditados y pendientes de revisión, reclamos activos y el uso por usuario, y puede ajustar tarifas, ventanas de exclusividad y límites.
+
+#### RF-11.6 · Ranking de cazadores — C · F13
+
+Clasificación de los mejores cazadores de la instancia a partir de sus registros (RF-7.7), **solo con datos verificados** (viajes cerrados y reconciliados con la billetera, RF-7.5), nunca con lo que el usuario declara.
+
+- **Tablas:** por recompensa total, por ISK/h y por contratos completados, en ventanas semanal, mensual e histórica; con un mínimo de contratos para entrar (*calibrable*) y la precisión de predicción como desempate.
+- **Privacidad:** participar es opcional (*opt-in*); se muestra el nombre del personaje y, si el usuario lo elige, un alias. Nunca se publican la billetera, las rutas ni los contratos concretos.
+- **Integridad:** un contrato cuenta una sola vez aunque lo completen varios usuarios; se excluyen los viajes cerrados a mano sin reconciliación.
+
 ---
 
 ## 5. Requisitos no funcionales
@@ -1124,6 +1216,7 @@ Aviso (en la app y, si está activo, del navegador) cuando una orden propia deja
 - **RNF-4.9** En CI: `mix sobelow`, `mix deps.audit` y `mix hex.audit`.
 - **RNF-4.10** "Olvidar personaje" revoca el token en el SSO y borra los datos personales asociados.
 - **RNF-4.11** Nunca `String.to_atom/1` sobre datos externos.
+- **RNF-4.12** *(F13)* Instancia pública: solo HTTPS, autenticación obligatoria, autorización por rol en cada acción, separación estricta de datos por usuario, límites de uso por usuario y por IP, y revisión de seguridad antes de abrirla (P-03).
 
 ### RNF-5 · Usabilidad, accesibilidad y UX
 
@@ -1205,9 +1298,9 @@ Estrategia detallada en §11. Mínimos: cobertura ≥ 85 % en `Eth.Engine`, `Eth
 ### RNF-14 · Cumplimiento (CCP y terceros)
 
 - **RNF-14.1** Cumplir la licencia para desarrolladores de CCP y mostrar en el pie de página el aviso de propiedad intelectual de CCP que exija (texto exacto según la licencia vigente).
-- **RNF-14.2** Solo endpoints oficiales; ninguna automatización del cliente del juego; ninguna función relacionada con RMT.
+- **RNF-14.2** Solo endpoints oficiales; ninguna automatización del cliente del juego; ninguna función relacionada con RMT. Las suscripciones de M11 se pagan **solo con ISK dentro del juego**, nunca con dinero real, y la aplicación no compra ni vende ISK.
 - **RNF-14.3** Terceros: respetar las reglas de zKillboard (User-Agent, límites) y, si se usan datasets de EVE Ref, su licencia y atribución.
-- **RNF-14.4** Privacidad: los datos de los personajes se guardan solo en la instancia local del operador.
+- **RNF-14.4** Privacidad: los datos de los personajes se guardan solo en la instancia del operador; en la instancia pública (F13), cada usuario ve únicamente los suyos y el ranking solo muestra a quienes lo aceptaron (RF-11.6).
 
 ### RNF-15 · Configurabilidad de las reglas del juego
 
@@ -1301,7 +1394,7 @@ Las URLs se resuelven desde los metadatos al arrancar (con las de la tabla como 
 
 ### 7.1 Memoria
 
-Ver §3.4. Las estructuras de dominio (`%Order{}`, `%Opportunity{}`, `%Combo{}`, `%ThreatState{}`, `%CharacterContext{}`) se definen como structs con `@enforce_keys`; en ETS se guardan como tuplas compactas por eficiencia de memoria.
+Ver §3.4. Las estructuras de dominio (`%Order{}`, `%Opportunity{}`, `%ThreatState{}`, `%CharacterContext{}`) se definen como structs con `@enforce_keys`; en ETS se guardan como tuplas compactas por eficiencia de memoria.
 
 ### 7.2 PostgreSQL
 
@@ -1416,7 +1509,9 @@ El `tick` (paso mínimo de precio), el costo de **modificar** una orden (relist)
 
 Los importes se calculan con float; se redondean a 2 decimales solo para mostrarlos, y nunca se comparan floats por igualdad.
 
-### 8.5 Combos (Tetris de arbitraje)
+### 8.5 Combos (Tetris de arbitraje) — descartado (D-18)
+
+*Algoritmo conservado como referencia: RF-4.10 se descartó.*
 
 Problema: mochila acotada con dos o tres restricciones (capital, m³ y valor en riesgo). Se usa una heurística greedy, suficiente y explicable:
 
@@ -1437,7 +1532,9 @@ para cada par (estación_compra, estación_venta) con ≥ 2 oportunidades:
 
 Dentro de un mismo tipo, los escalones ya están ordenados por margen decreciente, así que ambos criterios respetan el orden del libro.
 
-### 8.6 Retorno (backhaul)
+### 8.6 Retorno (backhaul) — descartado (D-18)
+
+*Algoritmo conservado como referencia: RF-4.11 se descartó.*
 
 ```text
 para cada oportunidad o = (A → B) del top-N por TVS:
@@ -1573,14 +1670,16 @@ Presupuestos por personaje (grupos `char-*`, clave aplicación:personaje): con e
 - **Todo se explica:** cada cifra tiene su "¿por qué?".
 - **Estados con ícono + texto + color**, nunca solo color.
 - **Coherencia con EVE:** colores de seguridad del cliente, formato numérico estilo EVE y nombres del juego.
+- **Tablón de caza:** los trades se presentan como contratos (rango, recompensa, peligro, plazo); la gamificación está en el lenguaje y el ritmo, nunca a costa de la exactitud ni de la densidad.
+- **Detalle en línea:** la ficha de un contrato se despliega bajo su fila; no hay columnas laterales de detalle.
 
 ### 9.2 Navegación
 
 | Ruta | Pantalla |
 |---|---|
-| `/` | Cazador de trades |
+| `/` | Tablón de caza (Cazador de trades) |
 | `/run` | Viaje activo |
-| `/control` | Centro de control |
+| `/control`, `/control/<pestaña>` | Centro de control por pestañas (RF-8.10) |
 | `/settings` | Ajustes (personajes, naves, reglas, motor, regiones, notificaciones) |
 | `/auth/eve`, `/auth/eve/callback` | Login con EVE SSO |
 | `/health`, `/ready` | Healthchecks |
@@ -1598,8 +1697,8 @@ Presupuestos por personaje (grupos `char-*`, clave aplicación:personaje): con e
 │ Presets: (Highsec Iteron) (BR lowsec alto valor) (+ Guardar)        318 oportunidades · datos de hace 42 s · v1842
 ├─ OPORTUNIDADES ───────────────────────────────────── [Congelar (F)]  ● 12 cambios pendientes [Aplicar] ─────────
 │   OBJETO Y FLETE          ORIGEN → DESTINO                RUTA Y SALTOS     BENEFICIO  ISK/H   TVS  CERTEZA
-│ ▾ COMBO · 3 objetos       Jita IV-4 → Amarr VIII          ■■■■■■■■■■■ 0+11   64M       253M    79   92 %
-│   27,040 m³ (70 %)        estás aquí · retorno +22M       ETA 15 min        inv. 1.12B
+│ ▾ Hobgoblin II ×600       Jita IV-4 → Amarr VIII          ■■■■■■■■■■■ 0+11   38M       151M    74   92 %
+│   3,000 m³ (8 %)          estás aquí                      ETA 15 min        inv. 640M
 │   [Copiar Multibuy] [Fijar ruta] [Abrir mercado] [Iniciar viaje] [⋯]
 │ ▸ EANM II ×45             Dodixie IX → Hek VIII           ■■■■■ 12+5        9.8M      29M     12   22 %   ▲ Gatecamp: Colelie
 │ ▸ Nanite Repair ×2,000    Jita IV-4 → venta en el lugar   0 saltos          2.6M      52M     50   98 %   ↔ venta por rango
@@ -1611,25 +1710,25 @@ Diseño lógico de las filas (valores ilustrativos). *Contexto: piloto logueado 
 
 | Objeto y flete | Origen | Destino | Ruta y saltos | Finanzas | ISK/h | TVS y Certeza | Acciones |
 |---|---|---|---|---|---|---|---|
-| 📦 **COMBO · 3 objetos**<br>Nanite Repair Paste ×4,000<br>Hobgoblin II ×600<br>Navy Cap Booster 400 ×2,000<br>*Flete: 27,040 m³ (70 %)* | **Jita IV - Moon 4**<br>📍 *Estás aquí* | **Amarr VIII (Oris)**<br>🔄 *Retorno: +22M* | 🟦🟩🟩🟨🟩🟩🟩🟨🟩🟦🟦<br>*Segura · 0 + 11 saltos*<br>*ETA 15 min* | 💰 **Beneficio: 64M**<br>🏦 Inversión: 1.12B<br>📈 ROI: 5.7 %<br>📉 Impuestos: 41M (3.375 %) | **253M** | 🔥 **79/100**<br>Certeza: 92 %<br>*−8 % por tiempo de viaje* | `[Multibuy]`<br>`[Fijar ruta]`<br>`[Mercado]`<br>`[Viaje]` |
+| 🤖 **Hobgoblin II**<br>Cant.: 600<br>*Flete: 3,000 m³ (8 %)* | **Jita IV - Moon 4**<br>📍 *Estás aquí* | **Amarr VIII (Oris)** | 🟦🟩🟩🟨🟩🟩🟩🟨🟩🟦🟦<br>*Segura · 0 + 11 saltos*<br>*ETA 15 min* | 💰 **Beneficio: 38M**<br>🏦 Inversión: 640M<br>📈 ROI: 5.9 %<br>📉 Impuestos: 24M (3.375 %) | **151M** | 🔥 **74/100**<br>Certeza: 92 %<br>*−8 % por tiempo de viaje* | `[Multibuy]`<br>`[Fijar ruta]`<br>`[Mercado]`<br>`[Viaje]` |
 | 🛡️ **Multispectrum Energized Membrane II**<br>Cant.: 45<br>*Flete: 225 m³* | **Dodixie IX - Moon 20**<br>*a 12 saltos* | **Hek VIII - Moon 12** | 🟩🟨🟧🟨🟩<br>*Rápida · 12 + 5 saltos*<br>*ETA 20 min* | 💰 **Beneficio: 9.8M**<br>🏦 Inversión: 54M<br>📈 ROI: 18 %<br>📉 Impuestos: 2.2M | 29M | 🚨 **12/100**<br>Certeza: 22 %<br>*Gatecamp activo en Colelie · Iteron: vulnerabilidad 0.85* | `[Multibuy]`<br>`[Fijar ruta]`<br>`[Evasiva]` |
 | 🧪 **Nanite Repair Paste**<br>Cant.: 2,000<br>*Flete: 20 m³* | **Jita IV - Moon 4**<br>📍 *Estás aquí* | ↔ **Venta en el lugar**<br>*orden en otra estación de la región · rango: región* | *0 saltos · ETA 3 min* | 💰 **Beneficio: 2.6M**<br>🏦 Inversión: 58M<br>📈 ROI: 4.5 % | 52M | **50/100**<br>Certeza: 98 % | `[Multibuy]`<br>`[Mercado]` |
 | 💎 **Dark Blood Heat Sink**<br>Cant.: 1<br>*Flete: 5 m³* | **Rens VI - Moon 8** | **Oursulaert (NPC)** | 🟦🟩🟩🟩🟩🟩<br>*9 + 6 saltos* | 💰 Beneficio: 450M<br>🏦 Inversión: 50M | — | ☠️ **0/100**<br>Certeza: 0 % **[SCAM ALERT]**<br>*Compra a 11.2× la mediana de 7 días · orden creada hace 38 min* | *(bloqueado)* |
 
 ### 9.4 Detalle de una oportunidad
 
+*Desde F10 este detalle es la ficha que se despliega bajo la fila del contrato (RF-6.5); el contenido es el mismo.*
+
 ```text
-┌─ DETALLE · COMBO 3 objetos · Jita IV - Moon 4 → Amarr VIII (Oris) · v1842 ─────────────────────────────
-│ [Cálculo]   Libro   Historial   Ruta   Retorno
+┌─ DETALLE · Hobgoblin II ×600 · Jita IV - Moon 4 → Amarr VIII (Oris) · v1842 ───────────────────────────
+│ [Cálculo]   Libro   Historial   Ruta
 │
 │ Modo Instantáneo · Accounting V ⇒ sales tax 3.375 % · capital 5.02B · bodega 38,500 m³
 │ OBJETO                   CANT.   COMPRA PROM.   VENTA PROM.   IMPUESTO   BENEFICIO        m³
-│ Nanite Repair Paste      4,000   …              …             …          …                40
-│ Hobgoblin II               600   …              …             …          …             3,000
-│ Navy Cap Booster 400     2,000   …              …             …          …            24,000
-│ TOTAL                    inversión 1.12B · ingreso neto 1.18B · beneficio 64M · 27,040 m³
+│ Hobgoblin II               600   1.07M          1.16M         24M        38M           3,000
+│ TOTAL                    inversión 640M · ingreso neto 678M · beneficio 38M · 3,000 m³
 │
-│ ¿Por qué TVS 79?  utilidad 0.86 × certeza 0.92
+│ ¿Por qué TVS 74?  utilidad 0.80 × certeza 0.92
 │   utilidad = 0.40 · ISK/h 1.00 + 0.25 · beneficio 0.83 + 0.15 · ROI 0.48 + 0.20 · liquidez 0.90
 │   certeza  = órdenes vigentes al llegar 0.92 · datos 1.00 · anti-scam 1.00 · acceso 1.00 · ruta 1.00
 └───────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -1638,17 +1737,19 @@ Diseño lógico de las filas (valores ilustrativos). *Contexto: piloto logueado 
 ### 9.5 Viaje activo
 
 ```text
-┌─ VIAJE ACTIVO · COMBO 3 objetos · Jita IV - Moon 4 → Amarr VIII (Oris) ──────────── iniciado 14:05 ──
+┌─ VIAJE ACTIVO · Hobgoblin II ×600 · Jita IV - Moon 4 → Amarr VIII (Oris) ────────── iniciado 14:05 ──
 │ (1) Hacia el origen ✓ ── (2) Comprado ✓ ── (3) En tránsito ● ── (4) En destino ── (5) Cierre
 │ Ruta  ■■■■■◆■■■■■   ◆ = tu posición · 6 saltos restantes · ETA 8 min
 │ ▲ ALERTA hauler_gank en Uedama (a 2 saltos) · 5 transportes destruidos en 10 min
 │   Ruta evasiva: +3 saltos, riesgo −78 %         [Aplicar ruta evasiva (fija waypoints)]  [Ignorar]
-│ Órdenes en destino: vigentes (revalidado hace 40 s) · beneficio proyectado 63M (−1.6 %)
-│ Carga: 27,040 m³ · valor 1.12B · Certeza actual 58 %
+│ Órdenes en destino: vigentes (revalidado hace 40 s) · beneficio proyectado 37M (−2.6 %)
+│ Carga: 3,000 m³ · valor 640M · Certeza actual 61 %
 └───────────────────────────────────────────────────────────────────────────────────────────────────────
 ```
 
 ### 9.6 Centro de control
+
+*Desde F10 este contenido se reparte en las pestañas de RF-8.10 (Resumen, Mercado, Radar, Personajes, Registros, ESI), con la salud global siempre arriba y el acabado de consola de operaciones de §9.9.*
 
 ```text
 ┌─ SALUD GLOBAL ─────────────────────────────────────────────────────────────────────────────────────────
@@ -1711,12 +1812,14 @@ Estados de los mosaicos de región:
 | Amenaza en ruta | 🚨 / ▲ | `warning` o `error` según el riesgo | Tipo + sistema |
 | SCAM | ☠️ | `error` | "SCAM" + motivo |
 | Sospechosa / sin historial | ⚠️ | `warning` | Motivo |
-| Retorno disponible | 🔄 | `info` | "+X ISK" |
 | Venta por rango | ↔ | `info` | "venta por rango" |
 | Estructura | 🏗️ | `neutral` | Nombre + estado de acceso |
 | Datos degradados | ⏳ | `warning` | "datos de hace N min" |
 | Seguridad del sistema | ■ | Escala del Anexo B.6 | Valor numérico (0.9, 0.4…) |
 | Familia directo / por órdenes | Íconos propios (F9) | `primary` / `secondary` | "DIRECTO" / "ORDEN" |
+| Rango del contrato (F10) | Insignia con letra S–D | escala propia de la paleta | "RANGO A · TVS 79" |
+| Peligro (F10) | Indicador de 4 niveles | `success` → `error` | "Peligro alto · gatecamp en Tama" |
+| Sello de contrato (F10) | Sello rectangular | según el estado | NUEVO · MEJORÓ · EN RIESGO · SCAM · EXPIRADO · RECLAMADO |
 
 Los emojis de esta tabla son marcadores del documento: en el rediseño (F10, §9.9) se reemplazan por íconos SVG del set único (RNF-5.10).
 
@@ -1725,6 +1828,8 @@ Los emojis de esta tabla son marcadores del documento: en el rediseño (F10, §9
 Una vez completas las funciones (F9), se rediseña **toda** la interfaz con una identidad propia, sobria y futurista, inspirada en la interfaz de EVE Online (el "puente de mando" de una nave), profesional e impactante sin perder la densidad de datos.
 
 - **Concepto:** paneles oscuros y translúcidos sobre un fondo casi negro azulado, líneas finas, esquinas con chaflán, cabeceras de panel en versalitas con tracking amplio y una línea de acento; la información manda y la decoración es mínima.
+- **Gamificación sobria (tablón de caza, D-19):** el Cazador se lee como un tablón de contratos: filas de contrato con su rango, recompensa y peligro; sellos de estado; un contador de contratos abiertos y recompensa disponible; el registro del cazador (RF-7.7) como panel de logros basados en datos reales. Referencia de tono: la terminal de contratos de una agencia, no un juego de cartas: sin brillos, confeti ni ilustraciones; tipografía, sellos, rangos y microanimaciones precisas hacen el trabajo.
+- **Consola de operaciones:** el Centro de control usa paneles de instrumentos (LEDs de estado, sparklines, contadores y cifras monoespaciadas, rejilla sutil) para transmitir que el sistema está vigilando en vivo; cada movimiento corresponde a un dato real (RNF-5.11).
 - **Paleta (tokens):** fondo, superficie y borde en azules muy oscuros; acento primario frío (cian/azul) y acento secundario ámbar para acciones y avisos; semánticos (éxito, aviso, error, info) ajustados a contraste AA; la escala de seguridad del Anexo B.6 se mantiene intacta. Tema claro coherente ("modo día") además del oscuro principal (RNF-5.1).
 - **Tipografía:** sans técnica para títulos y etiquetas, sans muy legible para el texto y monoespaciada o tabular para las cifras; candidatas con licencia OFL (por ejemplo Oxanium, Rajdhani o Exo 2 para títulos; Inter para el texto; JetBrains Mono para cifras), a elegir en los mockups.
 - **Iconografía:** set lineal único (RNF-5.10), más íconos propios para conceptos de EVE (nave, estación, estructura, stargate, ISK, amenaza) dibujados con el mismo trazo; retratos, renders e íconos de tipos del servidor oficial con un marco consistente.
@@ -1874,14 +1979,14 @@ Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una
 
 ### 11.1 Pirámide de pruebas
 
-- **Unitarias (≈ 70 %):** funciones puras del dominio: impuestos, walk-the-book, elegibilidad por rango, combos, retorno, anti-scam, radar (Poisson, decaimiento, clasificación), scoring y matrices de distancia.
+- **Unitarias (≈ 70 %):** funciones puras del dominio: impuestos, walk-the-book, elegibilidad por rango, anti-scam, riesgo de ruta, radar (Poisson, decaimiento, clasificación), scoring y matrices de distancia.
 - **Integración (≈ 20 %):** procesos con ETS y `Req.Test` (pollers con ETag/304, páginas inconsistentes, 420/429, downtime, swap con período de gracia, sesión de personaje con refresh token rotado).
 - **LiveView (≈ 10 %):** Cazador (filtros, orden, congelar, Multibuy), Centro de control (acciones y estados), flujo de login con SSO simulado.
 
 ### 11.2 Técnicas
 
 - **Fixtures reales saneadas** en `test/support/fixtures/` (ESI con cabeceras completas, killmails de R2Z2, SDE mínimo con ~50 sistemas).
-- **Tests de propiedades** (StreamData): invariantes de §8.3; factibilidad de combos; distancias simétricas, `Segura ≥ Rápida` y desigualdad triangular; impuestos monótonos por nivel de habilidad.
+- **Tests de propiedades** (StreamData): invariantes de §8.3; distancias simétricas, `Segura ≥ Rápida` y desigualdad triangular; impuestos monótonos por nivel de habilidad.
 - **Tests de contrato ESI** (opt-in: `mix test --only esi_contract`), que validan esquemas y cabeceras contra ESI real con la fecha de compatibilidad configurada. No corren en CI por defecto.
 - **Reloj inyectable** para downtime, decaimiento y vencimientos.
 - **Benchmarks** (Benchee) sobre el dataset de Replay: evaluación completa y consulta personalizada. Una regresión > 20 % se reporta.
@@ -1919,12 +2024,13 @@ Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una
 | **F4** SSO y contexto | **MVP** | RF-5.1–5.10, 6.7; RF-8.6; RF-9.1–9.4 | Login, impuestos reales, capital, bodega, ubicación y waypoints funcionando |
 | **F5** Historial y anti-scam | Seguridad del jugador | RF-1.12, 4.7, 4.8; pestaña Historial de RF-6.5 | Fixtures de scam bloqueados; ≤ 250 req/min de historial |
 | **F6** Radar | Amenazas adaptativas | RF-3.1–3.8, 4.12 completo, modo Evasiva de 2.5; RF-8.5; RF-9.5 | 1 h sin 403/429 en R2Z2; ejemplo de §8.9 reproducido en tests |
-| **F7** Logística | Más ISK por viaje | RF-4.10, 4.11, 1.6; RF-9.6 | Combos y retorno visibles; estructuras con acceso por personaje |
+| **F7** Estructuras | Más mercado por viaje | RF-1.6; RF-9.6; acceso por personaje en la Certeza (AS-8). *(RF-4.10 y 4.11 descartados: D-18)* | Estructuras con acceso por personaje; ninguna orden duplicada |
 | **F8** Viaje activo | Acompañamiento y ciclo cerrado | RF-7.1–7.6; RF-10.2, 10.3 | Viaje real completado con P&L reconciliado |
 | **F9** Trading por órdenes | Más estrategias | RF-4.1 (Listado y compra por orden), 4.16, 4.17; RF-6.12; RF-10.5; scope 13 | Station trading y órdenes propias con datos reales; familias diferenciadas en el Cazador; alertas de órdenes superadas |
-| **F10** Rediseño visual | Interfaz final | RNF-5.4, 5.9–5.12; §9.9 en todas las vistas | Mockups aprobados; todas las vistas migradas; CA de §9.9 |
+| **F10** Rediseño: tablón de caza | Interfaz final | RNF-5.4, 5.9–5.12; §9.9 en todas las vistas; RF-6.13 (tablón), RF-6.5 (ficha expandible), RF-7.7 (registro del cazador), RF-8.10 (Centro de control por pestañas) | Mockups aprobados; todas las vistas migradas; CA de §9.9, RF-6.13 y RF-8.10 |
 | **F11** Endurecimiento | **v1.0** | RNF de rendimiento, seguridad y accesibilidad; RF-6.9, 9.7; release de producción | Checklist §11.4 completo; benchmarks dentro de RNF-1 |
 | **F12** v1.x | Evolución | RF-10.4, vista geográfica de regiones, EVE-Scout/Thera | Según priorización |
+| **F13** Comunidad | Instancia pública con suscripciones | M11 (RF-11.1–11.6), RNF-4.12, RNF-14.2 | P-03 y P-07–P-11 resueltas; revisión de seguridad aprobada; una suscripción con ISK acreditada, un reclamo completo de punta a punta y el ranking con datos reconciliados |
 
 El rediseño visual (F10) va después de completar las funciones y antes del endurecimiento, para que la verificación de accesibilidad y rendimiento de la v1.0 se haga sobre la interfaz definitiva (D-11).
 
@@ -1946,6 +2052,9 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | R-10 | Deriva de la API de ESI | Media | Medio | `X-Compatibility-Date` fija, tests de contrato, alertas por la cabecera `Warning` |
 | R-11 | Station trading con mucha competencia (guerras de 0,01 ISK) o márgenes que se evaporan | Alta | Medio | Métrica de competencia, Certeza baja y explicada, seguimiento de órdenes superadas (RF-4.17) |
 | R-12 | El rediseño visual rompe la usabilidad o se parece demasiado a recursos de CCP | Media | Medio | Mockups aprobados antes de programar, IDs estables, CA de accesibilidad, RNF-5.12 |
+| R-13 | *(F13)* Suscriptores que esperan exclusividad real en el juego | Media | Medio | Aviso explícito al reclamar (RF-11.3): la reserva es solo dentro de la app; ventanas cortas y límites de reclamos |
+| R-14 | *(F13)* Pagos en ISK mal acreditados | Baja | Medio | Código de referencia obligatorio, registro auditable y revisión manual de lo que no coincide (RF-11.2) |
+| R-15 | *(F13)* Ranking manipulado con viajes falsos | Media | Bajo | Solo cuentan viajes reconciliados con la billetera; un contrato cuenta una vez (RF-11.6) |
 
 ---
 
@@ -1960,8 +2069,8 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | RF 2.1 Cruce universal | RF-4.2–4.4 | + rango de órdenes, `min_volume` y profundidad de libro |
 | RF 2.2 Filtro de liquidez | RF-4.7, 1.12 | Historial bajo demanda; índice de liquidez |
 | RF 2.3 Modos de seguridad de ruta | RF-2.4, 2.5 | + modo Evasiva y sistemas a evitar; matrices precomputadas |
-| RF 2.4 Auto-relleno de carga (Tetris) | RF-4.10, §8.5 | + restricción de valor en riesgo y máximo de líneas |
-| RF 2.5 Optimización de retorno | RF-4.11, §8.6 | Tolerancia de k saltos; métricas del ciclo |
+| RF 2.4 Auto-relleno de carga (Tetris) | RF-4.10, §8.5 | Descartado (D-18) |
+| RF 2.5 Optimización de retorno | RF-4.11, §8.6 | Descartado (D-18) |
 | RF 2.6 Escudo anti-scam | RF-4.8, §8.7 | Umbral único de 1000 % → reglas AS-1…AS-8 explicables |
 | RF 2.7 TVS y Certeza adaptativos | RF-4.12, §8.9 | Fórmulas definidas + valor de la carga + ejemplo trabajado |
 | RF 3.1 Perfil de permisos (9 scopes) | RF-5.2 | 12 scopes (+ `read_online`, + `open_window`, + `read_assets`) |
@@ -2009,6 +2118,9 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | D-15 | killmail.stream sin implementar en v1; solo R2Z2 y `off` | El behaviour `KillFeed` permite sumarlo sin tocar el radar; hoy es un servicio de terceros sin documentación verificable, y una caída de R2Z2 ya degrada a la línea base (RF-3.8) | Implementarlo a ciegas |
 | D-16 | Caminos de Rápida y Segura reconstruidos desde la matriz de distancias; Evasiva solo busca si el camino corto cruza una alerta | ≈ 5 µs por camino sin memoria extra: C_ruta se calcula para todo el universo en cada consulta (p95 < 35 ms) | Matriz de siguiente salto (+55 MB) o BFS por oportunidad |
 | D-17 | `Eth.GameRules` lee la configuración una vez y la guarda como mapa en `persistent_term` | `Application.get_env/2` copiaba toda la configuración en cada lectura y la consulta lee reglas miles de veces (p95 de ~100 a ~25 ms). `config/*.exs` solo cambia con un reinicio; los tests que la cambian llaman a `GameRules.reload/0` | Pasar un snapshot de reglas por todas las funciones del motor |
+| D-18 | Sin combos (RF-4.10) ni retorno (RF-4.11): cada fila del Cazador es un trade individual | Se implementaron en F7 y se retiraron antes de integrarse (2026-09-29): las filas de paquete y las insignias de retorno ensuciaban la tabla y hacían más difícil elegir un buen trade | Mostrarlos como filas o insignias en la tabla principal |
+| D-19 | Interfaz como **tablón de caza**, gamificada con sobriedad | Hace más claro y motivador elegir un trade (contratos con rango, recompensa y peligro) sin perder la densidad ni la exactitud de una herramienta profesional | Gamificación con puntos y recompensas ficticias; o una tabla sin lenguaje propio |
+| D-20 | Multiusuario, suscripción con ISK, reclamos y ranking (M11) **después de v1.0**, en F13 | Requiere separar datos por usuario, exponer la app con seguridad y definir reglas de exclusividad; v1.0 sigue siendo de operador único (D-01) | Diseñar el multiusuario ahora, retrasando v1.0 |
 
 ### 15.2 Pendientes de confirmar
 
@@ -2016,7 +2128,12 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 |---|---|---|
 | P-01 | ¿Licencia del repositorio? | MIT (o repo privado sin licencia) |
 | P-02 | ¿Umbrales anti-scam por defecto (sospechoso 1,5× / scam 3× la mediana de 7 días)? | Sí; en F5 se implementaron así. Calibrar con los reportes de falso positivo (`scam_reports`) |
-| P-03 | ¿Se piensa exponer la app fuera de localhost (LAN o Internet)? | No en v1 (solo loopback) |
+| P-03 | ¿Se piensa exponer la app fuera de localhost (LAN o Internet)? | No en v1 (solo loopback); **sí en F13** (M11), con RNF-4.12 |
+| P-07 | Tarifa de suscripción en ISK y duración que acredita | Definir antes de F13 (por ejemplo, un monto por 30 días) |
+| P-08 | Ventana de exclusividad de un reclamo y cuántos reclamos simultáneos por usuario | ETA × 1,5 con tope de 60 min; 2 reclamos a la vez |
+| P-09 | ¿Los demás usuarios ven los contratos reclamados (sellados) o se ocultan? | Se ven sellados como RECLAMADO, sin el detalle |
+| P-10 | ¿Qué ve un visitante sin suscripción? | Contratos de rango C–D, o todos con demora (*calibrable*) |
+| P-11 | Ranking: ¿qué tabla es la principal y cuál es el mínimo de contratos para entrar? | Recompensa total mensual; mínimo 10 contratos reconciliados |
 | P-04 | ¿Formato numérico por defecto? | Estilo EVE (`1,234,567.89`), con opción en español |
 | P-05 | Reglas vigentes de las órdenes: paso mínimo de precio (tick), costo de modificar una orden (relist) y límite de órdenes por habilidades | Verificar contra el Anexo C y el SDE antes de F9; hasta entonces, sin implementar |
 | P-05 | ¿Nombres de ítems para Multibuy en inglés o según el idioma del cliente del juego? | Inglés por defecto, configurable |
@@ -2054,14 +2171,17 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | ACL | Lista de control de acceso de una estructura. |
 | Waypoint | Punto de ruta que se fija en el autopiloto del cliente. |
 | Multibuy | Ventana del juego para comprar muchos ítems pegando una lista. |
-| Combo | Paquete de varias oportunidades que comparten estaciones de compra y de venta. |
-| Backhaul (retorno) | Oportunidad para el viaje de vuelta. |
 | Walk-the-book | Recorrer el libro de órdenes para calcular la cantidad y el beneficio reales. |
 | TVS | *Trade Viability Score*: puntaje global 0–100 = utilidad × Certeza. |
 | Certeza | Probabilidad estimada de ejecutar el trade tal como se calculó. |
 | ETag / `Expires` / `Last-Modified` | Cabeceras HTTP de caché que ESI exige respetar. |
 | Token bucket | Modelo de rate limit de ESI por grupo de rutas. |
 | R2Z2 | API de killmails en vivo de zKillboard (reemplazo de RedisQ). |
+| Tablón de caza | Presentación del Cazador como un tablón de contratos (RF-6.13). |
+| Contrato | Una oportunidad vista en el tablón: recompensa, rango, peligro, plazo y vigencia. |
+| Rango | Letra S–D que resume el TVS de un contrato. |
+| Reclamo | *(F13)* Reserva temporal de un contrato para un suscriptor, solo dentro de la app (RF-11.3). |
+| Ranking de cazadores | *(F13)* Clasificación de los usuarios por resultados reales verificados (RF-11.6). |
 | Killmail / `zkb` | Registro de una destrucción / metadatos de zKillboard (valor, ubicación, marcas). |
 | Highsec / Lowsec / Nullsec | Bandas de seguridad del espacio (≥ 0,45 · 0–0,45 · ≤ 0). |
 | J-space / Pochven | Espacio de agujeros de gusano / región triglavian sin stargates hacia K-space. |
@@ -2194,8 +2314,6 @@ Aproximación de la escala del cliente. En el tema claro se usan como fondo de i
 | `jump_seconds` | Shuttle 15 · BR 25 · DST 40 · Industrial 50 · Freighter 90 · Otras 45 | Tiempo de viaje |
 | `stop_overhead_s` | 180 | Atraque + compra o venta |
 | `capital.max_share` | 100 % | Capital por operación |
-| `combo.max_lines` | 25 | Combos |
-| `backhaul.max_jumps` | 0 (máx. 3) | Retorno |
 | `run.revalidate_drop_pct` / `run.reroute_gain_pct` | 10 / 10 | Viaje activo |
 | `notify.cooldown_min` | 10 | Anti-spam de alertas |
 | `downtime_window_utc` | 10:59–11:15 | Pausa de pollers |

@@ -107,7 +107,9 @@ defmodule Eth.Characters.Pilot do
       capital: pilot.capital,
       cargo_m3: ship && ship.cargo_m3,
       ship_class: ship && ship.evasion_class,
-      base_system_id: pilot.location && pilot.location.system_id
+      base_system_id: pilot.location && pilot.location.system_id,
+      # Acceso a estructuras del personaje (Certeza de acceso, AS-8).
+      character_id: pilot.id
     }
     |> Enum.reject(fn {_key, value} -> is_nil(value) end)
     |> Map.new()

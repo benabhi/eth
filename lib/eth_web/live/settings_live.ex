@@ -8,9 +8,11 @@ defmodule EthWeb.SettingsLive do
   - **Reglas** (RF-9.4): overrides de impuestos y coeficientes del broker, con el valor por
     defecto y su fecha de verificación.
   - **Radar** (RF-9.5): α del modo Evasiva y sistemas a evitar.
+  - **Regiones y estructuras** (RF-9.6): regiones habilitadas y su nivel; estructuras
+    seguidas, acceso por personaje, agregar por ID y broker fee por estructura (RF-9.4).
   - **Primer arranque** (RF-9.1): checklist de puesta en marcha.
 
-  Implementa: RF-9.1, RF-9.2, RF-9.3, RF-9.4, RF-9.5.
+  Implementa: RF-9.1, RF-9.2, RF-9.3, RF-9.4, RF-9.5, RF-9.6.
   """
   use EthWeb, :live_view
 
@@ -23,6 +25,7 @@ defmodule EthWeb.SettingsLive do
     ships: {"Naves", "/settings/ships"},
     rules: {"Reglas", "/settings/rules"},
     radar: {"Radar", "/settings/radar"},
+    markets: {"Regiones y estructuras", "/settings/markets"},
     setup: {"Primer arranque", "/settings/setup"}
   ]
 
@@ -75,6 +78,14 @@ defmodule EthWeb.SettingsLive do
     |> assign(:rules, rules)
     |> assign(:rules_form, form)
     |> assign(:verified_on, GameRules.get(:rules_verified_on, nil))
+  end
+
+  defp load(socket, :markets) do
+    socket
+    |> assign(:regions, Enum.sort_by(Market.region_statuses(), &{tier_order(&1.tier), &1.name}))
+    |> assign(:structures, Market.structures())
+    |> assign(:character_names, Map.new(socket.assigns.characters, &{&1.id, &1.name}))
+    |> assign(:add_form, to_form(%{"id" => ""}, as: :structure))
   end
 
   defp load(socket, :radar) do
@@ -216,6 +227,49 @@ defmodule EthWeb.SettingsLive do
     end
   end
 
+  ## Regiones y estructuras (RF-9.6)
+
+  def handle_event("add_structure", %{"structure" => %{"id" => text}}, socket) do
+    case Integer.parse(String.trim(text)) do
+      {id, ""} when id > 0 ->
+        :ok = Market.follow_structure(id)
+
+        {:noreply,
+         socket
+         |> put_flash(:info, gettext("Estructura agregada: se resuelve con el próximo ciclo"))
+         |> load(:markets)}
+
+      _ ->
+        {:noreply,
+         put_flash(socket, :error, gettext("El ID de estructura tiene que ser un número"))}
+    end
+  end
+
+  def handle_event("toggle_follow", %{"id" => id}, socket) do
+    id = String.to_integer(id)
+    row = Enum.find(socket.assigns.structures, &(&1.structure.id == id))
+    if row, do: Market.update_structure(id, %{followed: not row.structure.followed})
+    {:noreply, load(socket, :markets)}
+  end
+
+  def handle_event("save_broker_fee", %{"structure_id" => id, "fee" => text}, socket) do
+    fee =
+      case parse_percent(text) do
+        :blank -> {:ok, nil}
+        {:ok, value} -> {:ok, value}
+        :error -> :error
+      end
+
+    case fee do
+      {:ok, value} ->
+        :ok = Market.update_structure(String.to_integer(id), %{broker_fee_override: value})
+        {:noreply, socket |> put_flash(:info, gettext("Broker fee guardado")) |> load(:markets)}
+
+      :error ->
+        {:noreply, put_flash(socket, :error, gettext("Usá un porcentaje entre 0 y 100"))}
+    end
+  end
+
   ## Radar (RF-9.5)
 
   def handle_event("save_radar", %{"radar" => params}, socket) do
@@ -259,6 +313,18 @@ defmodule EthWeb.SettingsLive do
         end
     end
   end
+
+  defp tier_label(:hub), do: gettext("N1 · hub")
+  defp tier_label(:active), do: gettext("N2 · activa")
+  defp tier_label(_rest), do: gettext("N3 · resto")
+
+  defp access_label("ok"), do: gettext("con acceso")
+  defp access_label("forbidden"), do: gettext("sin acceso (403)")
+  defp access_label(_unknown), do: gettext("sin probar")
+
+  defp tier_order(:hub), do: 0
+  defp tier_order(:active), do: 1
+  defp tier_order(_rest), do: 2
 
   defp parse_alpha(text) do
     case Float.parse(String.replace(String.trim(text || ""), ",", ".")) do

@@ -33,7 +33,8 @@ defmodule Eth.Characters.PilotTest do
 
     assert pilot.status == :starting
     assert pilot.portrait_url =~ "/characters/2112345678/portrait"
-    assert Pilot.query_overrides(pilot) == %{}
+    # Sin contexto no cambia los defaults del motor; solo identifica al personaje (AS-8).
+    assert Pilot.query_overrides(pilot) == %{character_id: pilot.id}
     assert Pilot.build(nil, %{@character | token_status: "relogin"}).status == :relogin
   end
 
@@ -64,7 +65,8 @@ defmodule Eth.Characters.PilotTest do
              capital: 1.25e9,
              cargo_m3: 5_800.0,
              ship_class: :industrial,
-             base_system_id: F.jita()
+             base_system_id: F.jita(),
+             character_id: pilot.id
            }
 
     # Con perfil guardado manda el perfil.

@@ -5,7 +5,7 @@ defmodule Eth.Engine.EvaluationTest do
   alias Eth.Engine
   alias Eth.Engine.{Coordinator, Evaluator, Fees, Query, Summary}
   alias Eth.EngineFixture, as: F
-  alias Eth.Market.{History, HistoryStats, TableOwner}
+  alias Eth.Market.{History, HistoryStats, Order, TableOwner}
 
   @moduletag :tmp_dir
   @moduletag :capture_log
@@ -79,6 +79,54 @@ defmodule Eth.Engine.EvaluationTest do
                {:sell, @tritanium, 4.9, 100_000, F.jita_44(), F.jita(), []},
                {:buy, @tritanium, 5.0, 100_000, F.perimeter_station(), F.perimeter(), []}
              ]) == []
+    end
+  end
+
+  describe "estructuras (RF-1.6)" do
+    test "CA: una orden de estructura que también trae la región no se cuenta dos veces" do
+      if :ets.whereis(:eth_engine_summaries) == :undefined, do: Summary.create_table()
+      structure = F.perimeter_station()
+
+      # La región trae la venta de Jita y, además, la compra de la estructura.
+      F.publish_orders([
+        {:sell, @tritanium, 4.0, 100_000, F.jita_44(), F.jita(), []},
+        {:buy, @tritanium, 5.0, 50_000, structure, F.perimeter(), []}
+      ])
+
+      # La estructura, leída directo, trae la misma orden de compra.
+      tid = :ets.new(:eth_orders, [:ordered_set, :public])
+
+      :ets.insert(
+        tid,
+        Order.to_row(
+          %{
+            "order_id" => 2,
+            "type_id" => @tritanium,
+            "is_buy_order" => true,
+            "price" => 5.0,
+            "location_id" => structure,
+            "system_id" => F.perimeter(),
+            "volume_remain" => 50_000,
+            "min_volume" => 1,
+            "range" => "station",
+            "issued" => "2026-09-28T12:00:00Z"
+          },
+          1
+        )
+      )
+
+      now = DateTime.utc_now()
+      meta = %{last_modified: now, expires: now, region_id: 10_000_002, system_id: F.perimeter()}
+      {:ok, _} = TableOwner.publish(tid, {:structure, structure}, meta)
+
+      sources =
+        for {source, entry} <- TableOwner.all() do
+          Summary.replace(source, entry.tid)
+          %{source: source, tid: entry.tid, region_id: 10_000_002, last_modified: now}
+        end
+
+      [opp] = Evaluator.run(sources, [@tritanium], tax: Fees.sales_tax(4), min_profit: 1_000)
+      assert opp.quantity == 50_000
     end
   end
 
@@ -164,6 +212,29 @@ defmodule Eth.Engine.EvaluationTest do
       # Perimeter sigue permitido.
       {[row], 1} = Query.run(opps, Map.put(params, :avoid, MapSet.new([F.perimeter()])), now)
       assert row.opportunity.destination.system_id == F.perimeter()
+    end
+
+    test "Certeza de acceso según el personaje activo (AS-8)", %{opps: opps} do
+      :ets.new(:eth_structure_access, [:named_table, :public])
+      now = DateTime.utc_now()
+      params = %{route_mode: :secure, cargo_m3: nil, min_profit: 1_000, search: "perimeter"}
+      station = F.perimeter_station()
+
+      put = fn access -> :ets.insert(:eth_structure_access, {station, access}) end
+
+      put.(%{public: false, access: %{7 => "ok"}})
+      {[row], 1} = Query.run(opps, Map.put(params, :character_id, 7), now)
+      assert row.breakdown.access_certainty == 0.95
+      assert row.access.destination == :private_ok
+
+      # Otro personaje (o el invitado) sin acceso verificado a la privada.
+      {[row], 1} = Query.run(opps, params, now)
+      assert row.breakdown.access_certainty == 0.5
+
+      put.(%{public: true, access: %{7 => "forbidden"}})
+      {[row], 1} = Query.run(opps, Map.put(params, :character_id, 7), now)
+      assert row.access.destination == :forbidden
+      assert row.breakdown.access_certainty == 0.5
     end
 
     test "una alerta en el camino baja la Certeza y se informa; Evasiva la considera", %{

@@ -25,7 +25,14 @@ defmodule Eth.Market.Supervisor do
         else: children
 
     # Al final: con rest_for_one, una caída de precios o historial no reinicia a los pollers.
-    Supervisor.init(children ++ [Eth.Market.Prices, Eth.Market.History],
+    Supervisor.init(
+      children ++
+        [
+          Eth.Market.Prices,
+          Eth.Market.History,
+          {DynamicSupervisor, name: Eth.Market.StructureSupervisor, strategy: :one_for_one},
+          Eth.Market.StructureManager
+        ],
       strategy: :rest_for_one
     )
   end

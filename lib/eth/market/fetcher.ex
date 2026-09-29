@@ -1,6 +1,7 @@
 defmodule Eth.Market.Fetcher do
   @moduledoc """
-  Descarga un snapshot completo de órdenes de una región y lo publica (RF-1.4, RF-1.5).
+  Descarga un snapshot completo de órdenes de una región o de una estructura y lo publica
+  (RF-1.4, RF-1.5, RF-1.6).
 
   1. Pide la página 1 y lee `X-Pages`; luego el resto con concurrencia acotada.
   2. Cada página se envía con el `ETag` de la generación vigente: un `304` se resuelve
@@ -13,7 +14,7 @@ defmodule Eth.Market.Fetcher do
   Se ejecuta dentro de una tarea supervisada: si falla, la tabla a medio construir
   muere con la tarea.
 
-  Implementa: RF-1.4, RF-1.5, RNF-3.3.
+  Implementa: RF-1.4, RF-1.5, RF-1.6, RNF-3.3.
   """
 
   alias Eth.Esi
@@ -48,31 +49,62 @@ defmodule Eth.Market.Fetcher do
   """
   @spec fetch(pos_integer(), pid() | nil) :: {:ok, meta()} | {:error, error()}
   def fetch(region_id, notify \\ nil) do
+    fetch_source(
+      %{
+        source: {:region, region_id},
+        id: region_id,
+        request: &Esi.market_orders(region_id, &1, &2),
+        prepare: & &1
+      },
+      notify
+    )
+  end
+
+  @doc """
+  Descarga y publica el mercado de una estructura (RF-1.6) con el token de un personaje
+  con acceso. Sus órdenes no traen `system_id`: se completa con el de la estructura.
+  """
+  @spec fetch_structure(pos_integer(), pos_integer(), pos_integer(), String.t()) ::
+          {:ok, meta()} | {:error, error()}
+  def fetch_structure(structure_id, system_id, character_id, token) do
+    fetch_source(
+      %{
+        source: {:structure, structure_id},
+        id: structure_id,
+        request: &Esi.structure_orders(structure_id, &1, &2, character_id, token),
+        prepare: &Map.put(&1, "system_id", system_id),
+        meta: %{system_id: system_id, region_id: (Eth.Sde.system(system_id) || %{})[:region_id]}
+      },
+      nil
+    )
+  end
+
+  defp fetch_source(ctx, notify) do
     started = System.monotonic_time(:millisecond)
-    source = {:region, region_id}
+    source = ctx.source
     previous = TableOwner.current(source)
     etags = (previous && previous.meta.page_etags) || %{}
     table = :ets.new(:eth_orders, [:ordered_set, :public, read_concurrency: true])
 
-    with {:ok, first} <- fetch_page(region_id, 1, etags, table),
+    with {:ok, first} <- fetch_page(ctx, 1, etags, table),
          total = first.pages,
-         {:ok, rest} <- fetch_pages(region_id, 2..total//1, etags, table, notify),
-         {:ok, pages} <- ensure_consistent(region_id, [first | rest], etags, table, 0) do
+         {:ok, rest} <- fetch_pages(ctx, 2..total//1, etags, table, notify),
+         {:ok, pages} <- ensure_consistent(ctx, [first | rest], etags, table, 0) do
       copy_not_modified(pages, previous, table)
-      meta = build_meta(pages, table, started)
+      meta = pages |> build_meta(table, started) |> Map.merge(Map.get(ctx, :meta, %{}))
       {:ok, generation} = TableOwner.publish(table, source, meta)
       {:ok, Map.put(meta, :generation, generation)}
     end
   end
 
   # Resultado por página: status, Last-Modified, Expires, total de páginas y ETag.
-  defp fetch_page(region_id, page, etags, table) do
-    case Esi.market_orders(region_id, page, Map.get(etags, page)) do
+  defp fetch_page(ctx, page, etags, table) do
+    case ctx.request.(page, Map.get(etags, page)) do
       {:ok, %Response{status: 304} = resp} ->
         {:ok, page_result(page, resp)}
 
       {:ok, %Response{} = resp} ->
-        rows = Enum.map(resp.body, &Order.to_row(&1, page))
+        rows = Enum.map(resp.body, &Order.to_row(ctx.prepare.(&1), page))
         :ets.insert(table, rows)
         {:ok, page_result(page, resp)}
 
@@ -98,18 +130,18 @@ defmodule Eth.Market.Fetcher do
     }
   end
 
-  defp fetch_pages(region_id, pages, etags, table, notify) do
+  defp fetch_pages(ctx, pages, etags, table, notify) do
     total = Enum.count(pages) + 1
 
     pages
-    |> Task.async_stream(&fetch_page(region_id, &1, etags, table),
+    |> Task.async_stream(&fetch_page(ctx, &1, etags, table),
       max_concurrency: GameRules.get(:pages_concurrency),
       timeout: :infinity,
       ordered: false
     )
     |> Enum.reduce_while({:ok, [], 1}, fn
       {:ok, {:ok, result}}, {:ok, acc, done} ->
-        notify_progress(notify, region_id, done + 1, total)
+        notify_progress(notify, ctx.id, done + 1, total)
         {:cont, {:ok, [result | acc], done + 1}}
 
       {:ok, {:error, reason}}, _acc ->
@@ -133,7 +165,7 @@ defmodule Eth.Market.Fetcher do
 
   # Todas las páginas deben venir del mismo snapshot de ESI: se toma el Last-Modified más
   # nuevo como referencia y se vuelven a pedir las que quedaron atrás.
-  defp ensure_consistent(region_id, pages, etags, table, attempt) do
+  defp ensure_consistent(ctx, pages, etags, table, attempt) do
     target = pages |> Enum.map(& &1.last_modified) |> Enum.max(DateTime)
     total = hd(pages).pages
 
@@ -150,21 +182,21 @@ defmodule Eth.Market.Fetcher do
         {:error, :inconsistent}
 
       true ->
-        refetch(region_id, stale, fresh, etags, table, attempt)
+        refetch(ctx, stale, fresh, etags, table, attempt)
     end
   end
 
-  defp refetch(region_id, stale, fresh, etags, table, attempt) do
+  defp refetch(ctx, stale, fresh, etags, table, attempt) do
     Enum.reduce_while(stale, {:ok, fresh}, fn %{page: page}, {:ok, acc} ->
       delete_page(table, page)
 
-      case fetch_page(region_id, page, etags, table) do
+      case fetch_page(ctx, page, etags, table) do
         {:ok, result} -> {:cont, {:ok, [result | acc]}}
         error -> {:halt, error}
       end
     end)
     |> case do
-      {:ok, pages} -> ensure_consistent(region_id, pages, etags, table, attempt + 1)
+      {:ok, pages} -> ensure_consistent(ctx, pages, etags, table, attempt + 1)
       error -> error
     end
   end

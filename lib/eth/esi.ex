@@ -131,6 +131,48 @@ defmodule Eth.Esi do
     )
   end
 
+  @doc "IDs de las estructuras con mercado público (`/universe/structures?filter=market`)."
+  @spec public_market_structures(String.t() | nil) ::
+          {:ok, Response.t()} | {:error, Client.error()}
+  def public_market_structures(etag \\ nil),
+    do: Client.get("/universe/structures", params: [filter: "market"], etag: etag)
+
+  @doc """
+  Datos de una estructura (`esi-universe.read_structures.v1`): `name`, `owner_id`,
+  `solar_system_id` y `type_id`. Un 403 indica que el personaje no tiene acceso.
+  """
+  @spec structure(pos_integer(), pos_integer(), String.t()) ::
+          {:ok, Response.t()} | {:error, Client.error()}
+  def structure(structure_id, character_id, token) do
+    Client.get("/universe/structures/#{structure_id}",
+      token: token,
+      character_id: character_id,
+      group: "structure"
+    )
+  end
+
+  @doc """
+  Una página de órdenes de una estructura (`esi-markets.structure_markets.v1`,
+  `/markets/structures/{id}`). Las órdenes no traen `system_id`: es el de la estructura.
+  """
+  @spec structure_orders(
+          pos_integer(),
+          pos_integer(),
+          String.t() | nil,
+          pos_integer(),
+          String.t()
+        ) ::
+          {:ok, Response.t()} | {:error, Client.error()}
+  def structure_orders(structure_id, page, etag, character_id, token) do
+    Client.get("/markets/structures/#{structure_id}",
+      params: [page: page],
+      etag: etag,
+      token: token,
+      character_id: character_id,
+      group: "structure-market"
+    )
+  end
+
   @doc """
   Kills de la última hora por sistema (`/universe/system_kills`): `ship_kills`,
   `pod_kills` y `npc_kills`; solo lista los sistemas con actividad (caché de 1 h).

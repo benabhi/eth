@@ -16,7 +16,7 @@ defmodule Eth.Market.TableOwner do
 
   @catalog :eth_market_catalog
 
-  @type source :: {:region, pos_integer()}
+  @type source :: {:region, pos_integer()} | {:structure, pos_integer()}
   @type entry :: %{tid: :ets.tid(), generation: pos_integer(), meta: map()}
 
   @spec start_link(keyword()) :: GenServer.on_start()
@@ -83,7 +83,8 @@ defmodule Eth.Market.TableOwner do
     {:noreply, state}
   end
 
-  @doc "Tópico PubSub de una fuente (`market:region:<id>`)."
+  @doc "Tópico PubSub de una fuente (`market:region:<id>` o `market:structure:<id>`)."
   @spec topic(source()) :: String.t()
   def topic({:region, id}), do: "market:region:#{id}"
+  def topic({:structure, id}), do: "market:structure:#{id}"
 end

@@ -5,6 +5,7 @@ defmodule EthWeb.SettingsLiveTest do
 
   alias Eth.{Characters, GameRules}
   alias Eth.GameRules.Overrides
+  alias Eth.Market.Structures
   alias Eth.Sso.Jwt
   alias Eth.SsoFixture, as: F
 
@@ -139,6 +140,33 @@ defmodule EthWeb.SettingsLiveTest do
       view |> form("#radar-form", radar: %{evasive_alpha: "500", avoid: ""}) |> render_submit()
       assert render(view) =~ "α tiene que ser un número entre 0 y 100"
       assert GameRules.get(:avoid_system_ids) == []
+    end
+  end
+
+  describe "regiones y estructuras (RF-9.6)" do
+    test "lista las estructuras, agrega por ID y guarda seguir y broker fee", %{conn: conn} do
+      {:ok, _} = Structures.follow(1_035_466_617_946)
+      {:ok, view, _html} = live(conn, ~p"/settings/markets")
+      assert has_element?(view, "#structure-1035466617946", "Sin resolver")
+
+      view |> form("#structure-add", structure: %{id: "1022167642188"}) |> render_submit()
+      assert has_element?(view, "#structure-1022167642188")
+      assert Structures.get(1_022_167_642_188).followed
+
+      view
+      |> element("#structure-1022167642188 input[type=checkbox]")
+      |> render_click()
+
+      refute Structures.get(1_022_167_642_188).followed
+
+      view
+      |> element("#structure-1035466617946 form")
+      |> render_submit(%{"structure_id" => "1035466617946", "fee" => "1.5"})
+
+      assert Structures.get(1_035_466_617_946).broker_fee_override == 0.015
+
+      view |> form("#structure-add", structure: %{id: "abc"}) |> render_submit()
+      assert render(view) =~ "tiene que ser un número"
     end
   end
 end

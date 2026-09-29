@@ -223,7 +223,7 @@ defmodule EthWeb.HunterLive do
     query =
       form
       |> HunterParams.to_query()
-      |> Map.merge(Map.take(overrides, [:base_system_id, :ship_class]))
+      |> Map.merge(Map.take(overrides, [:base_system_id, :ship_class, :character_id]))
 
     socket
     |> assign(:form_defaults, defaults)
@@ -311,6 +311,39 @@ defmodule EthWeb.HunterLive do
   ## Anti-scam e historial (RF-4.7, RF-4.8, RF-6.5)
 
   defp scam?(row), do: row.shield.status == :scam
+
+  ## Acceso a estructuras (RF-1.6, AS-8)
+
+  @access_order [:forbidden, :private_unverified, :public, :private_ok, :npc]
+
+  defp worst_access(access) do
+    Enum.min_by(
+      [access.origin, access.destination],
+      &Enum.find_index(@access_order, fn a -> a == &1 end)
+    )
+  end
+
+  defp access_label(:forbidden), do: gettext("estructura · sin acceso")
+  defp access_label(:private_unverified), do: gettext("estructura · sin verificar")
+  defp access_label(:private_ok), do: gettext("estructura privada ✓")
+  defp access_label(_public), do: gettext("estructura")
+
+  defp access_class(:forbidden), do: "badge-error"
+  defp access_class(:private_unverified), do: "badge-warning"
+  defp access_class(_ok), do: "badge-neutral"
+
+  defp access_title(access) do
+    gettext("Origen: %{origin} · destino: %{destination}",
+      origin: access_name(access.origin),
+      destination: access_name(access.destination)
+    )
+  end
+
+  defp access_name(:npc), do: gettext("estación NPC")
+  defp access_name(:public), do: gettext("estructura pública")
+  defp access_name(:private_ok), do: gettext("privada con acceso verificado")
+  defp access_name(:private_unverified), do: gettext("privada sin acceso verificado")
+  defp access_name(:forbidden), do: gettext("sin acceso para este personaje (403)")
 
   defp threat_label(:gate_camp), do: gettext("Gatecamp")
   defp threat_label(:bubble_camp), do: gettext("Bubble camp")

@@ -3,10 +3,10 @@ defmodule Eth.Market do
   API pública del módulo de mercado para la capa web y otros contextos (RNF-7.3).
   La web nunca habla directamente con pollers ni tablas ETS.
 
-  Implementa: RF-8.2, RF-8.3, RF-8.8.
+  Implementa: RF-1.6, RF-8.2, RF-8.3, RF-8.8, RF-9.6.
   """
 
-  alias Eth.Market.{History, RegionManager, RegionPoller}
+  alias Eth.Market.{History, RegionManager, RegionPoller, Structure, StructureManager, Structures}
 
   # Margen tras Expires para que la descarga del ciclo siguiente termine (The Forge ≈ 25 s).
   @refresh_margin_s 120
@@ -74,6 +74,43 @@ defmodule Eth.Market do
 
       true ->
         :excluded
+    end
+  end
+
+  ## Estructuras (RF-1.6, RF-9.6)
+
+  @doc """
+  Estructuras registradas con su estado: `%{structure, selected, access}` donde `access`
+  es `%{character_id => "ok" | "forbidden" | "unknown"}`.
+  """
+  @spec structures() :: [map()]
+  def structures do
+    selected = MapSet.new(Structures.selection(), & &1.id)
+    access = Structures.access_map()
+
+    for s <- Structures.list() do
+      %{
+        structure: s,
+        selected: MapSet.member?(selected, s.id),
+        access: for({{sid, cid}, a} <- access, sid == s.id, into: %{}, do: {cid, a.status})
+      }
+    end
+  end
+
+  @doc "Sigue una estructura por ID (privada o pública) y pide un ciclo."
+  @spec follow_structure(pos_integer()) :: :ok
+  def follow_structure(id) do
+    {:ok, _} = Structures.follow(id)
+    Eth.Events.emit(:action, "Usuario", "Estructura #{id} agregada a las seguidas")
+    StructureManager.refresh()
+  end
+
+  @doc "Cambia si se sigue una estructura y su override de broker fee (proporción)."
+  @spec update_structure(pos_integer(), map()) :: :ok | {:error, term()}
+  def update_structure(id, attrs) do
+    with %Structure{} = s <- Structures.get(id) || {:error, :not_found},
+         {:ok, _} <- Structures.update_settings(s, attrs) do
+      StructureManager.refresh()
     end
   end
 
