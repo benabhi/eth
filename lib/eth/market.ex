@@ -6,7 +6,7 @@ defmodule Eth.Market do
   Implementa: RF-8.2, RF-8.3, RF-8.8.
   """
 
-  alias Eth.Market.{RegionManager, RegionPoller}
+  alias Eth.Market.{History, RegionManager, RegionPoller}
 
   # Margen tras Expires para que la descarga del ciclo siguiente termine (The Forge ≈ 25 s).
   @refresh_margin_s 120
@@ -18,6 +18,18 @@ defmodule Eth.Market do
   @doc "Tópico con los cambios de estado de los pollers."
   @spec status_topic() :: String.t()
   defdelegate status_topic, to: RegionPoller, as: :topic
+
+  @doc "Tópico con los anuncios de estadísticas de historial nuevas (RF-1.12)."
+  @spec history_topic() :: String.t()
+  defdelegate history_topic, to: History, as: :topic
+
+  @doc "Estado de la cola de historial (vacío si el proceso no corre)."
+  @spec history_status() :: map() | nil
+  def history_status do
+    if Process.whereis(History), do: History.status()
+  catch
+    :exit, _ -> nil
+  end
 
   @doc "Estado de todos los pollers regionales (vacío si el mercado no está corriendo)."
   @spec region_statuses() :: [map()]

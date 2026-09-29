@@ -95,6 +95,19 @@
           ]}
         />
       </div>
+      <div class="w-56">
+        <.input
+          field={@form[:shield]}
+          type="select"
+          label={gettext("Anti-scam")}
+          options={[
+            {gettext("Ocultar SCAM"), "hide_scam"},
+            {gettext("Ocultar SCAM y sospechosas"), "safe"},
+            {gettext("Mostrar todo"), "all"}
+          ]}
+        />
+      </div>
+      <.input field={@form[:liquid_only]} type="checkbox" label={gettext("Solo líquidos")} />
       <button type="button" phx-click="reset_filters" class="btn btn-ghost btn-sm">
         {gettext("Restablecer")}
       </button>
@@ -198,7 +211,25 @@
                   </span>
                   {row.opportunity.destination.name}
                 </div>
-                <div class="flex gap-1">
+                <div class="flex flex-wrap gap-1">
+                  <span
+                    :if={row.shield.status != :ok}
+                    class={["badge badge-xs", shield_class(row.shield.status)]}
+                    title={Enum.join(row.shield.reasons, " · ")}
+                  >
+                    {shield_label(row.shield.status)}
+                  </span>
+                  <span
+                    :if={row.illiquid}
+                    class="badge badge-warning badge-outline badge-xs"
+                    title={
+                      gettext("%{days} días con operaciones en 30",
+                        days: row.history.destination.days_traded_30d
+                      )
+                    }
+                  >
+                    {gettext("ilíquido")}
+                  </span>
                   <span :if={row.opportunity.remote_sale} class="badge badge-info badge-xs">
                     ↔ {gettext("venta por rango")}
                   </span>
@@ -230,7 +261,9 @@
                 <div class="text-xs text-base-content/60 tabular-nums">{pct(row.certainty)}</div>
               </td>
               <td>
+                <span :if={scam?(row)} class="text-xs text-error">{gettext("bloqueada")}</span>
                 <button
+                  :if={not scam?(row)}
                   id={"copy-#{row.id}"}
                   type="button"
                   phx-hook=".Clipboard"
@@ -264,6 +297,36 @@
             "al destino"
           )} · ETA {Format.travel(r.seconds)}
         </p>
+
+        <div
+          :if={r.shield.status != :ok}
+          id="shield-alert"
+          role={if scam?(r), do: "alert", else: "status"}
+          class={[
+            "alert mt-3 flex-col items-start gap-1 py-2 text-sm",
+            if(scam?(r), do: "alert-error", else: "alert-warning")
+          ]}
+        >
+          <div class="font-semibold">
+            <%= if scam?(r) do %>
+              ☠ {gettext("SCAM ALERT · acciones bloqueadas")}
+            <% else %>
+              {shield_label(r.shield.status)}
+            <% end %>
+          </div>
+          <ul class="text-xs">
+            <li :for={reason <- r.shield.reasons}>{reason}</li>
+          </ul>
+          <button
+            :if={r.shield.status in [:scam, :suspicious]}
+            id="report-false-positive"
+            type="button"
+            phx-click="report_false_positive"
+            class="btn btn-ghost btn-xs"
+          >
+            {gettext("Reportar falso positivo")}
+          </button>
+        </div>
 
         <h3 class="mt-3 text-sm font-semibold">{gettext("Cálculo")}</h3>
         <dl class="grid grid-cols-[auto_1fr] gap-x-3 text-sm tabular-nums">
@@ -301,6 +364,56 @@
           </div>
         </div>
 
+        <h3 class="mt-3 text-sm font-semibold">{gettext("Historial (destino, 30 días)")}</h3>
+        <%= if h = r.history.destination do %>
+          <div id="history" class="text-sm">
+            <svg
+              :if={sparkline(h.daily_avg) != []}
+              viewBox="0 0 120 32"
+              class="h-10 w-full text-primary"
+              role="img"
+              aria-label={gettext("Precio promedio diario de los últimos 30 días")}
+            >
+              <polyline
+                :for={points <- sparkline(h.daily_avg)}
+                points={points}
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                vector-effect="non-scaling-stroke"
+              />
+            </svg>
+            <dl class="grid grid-cols-[auto_1fr] gap-x-3 tabular-nums">
+              <dt class="text-base-content/60">{gettext("Mediana 7 d")}</dt>
+              <dd>{(h.median_7d && Format.compact(h.median_7d)) || "—"}</dd>
+              <dt class="text-base-content/60">{gettext("Mediana 30 d")}</dt>
+              <dd>{(h.median_30d && Format.compact(h.median_30d)) || "—"}</dd>
+              <dt class="text-base-content/60">{gettext("Volumen diario 7 d")}</dt>
+              <dd>{Format.integer(round(h.volume_avg_7d))}</dd>
+              <dt class="text-base-content/60">{gettext("Días operados")}</dt>
+              <dd>{h.days_traded_30d} / 30</dd>
+              <dt :if={r.history.origin} class="text-base-content/60">
+                {gettext("Mediana 7 d origen")}
+              </dt>
+              <dd :if={r.history.origin}>
+                {(r.history.origin.median_7d && Format.compact(r.history.origin.median_7d)) || "—"}
+              </dd>
+            </dl>
+            <p class="text-xs text-base-content/60">
+              {gettext(
+                "Datos hasta el %{date} (ESI publica un día por vez, después del downtime).",
+                date: Calendar.strftime(h.as_of, "%d/%m")
+              )}
+            </p>
+          </div>
+        <% else %>
+          <p id="history" class="text-xs text-base-content/60">
+            {gettext(
+              "Todavía sin historial para este tipo en la región: se pide en orden de prioridad (máx. 250 por minuto)."
+            )}
+          </p>
+        <% end %>
+
         <h3 class="mt-3 text-sm font-semibold">
           {gettext("¿Por qué TVS %{tvs}?", tvs: r.tvs)}
         </h3>
@@ -314,31 +427,46 @@
             {gettext("Órdenes vigentes al llegar")}: {pct(r.breakdown.order_certainty)}
           </li>
           <li>{gettext("Frescura de datos")}: {pct(r.breakdown.data_certainty)}</li>
+          <li>
+            {gettext("Anti-scam (%{status})", status: shield_label(r.shield.status))}: {pct(
+              r.breakdown.scam_certainty
+            )}
+          </li>
           <li>{gettext("Acceso")}: {pct(r.breakdown.access_certainty)}</li>
           <li>
-            {gettext("Liquidez (provisional hasta tener historial, F5)")}: {pct(
-              r.breakdown.liquidity
-            )}
+            <%= if r.history.destination do %>
+              {gettext("Liquidez")}: {pct(r.breakdown.liquidity)}
+            <% else %>
+              {gettext("Liquidez (neutra hasta tener historial)")}: {pct(r.breakdown.liquidity)}
+            <% end %>
           </li>
         </ul>
 
-        <button
-          id="copy-detail"
-          type="button"
-          phx-hook=".Clipboard"
-          data-text={multibuy(r)}
-          class="btn btn-primary btn-sm mt-4"
-        >
-          <.icon name="hero-clipboard-document" class="size-4" /> {gettext("Copiar Multibuy")}
-        </button>
+        <%= if scam?(r) do %>
+          <button id="copy-detail" type="button" disabled class="btn btn-sm mt-4">
+            <.icon name="hero-no-symbol" class="size-4" /> {gettext("Multibuy bloqueado")}
+          </button>
+        <% else %>
+          <button
+            id="copy-detail"
+            type="button"
+            phx-hook=".Clipboard"
+            data-text={multibuy(r)}
+            class="btn btn-primary btn-sm mt-4"
+          >
+            <.icon name="hero-clipboard-document" class="size-4" /> {gettext("Copiar Multibuy")}
+          </button>
+        <% end %>
 
         <div class="mt-2 flex flex-wrap gap-2">
-          <span title={action_blocked(@pilot, :waypoint)}>
+          <span title={
+            if scam?(r), do: gettext("Bloqueada: SCAM"), else: action_blocked(@pilot, :waypoint)
+          }>
             <button
               id="set-route"
               type="button"
               phx-click="set_route"
-              disabled={action_blocked(@pilot, :waypoint) != nil}
+              disabled={scam?(r) or action_blocked(@pilot, :waypoint) != nil}
               class="btn btn-sm"
             >
               <.icon name="hero-map" class="size-4" /> {gettext("Fijar ruta")}
