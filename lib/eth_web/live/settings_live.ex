@@ -1,0 +1,340 @@
+defmodule EthWeb.SettingsLive do
+  @moduledoc """
+  Ajustes (ERS §9.2): pestañas por `live_action`.
+
+  - **Personajes** (RF-9.2): activar, volver a loguear y olvidar; scopes concedidos frente
+    a requeridos y estado de la sesión y del token.
+  - **Naves** (RF-9.3): editar y borrar los perfiles de carga guardados.
+  - **Reglas** (RF-9.4): overrides de impuestos y coeficientes del broker, con el valor por
+    defecto y su fecha de verificación.
+  - **Primer arranque** (RF-9.1): checklist de puesta en marcha.
+
+  Implementa: RF-9.1, RF-9.2, RF-9.3, RF-9.4.
+  """
+  use EthWeb, :live_view
+
+  alias Eth.{Accounts, Characters, GameRules, Market, Routing, Sde, Sso}
+  alias Eth.Characters.{Pilot, Session, Sessions, ShipProfile}
+  alias EthWeb.Format
+
+  @tabs [
+    characters: {"Personajes", "/settings"},
+    ships: {"Naves", "/settings/ships"},
+    rules: {"Reglas", "/settings/rules"},
+    setup: {"Primer arranque", "/settings/setup"}
+  ]
+
+  @impl true
+  def mount(_params, _session, socket) do
+    if connected?(socket) do
+      for c <- socket.assigns.characters,
+          do: Phoenix.PubSub.subscribe(Eth.PubSub, Session.topic(c.id))
+    end
+
+    {:ok,
+     socket
+     |> assign(:page_title, gettext("Ajustes"))
+     |> assign(:tabs, @tabs)
+     |> assign(:editing, nil)}
+  end
+
+  @impl true
+  def handle_params(_params, _uri, socket) do
+    {:noreply, socket |> assign(:editing, nil) |> load(socket.assigns.live_action)}
+  end
+
+  defp load(socket, :characters) do
+    assign(socket, :rows, character_rows())
+  end
+
+  defp load(socket, :ships) do
+    assign(socket, :profiles, Enum.map(Characters.list_ship_profiles(), &profile_row/1))
+  end
+
+  defp load(socket, :rules) do
+    overrides = Accounts.game_rule_overrides()
+
+    rules =
+      for {key, label} <- GameRules.overridable() do
+        %{
+          key: key,
+          label: label,
+          default: GameRules.default(key),
+          override: Map.get(overrides, key)
+        }
+      end
+
+    form =
+      rules
+      |> Map.new(&{Atom.to_string(&1.key), (&1.override && percent_input(&1.override)) || ""})
+      |> to_form(as: :rules)
+
+    socket
+    |> assign(:rules, rules)
+    |> assign(:rules_form, form)
+    |> assign(:verified_on, GameRules.get(:rules_verified_on, nil))
+  end
+
+  defp load(socket, :setup), do: assign(socket, :checks, setup_checks(socket.assigns.pilot))
+
+  ## Personajes (RF-9.2)
+
+  @impl true
+  def handle_event("forget", %{"id" => id}, socket) do
+    with {id, ""} <- Integer.parse(id),
+         %{} = character <- Characters.get(id) do
+      :ok = Characters.forget(character.id)
+
+      socket = put_flash(socket, :info, gettext("%{name} fue olvidado", name: character.name))
+
+      # Si era el personaje activo, se recarga la página en modo invitado.
+      if socket.assigns.pilot && socket.assigns.pilot.id == character.id,
+        do: {:noreply, redirect(socket, to: ~p"/settings")},
+        else: {:noreply, socket |> assign(:characters, Characters.list()) |> load(:characters)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  ## Naves (RF-9.3)
+
+  def handle_event("edit_ship", %{"id" => id}, socket) do
+    case find_profile(id) do
+      nil ->
+        {:noreply, socket}
+
+      profile ->
+        form = profile |> Characters.edit_ship_profile() |> to_form()
+        {:noreply, assign(socket, editing: profile.id, ship_edit_form: form)}
+    end
+  end
+
+  def handle_event("cancel_edit", _params, socket), do: {:noreply, assign(socket, :editing, nil)}
+
+  def handle_event("validate_ship", %{"ship_profile" => params}, socket) do
+    case find_profile(socket.assigns.editing) do
+      nil ->
+        {:noreply, socket}
+
+      profile ->
+        form =
+          profile
+          |> Characters.edit_ship_profile(params)
+          |> Map.put(:action, :validate)
+          |> to_form()
+
+        {:noreply, assign(socket, :ship_edit_form, form)}
+    end
+  end
+
+  def handle_event("save_ship", %{"ship_profile" => params}, socket) do
+    with %ShipProfile{} = profile <- find_profile(socket.assigns.editing),
+         {:ok, _profile} <- Characters.update_ship_profile(profile, params) do
+      {:noreply,
+       socket
+       |> put_flash(:info, gettext("Perfil actualizado"))
+       |> assign(:editing, nil)
+       |> load(:ships)
+       |> refresh_pilot()}
+    else
+      {:error, changeset} -> {:noreply, assign(socket, :ship_edit_form, to_form(changeset))}
+      nil -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("delete_ship", %{"id" => id}, socket) do
+    case find_profile(id) do
+      nil ->
+        {:noreply, socket}
+
+      profile ->
+        :ok = Characters.delete_ship_profile(profile)
+
+        {:noreply,
+         socket
+         |> put_flash(:info, gettext("Perfil borrado"))
+         |> assign(:editing, nil)
+         |> load(:ships)
+         |> refresh_pilot()}
+    end
+  end
+
+  ## Reglas (RF-9.4)
+
+  def handle_event("save_rules", %{"rules" => params}, socket) do
+    results =
+      for {key, _label} <- GameRules.overridable() do
+        case parse_percent(params[Atom.to_string(key)]) do
+          :blank -> Accounts.reset_game_rule(key)
+          {:ok, value} -> Accounts.put_game_rule(key, value)
+          :error -> {:error, :invalid_value}
+        end
+      end
+
+    socket =
+      if Enum.all?(results, &(&1 == :ok)),
+        do: put_flash(socket, :info, gettext("Reglas guardadas: el mercado se vuelve a evaluar")),
+        else:
+          put_flash(
+            socket,
+            :error,
+            gettext("Algún valor no es válido: usá un porcentaje entre 0 y 100")
+          )
+
+    {:noreply, load(socket, :rules)}
+  end
+
+  def handle_event("reset_rule", %{"key" => key}, socket) do
+    case Enum.find(GameRules.overridable(), fn {k, _label} -> Atom.to_string(k) == key end) do
+      {k, _label} ->
+        :ok = Accounts.reset_game_rule(k)
+        {:noreply, socket |> put_flash(:info, gettext("Regla restablecida")) |> load(:rules)}
+
+      nil ->
+        {:noreply, socket}
+    end
+  end
+
+  # Cambios en una sesión de personaje (el piloto lo actualiza EthWeb.PilotHook).
+  @impl true
+  def handle_info({:character, _id, _event, _public}, socket) do
+    case socket.assigns.live_action do
+      :characters -> {:noreply, load(socket, :characters)}
+      :setup -> {:noreply, load(socket, :setup)}
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_info(_msg, socket), do: {:noreply, socket}
+
+  ## Datos
+
+  defp character_rows do
+    for c <- Characters.list() do
+      session = Sessions.context(c.id)
+      granted = (session && session.scopes) || c.scopes
+
+      %{
+        character: c,
+        session: session,
+        missing_scopes: Sso.missing_scopes(granted),
+        portrait_url: Pilot.portrait_url(c.id, 64)
+      }
+    end
+  end
+
+  defp profile_row(profile) do
+    type = Sde.type(profile.ship_type_id)
+    %{profile: profile, type_name: (type && type.name) || "#{profile.ship_type_id}"}
+  end
+
+  defp find_profile(nil), do: nil
+
+  defp find_profile(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {id, ""} -> Characters.get_ship_profile(id)
+      _ -> nil
+    end
+  end
+
+  defp find_profile(id), do: Characters.get_ship_profile(id)
+
+  # El piloto puede usar el perfil editado: se rearma con el contexto vigente.
+  defp refresh_pilot(%{assigns: %{pilot: %{id: id}}} = socket) do
+    send(self(), {:character, id, :ship_profile, Sessions.context(id)})
+    socket
+  end
+
+  defp refresh_pilot(socket), do: socket
+
+  # Checklist del primer arranque (RF-9.1): {id, título, ¿ok?, ayuda}.
+  defp setup_checks(pilot) do
+    characters = Characters.list()
+    regions = Market.region_statuses()
+
+    [
+      {:env, gettext("Variables de entorno (SSO y clave de cifrado)"), Sso.configured?(),
+       gettext("Definí EVE_CLIENT_ID, EVE_CLIENT_SECRET y ETH_VAULT_KEY en .env y reiniciá.")},
+      {:sso, gettext("Aplicación SSO registrada (prueba de login)"), characters != [],
+       gettext(
+         "Iniciá sesión con EVE: si falla, revisá el callback y los scopes de la aplicación."
+       )},
+      {:sde, gettext("SDE descargado"), Sde.ready?(),
+       gettext("Se descarga solo al arrancar (≈ 100 MB); mirá el Centro de control.")},
+      {:graph, gettext("Grafo de rutas construido"), Routing.graph() != nil,
+       gettext("Se construye con el SDE.")},
+      {:scan, gettext("Primer escaneo de los hubs"), Enum.any?(regions, &(&1.generation > 0)),
+       gettext("Los pollers de mercado descargan las regiones; puede tardar unos minutos.")},
+      {:character, gettext("Personaje activo con sesión en EVE"),
+       pilot != nil and pilot.status == :ok,
+       gettext("Elegí un personaje en el menú de la cabecera.")},
+      {:ship, gettext("Bodega de la nave actual confirmada"),
+       pilot != nil and pilot.ship != nil and pilot.ship.cargo_confirmed,
+       gettext(
+         "Con el permiso de assets se calcula sola; si no, confirmala desde la barra del piloto."
+       )}
+    ]
+  end
+
+  ## Presentación
+
+  @doc false
+  @spec percent_input(float()) :: String.t()
+  def percent_input(value), do: value |> Kernel.*(100) |> Float.round(6) |> Float.to_string()
+
+  @doc false
+  # Porcentaje escrito por el usuario ("7,5" o "7.5") a proporción; vacío = sin override.
+  @spec parse_percent(String.t() | nil) :: {:ok, float()} | :blank | :error
+  def parse_percent(nil), do: :blank
+
+  def parse_percent(text) do
+    case text |> String.trim() |> String.replace(",", ".") do
+      "" ->
+        :blank
+
+      clean ->
+        case Float.parse(clean) do
+          {n, ""} when n >= 0 and n <= 100 -> {:ok, n / 100}
+          _ -> :error
+        end
+    end
+  end
+
+  defp pct(value), do: "#{value |> Kernel.*(100) |> Float.round(4)} %"
+
+  defp status_label(nil, %{token_status: "relogin"}), do: gettext("Re-login requerido")
+  defp status_label(nil, _character), do: gettext("Sin sesión")
+  defp status_label(%{status: :ok}, _character), do: gettext("Sesión activa")
+  defp status_label(%{status: :relogin}, _character), do: gettext("Re-login requerido")
+  defp status_label(%{status: :token_error}, _character), do: gettext("Error de token")
+  defp status_label(_session, _character), do: gettext("Conectando…")
+
+  defp status_class(%{status: :ok}), do: "badge-success"
+  defp status_class(%{status: :relogin}), do: "badge-warning"
+  defp status_class(%{status: :token_error}), do: "badge-error"
+  defp status_class(_session), do: "badge-ghost"
+
+  defp mode_label(:active), do: gettext("polling activo")
+  defp mode_label(:idle), do: gettext("en línea, sin UI")
+  defp mode_label(:offline), do: gettext("offline, polling reducido")
+  defp mode_label(_mode), do: ""
+
+  defp evasion_label(class) do
+    Map.get(
+      %{
+        "industrial" => gettext("Industrial"),
+        "blockade_runner" => gettext("Blockade Runner"),
+        "deep_space_transport" => gettext("Deep Space Transport"),
+        "freighter" => gettext("Freighter"),
+        "shuttle" => gettext("Shuttle"),
+        "other" => gettext("Otra")
+      },
+      class,
+      class
+    )
+  end
+
+  defp evasion_options do
+    for class <- ShipProfile.evasion_classes(), do: {evasion_label(class), class}
+  end
+end

@@ -130,6 +130,30 @@ defmodule Eth.Characters do
   @spec list_ship_profiles() :: [ShipProfile.t()]
   def list_ship_profiles, do: Repo.all(from p in ShipProfile, order_by: [p.ship_type_id, p.id])
 
+  @doc "Perfil de nave por ID (`nil` si no existe)."
+  @spec get_ship_profile(pos_integer()) :: ShipProfile.t() | nil
+  def get_ship_profile(id), do: Repo.get(ShipProfile, id)
+
+  @doc "Changeset de edición de un perfil existente (RF-9.3)."
+  @spec edit_ship_profile(ShipProfile.t(), map()) :: Ecto.Changeset.t()
+  def edit_ship_profile(%ShipProfile{} = profile, attrs \\ %{}),
+    do: ShipProfile.changeset(profile, attrs)
+
+  @doc "Actualiza un perfil existente (RF-9.3)."
+  @spec update_ship_profile(ShipProfile.t(), map()) ::
+          {:ok, ShipProfile.t()} | {:error, Ecto.Changeset.t()}
+  def update_ship_profile(%ShipProfile{} = profile, attrs) do
+    profile |> ShipProfile.changeset(attrs) |> Repo.update()
+  end
+
+  @doc "Borra un perfil (la nave vuelve a la bodega calculada o a la base del SDE)."
+  @spec delete_ship_profile(ShipProfile.t()) :: :ok
+  def delete_ship_profile(%ShipProfile{} = profile) do
+    Repo.delete!(profile)
+    Events.emit(:action, "Usuario", "Perfil de nave borrado (tipo #{profile.ship_type_id})")
+    :ok
+  end
+
   ## Acciones in-game (RF-5.9): solo por clic explícito del operador.
 
   @doc """

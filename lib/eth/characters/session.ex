@@ -23,7 +23,10 @@ defmodule Eth.Characters.Session do
   "UI activa" = algún LiveView observa al personaje (`watch/1`). Cada cambio del
   contexto se publica en `character:<id>`.
 
-  Implementa: RF-5.3, RF-5.4, RF-5.5, RF-5.6, RF-5.7, RF-5.8.
+  Para el Centro de control (RF-8.6) publica también el vencimiento del token y, por
+  recurso, la última lectura y el próximo pedido.
+
+  Implementa: RF-5.3, RF-5.4, RF-5.5, RF-5.6, RF-5.7, RF-5.8, RF-8.6.
   """
   use GenServer
 
@@ -79,7 +82,16 @@ defmodule Eth.Characters.Session do
 
     state =
       Map.merge(
-        %{id: id, status: :starting, viewers: %{}, context: %{}, etags: %{}, timers: %{}},
+        %{
+          id: id,
+          status: :starting,
+          viewers: %{},
+          context: %{},
+          etags: %{},
+          timers: %{},
+          read_at: %{},
+          next_at: %{}
+        },
         initial_credentials(character, login)
       )
 
@@ -221,7 +233,8 @@ defmodule Eth.Characters.Session do
       |> fetch(resource)
       |> handle_response(state, resource)
     else
-      state
+      # Sin el scope no se consulta: el recurso queda sin próxima consulta.
+      cancel(state, resource)
     end
   end
 
@@ -270,7 +283,7 @@ defmodule Eth.Characters.Session do
   end
 
   defp handle_response({:ok, %Response{status: 304} = resp}, state, resource) do
-    schedule(state, resource, resp)
+    state |> mark_read(resource) |> schedule(resource, resp)
   end
 
   defp handle_response({:ok, %Response{} = resp}, state, resource) do
@@ -279,6 +292,7 @@ defmodule Eth.Characters.Session do
 
     state =
       %{state | context: context, etags: Map.put(state.etags, resource, resp.etag)}
+      |> mark_read(resource)
       |> schedule(resource, resp)
 
     # Cambiar de en línea a offline (o al revés) reprograma todo con el modo nuevo.
@@ -294,7 +308,7 @@ defmodule Eth.Characters.Session do
 
   defp handle_response({:error, {:http, %Response{status: 403}}}, state, resource) do
     # Scope no concedido o revocado para este recurso: no se insiste.
-    %{state | scopes: List.delete(state.scopes, Map.fetch!(@scopes, resource))}
+    cancel(%{state | scopes: List.delete(state.scopes, Map.fetch!(@scopes, resource))}, resource)
   end
 
   defp handle_response({:error, {kind, until}}, state, resource)
@@ -374,15 +388,30 @@ defmodule Eth.Characters.Session do
         acc
       else
         ref = Process.send_after(self(), {:poll, resource}, delay)
-        %{acc | timers: Map.put(acc.timers, resource, ref)}
+        next = DateTime.add(Clock.utc_now(), delay, :millisecond)
+
+        %{
+          acc
+          | timers: Map.put(acc.timers, resource, ref),
+            next_at: Map.put(acc.next_at, resource, next)
+        }
       end
     end)
   end
 
   defp cancel(state, resource) do
     if ref = state.timers[resource], do: Process.cancel_timer(ref)
-    %{state | timers: Map.delete(state.timers, resource)}
+
+    %{
+      state
+      | timers: Map.delete(state.timers, resource),
+        next_at: Map.delete(state.next_at, resource)
+    }
   end
+
+  # Última lectura exitosa (200 o 304) de cada recurso, para el Centro de control (RF-8.6).
+  defp mark_read(state, resource),
+    do: %{state | read_at: Map.put(state.read_at, resource, Clock.utc_now())}
 
   defp cancel_all(state), do: Enum.reduce(@resources, state, &cancel(&2, &1))
 
@@ -393,7 +422,10 @@ defmodule Eth.Characters.Session do
       status: state.status,
       scopes: state.scopes,
       context: state.context,
-      mode: mode(state)
+      mode: mode(state),
+      token_expires_at: state.expires_at,
+      read_at: state.read_at,
+      next_at: state.next_at
     }
   end
 

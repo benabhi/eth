@@ -14,7 +14,8 @@ defmodule Eth.Sso.Token do
 
   @type tokens :: %{
           access_token: String.t(),
-          refresh_token: String.t(),
+          # El SSO puede no devolver uno nuevo: entonces sigue valiendo el anterior.
+          refresh_token: String.t() | nil,
           expires_at: DateTime.t()
         }
 

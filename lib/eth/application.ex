@@ -29,6 +29,8 @@ defmodule Eth.Application do
   defp workers do
     if Application.get_env(:eth, :start_workers, true) do
       [
+        # Antes que el motor: las reglas con override deben estar publicadas al evaluar.
+        Eth.GameRules.Overrides,
         Eth.Events.Pruner,
         Eth.Esi.ServerStatus,
         Eth.Sde.Store,

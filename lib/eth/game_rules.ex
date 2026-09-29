@@ -5,21 +5,77 @@ defmodule Eth.GameRules do
   Los valores viven en la configuración (`config :eth, Eth.GameRules`) y nunca como
   literales en el código: CCP los cambia (impuestos, regiones especiales, límites).
 
-  Implementa: RNF-15.1.
+  Algunas reglas (impuestos y coeficientes del broker) admiten un **override** desde
+  Ajustes sin recompilar (RF-9.4, RNF-15.2): se guardan en los ajustes del operador y
+  `Eth.GameRules.Overrides` los publica en ETS, donde `get/1` los consulta primero.
+
+  Implementa: RNF-15.1, RNF-15.2, RF-9.4.
   """
+
+  @overrides_table :eth_game_rule_overrides
+
+  # Reglas que admiten override: clave => descripción (valores en proporción, 0,075 = 7,5 %).
+  @overridable [
+    sales_tax_base: "Sales tax base",
+    accounting_reduction_per_level: "Reducción del sales tax por nivel de Accounting",
+    broker_fee_base: "Broker fee base",
+    broker_relations_reduction_per_level:
+      "Reducción del broker fee por nivel de Broker Relations",
+    broker_faction_standing_coef: "Reducción del broker fee por punto de standing de facción",
+    broker_corp_standing_coef: "Reducción del broker fee por punto de standing de corporación"
+  ]
 
   @doc "Devuelve un parámetro; falla si no está configurado (evita defaults silenciosos)."
   @spec get(atom()) :: term()
   def get(key) do
-    case Keyword.fetch(config(), key) do
-      {:ok, value} -> value
-      :error -> raise ArgumentError, "parámetro de Eth.GameRules no configurado: #{inspect(key)}"
+    case override(key) do
+      {:ok, value} ->
+        value
+
+      :error ->
+        case Keyword.fetch(config(), key) do
+          {:ok, value} ->
+            value
+
+          :error ->
+            raise ArgumentError, "parámetro de Eth.GameRules no configurado: #{inspect(key)}"
+        end
     end
   end
 
   @doc "Devuelve un parámetro opcional con valor por defecto."
   @spec get(atom(), term()) :: term()
-  def get(key, default), do: Keyword.get(config(), key, default)
+  def get(key, default) do
+    case override(key) do
+      {:ok, value} -> value
+      :error -> Keyword.get(config(), key, default)
+    end
+  end
+
+  @doc "Reglas que admiten override: `[{clave, descripción}]`."
+  @spec overridable() :: [{atom(), String.t()}]
+  def overridable, do: @overridable
+
+  @doc "Valor por defecto (el de la configuración, sin override)."
+  @spec default(atom()) :: term()
+  def default(key), do: Keyword.fetch!(config(), key)
+
+  @doc "Tabla ETS de overrides (su dueño es `Eth.GameRules.Overrides`)."
+  @spec overrides_table() :: atom()
+  def overrides_table, do: @overrides_table
+
+  defp override(key) do
+    case :ets.whereis(@overrides_table) do
+      :undefined ->
+        :error
+
+      table ->
+        case :ets.lookup(table, key) do
+          [{^key, value}] -> {:ok, value}
+          [] -> :error
+        end
+    end
+  end
 
   @doc """
   Indica si una región debe escanearse (RF-1.2): excluye J-space, abisal/especiales,

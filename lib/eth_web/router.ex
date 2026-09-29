@@ -21,6 +21,10 @@ defmodule EthWeb.Router do
     live_session :default, on_mount: [EthWeb.PilotHook] do
       live "/", HunterLive
       live "/control", ControlLive
+      live "/settings", SettingsLive, :characters
+      live "/settings/ships", SettingsLive, :ships
+      live "/settings/rules", SettingsLive, :rules
+      live "/settings/setup", SettingsLive, :setup
     end
   end
 

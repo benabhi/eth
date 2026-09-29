@@ -424,7 +424,7 @@ defmodule EthWeb.Layouts do
       {:hunter, gettext("Cazador"), ~p"/"},
       {:run, gettext("Viaje activo"), nil},
       {:control, gettext("Centro de control"), ~p"/control"},
-      {:settings, gettext("Ajustes"), nil}
+      {:settings, gettext("Ajustes"), ~p"/settings"}
     ]
   end
 

@@ -949,6 +949,9 @@ ABM de perfiles de carga (capacidad, clase de evasión, valor máximo de carga).
 
 Overrides de las reglas del juego (impuestos base, coeficientes del broker) y broker fee por estructura, con los valores por defecto y su fecha de verificación.
 
+- Implementación (F4): los overrides se guardan en `operators.settings["game_rules"]` (solo claves de una lista blanca, valores entre 0 y 1) y `Eth.GameRules.Overrides` los publica en ETS antes de que arranque el motor; guardar pide una nueva evaluación. La UI los edita en porcentaje.
+- El broker fee por estructura (`structures.broker_fee_override`) llega con la tabla de estructuras (F7).
+
 #### RF-9.5 · Parámetros del motor y del riesgo — S · F6
 
 Umbrales anti-scam, de liquidez y de frescura; pesos y referencias del TVS; matriz de vulnerabilidad; tiempos por salto; α del modo Evasiva; sistemas a evitar.

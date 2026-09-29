@@ -202,6 +202,17 @@ defmodule EthWeb.PilotLiveTest do
     assert %{cargo_m3: 38_500.0, ship_item_id: nil} = Characters.ship_profile(9_999, 657)
   end
 
+  test "el Centro de control muestra la sesión del personaje (RF-8.6)", %{conn: conn} do
+    conn = logged_in(conn)
+    {:ok, view, _html} = live(conn, ~p"/")
+    await_pilot(view)
+
+    {:ok, control, _html} = live(conn, ~p"/control")
+    assert has_element?(control, "#session-#{@id}", "token vigente")
+    assert has_element?(control, "#session-#{@id}-wallet", "hace")
+    assert has_element?(control, "#session-#{@id}-assets")
+  end
+
   test "fijar ruta desde el origen pone solo el destino", %{conn: conn} do
     # Margen amplio: con la bodega real de la Iteron (5.800 m³) supera el beneficio mínimo.
     publish_market(10.0)

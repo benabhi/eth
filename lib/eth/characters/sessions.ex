@@ -33,6 +33,18 @@ defmodule Eth.Characters.Sessions do
   @spec token(pos_integer()) :: {:ok, String.t()} | {:error, term()}
   def token(id), do: call(id, :token) || {:error, :no_session}
 
+  @doc "Contexto de todas las sesiones activas, por nombre (Centro de control, RF-8.6)."
+  @spec list() :: [map()]
+  def list do
+    Eth.Characters.Registry
+    |> Registry.select([{{:"$1", :_, :_}, [], [:"$1"]}])
+    |> Enum.map(&context/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.sort_by(&(&1.name || ""))
+  rescue
+    ArgumentError -> []
+  end
+
   @doc "Detiene la sesión (al olvidar el personaje)."
   @spec stop(pos_integer()) :: :ok
   def stop(id) do

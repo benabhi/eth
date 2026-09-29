@@ -107,7 +107,9 @@ config :eth, Eth.GameRules,
   route_root_system_id: 30_000_142,
   # Umbral de highsec sobre la seguridad real (se muestra ≥ 0.5)
   highsec_min_security: 0.45,
-  # Impuestos (verificados 2026-09-29, Anexo B.1): sales tax = base × (1 − 0,11 × Accounting)
+  # Impuestos (verificados 2026-09-29, Anexo B.1): sales tax = base × (1 − 0,11 × Accounting).
+  # Fecha de verificación que muestra Ajustes → Reglas (RF-9.4).
+  rules_verified_on: ~D[2026-09-29],
   sales_tax_base: 0.075,
   accounting_reduction_per_level: 0.11,
   broker_fee_base: 0.03,

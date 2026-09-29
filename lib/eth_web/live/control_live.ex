@@ -6,14 +6,16 @@ defmodule EthWeb.ControlLive do
     memoria y próximo downtime.
   - Mapa de regiones en mosaico agrupado por nivel, con estado, cuenta regresiva y
     progreso; clic para ver el detalle y actuar.
+  - Sesiones de personajes: token, modo de polling y última lectura de cada dato (RF-8.6).
   - Registro de eventos en vivo, filtrable.
 
   Se actualiza por PubSub; un tick por segundo refresca las cuentas regresivas.
 
-  Implementa: RF-8.1, RF-8.2, RF-8.3, RF-8.7, RF-8.8, RF-8.9.
+  Implementa: RF-8.1, RF-8.2, RF-8.3, RF-8.6, RF-8.7, RF-8.8, RF-8.9.
   """
   use EthWeb, :live_view
 
+  alias Eth.Characters.Sessions
   alias Eth.{Clock, Events, Market, Sde}
   alias Eth.Esi.{Budget, ServerStatus}
   alias EthWeb.Format
@@ -41,6 +43,7 @@ defmodule EthWeb.ControlLive do
       |> assign(:tiers, @tiers)
       |> assign(:dev_routes, Application.get_env(:eth, :dev_routes, false))
       |> assign(:sde, Sde.status())
+      |> assign(:sessions, Sessions.list())
       |> refresh_health()
 
     {:ok, socket}
@@ -66,12 +69,12 @@ defmodule EthWeb.ControlLive do
   def handle_info({:esi_paused, _until, _reason}, socket), do: {:noreply, refresh_health(socket)}
   def handle_info(:esi_resumed, socket), do: {:noreply, refresh_health(socket)}
 
-  # El piloto lo actualiza `EthWeb.PilotHook`; aquí no hay nada más que hacer.
+  # El piloto lo actualiza `EthWeb.PilotHook`; las sesiones se refrescan con el tick.
   def handle_info({:character, _id, _event, _public}, socket), do: {:noreply, socket}
 
   def handle_info(:tick, socket) do
     schedule_tick()
-    {:noreply, refresh_health(socket)}
+    {:noreply, socket |> assign(:sessions, Sessions.list()) |> refresh_health()}
   end
 
   ## Eventos de la UI
@@ -290,4 +293,31 @@ defmodule EthWeb.ControlLive do
         end)
     end
   end
+
+  ## Sesiones de personajes (RF-8.6)
+
+  defp session_resources, do: [:online, :location, :ship, :wallet, :skills, :standings, :assets]
+
+  defp resource_label(:online), do: gettext("En línea")
+  defp resource_label(:location), do: gettext("Ubicación")
+  defp resource_label(:ship), do: gettext("Nave")
+  defp resource_label(:wallet), do: gettext("Billetera")
+  defp resource_label(:skills), do: gettext("Habilidades")
+  defp resource_label(:standings), do: gettext("Standings")
+  defp resource_label(:assets), do: gettext("Módulos montados")
+
+  defp session_label(:ok), do: gettext("token vigente")
+  defp session_label(:relogin), do: gettext("re-login requerido")
+  defp session_label(:token_error), do: gettext("error de token")
+  defp session_label(_status), do: gettext("conectando")
+
+  defp session_class(:ok), do: "badge-success"
+  defp session_class(:relogin), do: "badge-warning"
+  defp session_class(:token_error), do: "badge-error"
+  defp session_class(_status), do: "badge-ghost"
+
+  defp mode_label(:active), do: gettext("polling activo (UI abierta)")
+  defp mode_label(:idle), do: gettext("en línea, sin UI")
+  defp mode_label(:offline), do: gettext("offline, polling reducido")
+  defp mode_label(_mode), do: ""
 end

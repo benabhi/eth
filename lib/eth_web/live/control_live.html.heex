@@ -279,6 +279,52 @@
   </div>
 
   <%!-- Registro de eventos (RF-8.7) --%>
+  <%!-- Sesiones de personajes (RF-8.6) --%>
+  <section
+    id="character-sessions"
+    aria-labelledby="sessions-title"
+    class="card border border-base-300 p-4"
+  >
+    <h2 id="sessions-title" class="text-lg font-semibold">{gettext("Personajes")}</h2>
+    <p :if={@sessions == []} class="text-sm text-base-content/60">
+      {gettext("No hay sesiones de personajes: iniciá sesión con EVE para vincular uno.")}
+    </p>
+    <div :for={s <- @sessions} id={"session-#{s.id}"} class="mt-3">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="font-semibold">{s.name}</span>
+        <span class={["badge badge-sm", session_class(s.status)]}>{session_label(s.status)}</span>
+        <span class="text-xs text-base-content/60">{mode_label(s.mode)}</span>
+        <span :if={s.token_expires_at} class="text-xs tabular-nums text-base-content/60">
+          · {gettext("token vence en %{time}", time: Format.countdown(s.token_expires_at, @now))}
+        </span>
+      </div>
+      <div class="mt-1 overflow-x-auto">
+        <table class="table table-xs tabular-nums">
+          <thead>
+            <tr>
+              <th>{gettext("Dato")}</th>
+              <th>{gettext("Última lectura")}</th>
+              <th>{gettext("Próxima consulta")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr :for={resource <- session_resources()} id={"session-#{s.id}-#{resource}"}>
+              <td>{resource_label(resource)}</td>
+              <td>{Format.ago(s.read_at[resource], @now)}</td>
+              <td>
+                <%= if s.next_at[resource] do %>
+                  {gettext("en %{time}", time: Format.countdown(s.next_at[resource], @now))}
+                <% else %>
+                  <span class="text-base-content/50">{gettext("en pausa")}</span>
+                <% end %>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
   <section aria-labelledby="events-title" class="card border border-base-300 p-4">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 id="events-title" class="text-lg font-semibold">{gettext("Eventos")}</h2>
