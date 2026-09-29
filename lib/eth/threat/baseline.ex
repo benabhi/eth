@@ -39,6 +39,24 @@ defmodule Eth.Threat.Baseline do
   @spec base_risk(pos_integer()) :: float()
   def base_risk(system_id), do: entry(system_id).base_risk
 
+  @doc """
+  Riesgo base de todos los sistemas en una sola lectura (para la consulta del motor):
+  `%{by_system: %{id => riesgo}, quiet: %{banda => riesgo}}`; los sistemas sin actividad
+  usan el de su banda.
+  """
+  @spec risk_snapshot() :: %{by_system: map(), quiet: map()}
+  def risk_snapshot do
+    lookup(:__risk__) ||
+      %{
+        by_system: %{},
+        quiet:
+          Map.new(
+            [:highsec, :lowsec, :nullsec],
+            &{&1, BaselineModel.quiet_band(&1, %{}, 0).base_risk}
+          )
+      }
+  end
+
   @doc "Resumen para el Centro de control: horas muestreadas y último cálculo."
   @spec meta() :: map()
   def meta do
@@ -314,7 +332,13 @@ defmodule Eth.Threat.Baseline do
 
   defp publish(%{entries: entries, meta: meta}) do
     :ets.delete_all_objects(@table)
-    :ets.insert(@table, [{:__meta__, meta} | Map.to_list(entries)])
+
+    risk = %{
+      by_system: Map.new(entries, fn {id, e} -> {id, e.base_risk} end),
+      quiet: Map.new(meta.quiet, fn {band, e} -> {band, e.base_risk} end)
+    }
+
+    :ets.insert(@table, [{:__meta__, meta}, {:__risk__, risk} | Map.to_list(entries)])
     :telemetry.execute([:eth, :threat, :baseline], %{systems: meta.systems}, meta)
   end
 
