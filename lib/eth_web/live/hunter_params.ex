@@ -62,7 +62,7 @@ defmodule EthWeb.HunterParams do
 
     %{
       search: String.trim(form["search"]),
-      route_mode: if(form["route_mode"] == "shortest", do: :shortest, else: :secure),
+      route_mode: parse_route_mode(form["route_mode"]),
       max_jumps: parse_integer(form["max_jumps"]),
       min_profit: parse_isk(form["min_profit"]) || 0,
       min_roi: (parse_number(form["min_roi"]) || 0) / 100,
@@ -131,6 +131,11 @@ defmodule EthWeb.HunterParams do
 
   defp clamp_level(nil), do: Query.defaults().accounting
   defp clamp_level(n), do: min(n, 5)
+
+  # Segura por defecto (la seguridad del jugador primero); nunca átomos desde strings.
+  defp parse_route_mode("shortest"), do: :shortest
+  defp parse_route_mode("evasive"), do: :evasive
+  defp parse_route_mode(_secure), do: :secure
 
   @shield_modes ~w(all hide_scam safe)a
 

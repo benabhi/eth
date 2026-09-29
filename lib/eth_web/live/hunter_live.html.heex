@@ -1,5 +1,6 @@
 <Layouts.app
   flash={@flash}
+  radar_degraded={@radar_degraded}
   active={:hunter}
   wide
   pilot={@pilot}
@@ -41,7 +42,11 @@
         field={@form[:route_mode]}
         type="select"
         label={gettext("Ruta")}
-        options={[{gettext("Segura (solo highsec)"), "secure"}, {gettext("Rápida"), "shortest"}]}
+        options={[
+          {gettext("Segura (solo highsec)"), "secure"},
+          {gettext("Rápida"), "shortest"},
+          {gettext("Evasiva (esquiva amenazas)"), "evasive"}
+        ]}
       />
       <.input field={@form[:max_jumps]} type="number" min="0" label={gettext("Saltos máx.")} />
       <.input
@@ -212,6 +217,14 @@
                   {row.opportunity.destination.name}
                 </div>
                 <div class="flex flex-wrap gap-1">
+                  <span
+                    :if={row.route_alerts.count > 0}
+                    class="badge badge-error badge-xs"
+                    title={row.route_alerts.worst.classification.description}
+                  >
+                    ⚠ {threat_label(row.route_alerts.worst.classification.type)}
+                    <span :if={row.route_alerts.count > 1}>+{row.route_alerts.count - 1}</span>
+                  </span>
                   <span
                     :if={row.shield.status != :ok}
                     class={["badge badge-xs", shield_class(row.shield.status)]}
@@ -414,6 +427,39 @@
           </p>
         <% end %>
 
+        <%!-- Ruta (RF-6.5): sistemas del camino, seguridad y amenazas del radar --%>
+        <h3 class="mt-3 text-sm font-semibold">
+          {gettext("Ruta (%{mode})", mode: route_label(@query.route_mode))}
+        </h3>
+        <div :if={d = @route_details} id="route" class="text-xs">
+          <div class="flex flex-wrap items-center gap-x-1 gap-y-0.5 font-mono">
+            <span
+              :for={{s, i} <- Enum.with_index(d.to_origin ++ tl(d.route))}
+              title={"#{s.name} · #{pct(s.probability)}"}
+              class={[
+                "whitespace-nowrap",
+                s.type && "rounded bg-error px-1 text-error-content",
+                i == length(d.to_origin) - 1 && "font-bold underline"
+              ]}
+            >
+              <span style={sec_style(s.security)}>{sec_label(s.security)}</span> {s.name}
+            </span>
+          </div>
+          <p class="mt-1 text-base-content/60">
+            {gettext("En negrita, el origen (se compra ahí). Pasá el mouse para ver el riesgo.")}
+          </p>
+          <ul :if={Enum.any?(d.to_origin ++ d.route, & &1.type)} class="mt-1 space-y-0.5">
+            <li
+              :for={
+                s <- Enum.uniq_by(Enum.filter(d.to_origin ++ d.route, & &1.type), & &1.system_id)
+              }
+              class="text-error"
+            >
+              ⚠ {s.name}: {s.description} · {gettext("riesgo")} {pct(s.probability)}
+            </li>
+          </ul>
+        </div>
+
         <h3 class="mt-3 text-sm font-semibold">
           {gettext("¿Por qué TVS %{tvs}?", tvs: r.tvs)}
         </h3>
@@ -433,6 +479,12 @@
             )}
           </li>
           <li>{gettext("Acceso")}: {pct(r.breakdown.access_certainty)}</li>
+          <li>
+            {gettext("Ruta (amenazas y riesgo base)")}: {pct(r.breakdown.route_certainty)}
+            <span :if={@radar_degraded} class="text-warning">
+              · {gettext("radar degradado: solo línea base")}
+            </span>
+          </li>
           <li>
             <%= if r.history.destination do %>
               {gettext("Liquidez")}: {pct(r.breakdown.liquidity)}
