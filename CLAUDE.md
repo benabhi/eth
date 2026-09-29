@@ -124,6 +124,7 @@ Para iterar sin gastar presupuesto de ESI: `ETH_REGIONS=10000002,10000043` (subc
 - **Red:** Phoenix escucha en `0.0.0.0` dentro del contenedor (`PHX_BIND`); el host publica solo `127.0.0.1:4000`.
 - **Volúmenes:** `_build`, `deps` y `priv/data` viven en volúmenes nombrados; no borrarlos desde el host.
 - **Finales de línea:** LF (`.gitattributes`); un script con CRLF falla en Linux.
+- **Codificación:** todo es UTF-8 sin BOM. Editar con las herramientas de edición, nunca con `Get-Content -Raw` + `WriteAllText` de PowerShell sin `-Encoding UTF8` (corrompe los acentos: cada letra acentuada se convierte en dos caracteres extraños). `test/eth/encoding_test.exs` lo detecta.
 - *(Opcional)* Tidewave (MCP para Phoenix), una vez agregado como dependencia de desarrollo: `claude mcp add --transport http tidewave http://localhost:4000/tidewave/mcp`.
 
 ## Flujo de trabajo esperado

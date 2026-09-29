@@ -11,7 +11,7 @@
 msgid ""
 msgstr ""
 
-#: lib/eth_web/components/core_components.ex:375
+#: lib/eth_web/components/core_components.ex:376
 #, elixir-autogen, elixir-format
 msgid "Actions"
 msgstr ""
@@ -41,22 +41,22 @@ msgstr ""
 msgid "En construcción: fase F0 (fundaciones). El escaneo de mercado llega en la fase F1."
 msgstr ""
 
-#: lib/eth_web/controllers/page_html/home.html.heex:22
+#: lib/eth_web/controllers/page_html/home.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "F1 · Adquisición de mercado y Centro de control"
 msgstr ""
 
-#: lib/eth_web/controllers/page_html/home.html.heex:23
+#: lib/eth_web/controllers/page_html/home.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "F2 · Datos estáticos (SDE) y ruteo"
 msgstr ""
 
-#: lib/eth_web/controllers/page_html/home.html.heex:24
+#: lib/eth_web/controllers/page_html/home.html.heex:26
 #, elixir-autogen, elixir-format
 msgid "F3 · Motor de evaluación y Cazador (modo invitado)"
 msgstr ""
 
-#: lib/eth_web/controllers/page_html/home.html.heex:25
+#: lib/eth_web/controllers/page_html/home.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "F4 · Login con EVE SSO y contexto del piloto"
 msgstr ""
@@ -82,7 +82,7 @@ msgstr ""
 msgid "Próximamente"
 msgstr ""
 
-#: lib/eth_web/controllers/page_html/home.html.heex:20
+#: lib/eth_web/controllers/page_html/home.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Próximas fases"
 msgstr ""
@@ -120,7 +120,7 @@ msgstr ""
 msgid "Viaje activo"
 msgstr ""
 
-#: lib/eth_web/components/core_components.ex:81
+#: lib/eth_web/components/core_components.ex:82
 #, elixir-autogen, elixir-format
 msgid "close"
 msgstr ""

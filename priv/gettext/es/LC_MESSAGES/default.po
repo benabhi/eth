@@ -11,7 +11,7 @@ msgstr ""
 "Language: es\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: lib/eth_web/components/core_components.ex:375
+#: lib/eth_web/components/core_components.ex:376
 #, elixir-autogen, elixir-format
 msgid "Actions"
 msgstr "Acciones"
@@ -38,27 +38,27 @@ msgstr ""
 
 #: lib/eth_web/controllers/page_html/home.html.heex:14
 #, elixir-autogen, elixir-format
-msgid "En construcciÃ³n: fase F0 (fundaciones). El escaneo de mercado llega en la fase F1."
-msgstr ""
-
-#: lib/eth_web/controllers/page_html/home.html.heex:22
-#, elixir-autogen, elixir-format
-msgid "F1 Â· AdquisiciÃ³n de mercado y Centro de control"
-msgstr ""
-
-#: lib/eth_web/controllers/page_html/home.html.heex:23
-#, elixir-autogen, elixir-format
-msgid "F2 Â· Datos estÃ¡ticos (SDE) y ruteo"
+msgid "En construcción: fase F0 (fundaciones). El escaneo de mercado llega en la fase F1."
 msgstr ""
 
 #: lib/eth_web/controllers/page_html/home.html.heex:24
 #, elixir-autogen, elixir-format
-msgid "F3 Â· Motor de evaluaciÃ³n y Cazador (modo invitado)"
+msgid "F1 · Adquisición de mercado y Centro de control"
 msgstr ""
 
 #: lib/eth_web/controllers/page_html/home.html.heex:25
 #, elixir-autogen, elixir-format
-msgid "F4 Â· Login con EVE SSO y contexto del piloto"
+msgid "F2 · Datos estáticos (SDE) y ruteo"
+msgstr ""
+
+#: lib/eth_web/controllers/page_html/home.html.heex:26
+#, elixir-autogen, elixir-format
+msgid "F3 · Motor de evaluación y Cazador (modo invitado)"
+msgstr ""
+
+#: lib/eth_web/controllers/page_html/home.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "F4 · Login con EVE SSO y contexto del piloto"
 msgstr ""
 
 #: lib/eth_web/components/layouts.ex:118
@@ -69,27 +69,27 @@ msgstr ""
 
 #: lib/eth_web/components/layouts.ex:44
 #, elixir-autogen, elixir-format
-msgid "NavegaciÃ³n principal"
+msgid "Navegación principal"
 msgstr ""
 
 #: lib/eth_web/controllers/page_html/home.html.heex:5
 #, elixir-autogen, elixir-format
-msgid "Oportunidades de arbitraje en todo New Eden, ajustadas a tu billetera, tu nave, tu ubicaciÃ³n y el riesgo de la ruta."
+msgid "Oportunidades de arbitraje en todo New Eden, ajustadas a tu billetera, tu nave, tu ubicación y el riesgo de la ruta."
 msgstr ""
 
 #: lib/eth_web/components/layouts.ex:58
 #, elixir-autogen, elixir-format
-msgid "PrÃ³ximamente"
+msgid "Próximamente"
 msgstr ""
 
-#: lib/eth_web/controllers/page_html/home.html.heex:20
+#: lib/eth_web/controllers/page_html/home.html.heex:22
 #, elixir-autogen, elixir-format
-msgid "PrÃ³ximas fases"
+msgid "Próximas fases"
 msgstr ""
 
 #: lib/eth_web/components/layouts.ex:110
 #, elixir-autogen, elixir-format
-msgid "Sin conexiÃ³n a internet"
+msgid "Sin conexión a internet"
 msgstr ""
 
 #: lib/eth_web/components/layouts.ex:150
@@ -120,12 +120,12 @@ msgstr ""
 msgid "Viaje activo"
 msgstr ""
 
-#: lib/eth_web/components/core_components.ex:81
+#: lib/eth_web/components/core_components.ex:82
 #, elixir-autogen, elixir-format
 msgid "close"
 msgstr "cerrar"
 
 #: lib/eth_web/components/layouts.ex:125
 #, elixir-autogen, elixir-format
-msgid "Â¡Algo saliÃ³ mal!"
+msgid "¡Algo salió mal!"
 msgstr ""
