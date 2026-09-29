@@ -5,7 +5,7 @@ defmodule Eth.Engine.EvaluationTest do
   alias Eth.Engine
   alias Eth.Engine.{Coordinator, Evaluator, Fees, Query, Summary}
   alias Eth.EngineFixture, as: F
-  alias Eth.Market.{History, HistoryStats, TableOwner}
+  alias Eth.Market.{History, HistoryStats, Order, TableOwner}
 
   @moduletag :tmp_dir
   @moduletag :capture_log
@@ -98,7 +98,7 @@ defmodule Eth.Engine.EvaluationTest do
 
       :ets.insert(
         tid,
-        Eth.Market.Order.to_row(
+        Order.to_row(
           %{
             "order_id" => 2,
             "type_id" => @tritanium,

@@ -116,8 +116,10 @@ defmodule Eth.Market.StructurePoller do
     access = Structures.access_map()
 
     Characters.list()
-    |> Enum.filter(&(&1.token_status == "ok" and @scope in (&1.scopes || [])))
-    |> Enum.filter(&Structures.may_try?(access[{structure_id, &1.id}], now))
+    |> Enum.filter(
+      &(&1.token_status == "ok" and @scope in (&1.scopes || []) and
+          Structures.may_try?(access[{structure_id, &1.id}], now))
+    )
     |> Enum.sort_by(&if(match?(%{status: "ok"}, access[{structure_id, &1.id}]), do: 0, else: 1))
     |> Enum.find_value(fn character ->
       case Structures.character_token(character.id) do

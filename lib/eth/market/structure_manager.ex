@@ -121,18 +121,20 @@ defmodule Eth.Market.StructureManager do
         :ok
 
       {character_id, token} ->
-        Enum.each(structures, fn s ->
-          case Esi.structure(s.id, character_id, token) do
-            {:ok, %{body: info}} ->
-              Structures.put_info(s.id, info)
+        Enum.each(structures, &resolve_one(&1, character_id, token))
+    end
+  end
 
-            {:error, {:http, %{status: 403}}} ->
-              Structures.put_access(s.id, character_id, :forbidden, "HTTP 403 (datos)")
+  defp resolve_one(structure, character_id, token) do
+    case Esi.structure(structure.id, character_id, token) do
+      {:ok, %{body: info}} ->
+        Structures.put_info(structure.id, info)
 
-            _error ->
-              :ok
-          end
-        end)
+      {:error, {:http, %{status: 403}}} ->
+        Structures.put_access(structure.id, character_id, :forbidden, "HTTP 403 (datos)")
+
+      _error ->
+        :ok
     end
   end
 

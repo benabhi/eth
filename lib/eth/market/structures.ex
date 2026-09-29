@@ -16,6 +16,7 @@ defmodule Eth.Market.Structures do
 
   import Ecto.Query
 
+  alias Eth.Characters.Sessions
   alias Eth.{Clock, GameRules, Repo, Sde}
   alias Eth.Market.{Structure, StructureAccess}
 
@@ -135,7 +136,7 @@ defmodule Eth.Market.Structures do
   """
   @spec character_token(pos_integer()) :: {:ok, String.t()} | {:error, term()}
   def character_token(character_id) do
-    fun = Application.get_env(:eth, :character_token_fun, &Eth.Characters.Sessions.token/1)
+    fun = Application.get_env(:eth, :character_token_fun, &Sessions.token/1)
     fun.(character_id)
   end
 
