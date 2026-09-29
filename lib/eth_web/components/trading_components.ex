@@ -49,7 +49,8 @@ defmodule EthWeb.TradingComponents do
        gettext("Comprar a órdenes de venta y vender a órdenes de compra, sin esperas"),
        ~p"/?#{query}"},
       {:orders, gettext("Por órdenes"),
-       gettext("Listado y compra por orden: publicás una orden y esperás a que se ejecute"), nil},
+       gettext("Listado y compra por orden: publicás una orden y esperás a que se ejecute"),
+       ~p"/orders?#{query}"},
       {:station, gettext("Estación"),
        gettext("Station trading: comprar y vender con órdenes propias en la misma estación"),
        ~p"/station?#{query}"}

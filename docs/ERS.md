@@ -628,6 +628,8 @@ Toda oportunidad pertenece a una de dos **familias**, que la UI distingue siempr
 
 **CA:** cada oportunidad lleva su familia y su modo; los filtros y el orden funcionan dentro de cada familia; el desglose muestra las comisiones de cada tramo.
 
+- Implementación (F9) de Listado y compra por orden (`Eth.Engine.OrderEvaluator` y `Eth.Engine.OrderQuery`, vista `/orders`): la orden propia se publica siempre en un hub de `:station_trading_location_ids`. **Listado:** el precio de lista supera a la mejor venta del hub y se compra en los orígenes más baratos (hasta `max_origins`). **Compra por orden:** el precio supera a la mejor compra del hub y se vende a las compras de los destinos (hasta `max_destinations`) que cubren la estación por rango. La cantidad se acota por capital (el escrow de una compra es el 100 %), bodega y lo que el mercado del hub absorbe en `max_days` días (participación de `:station_trading` sobre el volumen de 7 días); la espera estimada es `cantidad / (participación × volumen diario)`. Certeza = frescura × anti-scam × competencia en el hub; el orden por defecto es el beneficio × Certeza repartido en los días de espera. Por ahora las dos puntas son estaciones NPC: el acceso a estructuras (AS-8) todavía no entra en esta familia. **Rendimiento:** el motor arma los candidatos (leyendo los libros de ETS) solo si el hub tiene historial y guarda los que llegan a `:min_profit_isk` en el mejor caso (comisiones mínimas, sin tope de capital ni de bodega); de los hubs sin historial pide el historial y los candidatos entran en la evaluación siguiente. Medición con los 5 hubs: ~3.500 candidatos guardados (9 MB, contra ~170.000 y 380 MB sin estos cortes), evaluación completa de 1,9 s y consulta p95 de 83 ms.
+
 #### RF-4.2 · Cruce universal (screening) — M · F3
 
 Para cada tipo con órdenes, combinar los resúmenes por ubicación (RF-1.5) de todas las fuentes: mejores precios de venta por ubicación frente a mejores precios de compra alcanzables (RF-4.3). Hay candidato si `bid × (1 − t_min) > ask`, donde `t_min` es el impuesto mínimo posible. Se paraleliza por tipo (`Task.async_stream`, con concurrencia = schedulers).
@@ -2266,7 +2268,7 @@ Aproximación de la escala del cliente. En el tema claro se usan como fondo de i
 | `liquidity.min_days_traded` | 5 | RF-4.7 |
 | `liquidity.full_at_days` | 1 | Índice de liquidez = 1 si la cantidad ≤ volumen de N días |
 | `default_liquidity` | 0.5 | Índice sin historial |
-| `listing.max_days_to_sell` | 7 | Modo Listado |
+| `order_trading` | screen 3 % · margen mín. 5 % · espera máx. 7 días · 5 orígenes · 4 destinos · profundidad 15 | Familia por órdenes: Listado y compra por orden (RF-4.1) |
 | `radar.window_min` / `radar.half_life_min` | 15 / 10 | Mapa de calor |
 | `radar.hauler_weight` / `radar.gate_weight` | 1.5 / 1.5 | Multiplicadores de intensidad (§8.8) |
 | `radar.min_kills` / `radar.p_value` | 3 / 0.01 | Alertas |

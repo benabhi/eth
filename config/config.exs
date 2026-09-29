@@ -177,6 +177,20 @@ config :eth, Eth.GameRules,
     max_price_to_median: 2.0,
     history_demand_max: 2_000
   },
+  # Trading por órdenes entre estaciones (RF-4.1, Listado y compra por orden), calibrable:
+  # - screen_margin / min_margin: margen neto mínimo universal (comisiones mínimas) y
+  #   personal por defecto;
+  # - max_days: la cantidad se acota para ejecutarse en a lo sumo estos días (con la
+  #   participación de `:station_trading`); max_origins / max_destinations: candidatos
+  #   por tipo y hub; book_depth: órdenes guardadas por lado.
+  order_trading: %{
+    screen_margin: 0.03,
+    min_margin: 0.05,
+    max_days: 7,
+    max_origins: 5,
+    max_destinations: 4,
+    book_depth: 15
+  },
   # Broker fee mínimo posible en una estación NPC (BR V y standings 10/10): cota del
   # screening universal.
   min_broker_fee: 0.01,

@@ -22,6 +22,8 @@ defmodule Eth.EngineFixture do
   def jita_44, do: @jita_44
   # Estaciones sin datos en el mini SDE: se tratan como estructuras.
   def perimeter_station, do: 1_000_000_000_001
+  @doc "Estación NPC en Perimeter (1 salto de Jita)."
+  def perimeter_npc, do: 60_000_004
   def ahbazon_station, do: 1_000_000_000_002
 
   @doc "Publica el mini SDE y su grafo en persistent_term (se borra al terminar el test)."

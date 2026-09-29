@@ -10,6 +10,8 @@ defmodule Eth.Engine do
   alias Eth.Engine.{
     Coordinator,
     Opportunity,
+    OrderOpportunity,
+    OrderQuery,
     OwnOrders,
     Query,
     RouteRisk,
@@ -20,7 +22,7 @@ defmodule Eth.Engine do
     Summary
   }
 
-  alias Eth.Market.TableOwner
+  alias Eth.Market.{History, TableOwner}
 
   @doc "Tópico con los anuncios de nueva versión de oportunidades."
   @spec topic() :: String.t()
@@ -214,6 +216,46 @@ defmodule Eth.Engine do
         [] -> []
       end
     end)
+  end
+
+  ## Por órdenes entre estaciones (RF-4.1)
+
+  @doc "Candidato de la familia por órdenes por ID."
+  @spec order_get(String.t()) :: OrderOpportunity.t() | nil
+  def order_get(id) do
+    case Coordinator.current_orders() do
+      nil ->
+        nil
+
+      tid ->
+        case :ets.lookup(tid, id) do
+          [{^id, _pair, opp}] -> opp
+          [] -> nil
+        end
+    end
+  rescue
+    ArgumentError -> nil
+  end
+
+  @doc """
+  Consulta personalizada de la familia por órdenes: `{filas, total}`. Descarta primero,
+  sin copiar los candidatos, los que no tienen historial en el hub.
+  """
+  @spec order_query(map()) :: {[map()], non_neg_integer()}
+  def order_query(params \\ %{}) do
+    opportunities =
+      case Coordinator.current_orders() do
+        nil -> []
+        tid -> liquid_station_candidates(tid, fn pair -> order_liquid?(pair) end)
+      end
+
+    OrderQuery.run(opportunities, params, Clock.utc_now())
+  rescue
+    ArgumentError -> {[], 0}
+  end
+
+  defp order_liquid?({region_id, type_id}) do
+    match?(%{volume_avg_7d: v} when v > 0, History.stats(region_id, type_id))
   end
 
   ## Órdenes propias (RF-4.17)
