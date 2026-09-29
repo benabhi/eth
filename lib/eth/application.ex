@@ -12,9 +12,9 @@ defmodule Eth.Application do
       Eth.Repo,
       {DNSCluster, query: Application.get_env(:eth, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Eth.PubSub},
-      # Start a worker by calling: Eth.Worker.start_link(arg)
-      # {Eth.Worker, arg},
-      # Start to serve requests, typically the last entry
+      # Pool HTTP: el tamaño del pool de ESI acota la concurrencia global de requests.
+      {Finch, name: Eth.Finch, pools: %{"https://esi.evetech.net" => [size: 16, count: 1]}},
+      Eth.Esi.Budget,
       EthWeb.Endpoint
     ]
 

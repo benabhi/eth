@@ -22,6 +22,20 @@ end
 
 config :eth, EthWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# ESI: contacto para el User-Agent (RNF-3.1) y fecha de compatibilidad opcional.
+config :eth, Eth.Esi.Client, contact: System.get_env("ESI_CONTACT")
+
+if compatibility_date = System.get_env("ESI_COMPATIBILITY_DATE") do
+  config :eth, Eth.Esi.Client, compatibility_date: compatibility_date
+end
+
+# Subconjunto de regiones para desarrollo (ETH_REGIONS=10000002,10000043).
+if regions = System.get_env("ETH_REGIONS") do
+  config :eth, Eth.GameRules,
+    only_region_ids:
+      regions |> String.split(",", trim: true) |> Enum.map(&String.to_integer(String.trim(&1)))
+end
+
 if config_env() == :dev do
   # Reload browser tabs when matching files change.
   config :eth, EthWeb.Endpoint,

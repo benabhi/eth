@@ -21,6 +21,13 @@ config :eth, EthWeb.Endpoint,
   secret_key_base: "IggzXAV0zdHsN53T5/NX8HjdTnhs6hck4zWLPKY7/p4A2waivAo1cSzu3DeG6trt",
   server: false
 
+# Tests sin red (RNF-3.8): todo request a ESI pasa por stubs de Req.Test; un request
+# sin stub hace fallar el test.
+config :eth, Eth.Esi.Client, req_options: [plug: {Req.Test, Eth.Esi.Client}]
+
+# En tests el mercado no arranca solo: cada test levanta lo que necesita.
+config :eth, :start_market, false
+
 # In test we don't send emails
 config :eth, Eth.Mailer, adapter: Swoosh.Adapters.Test
 
