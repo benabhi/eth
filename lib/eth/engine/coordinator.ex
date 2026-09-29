@@ -12,13 +12,15 @@ defmodule Eth.Engine.Coordinator do
     `engine:opportunities`.
   - Declara a `Eth.Market.History` los pares (región, tipo) de las oportunidades, con
     prioridad por TVS preliminar (RF-1.12).
+  - Evalúa también los candidatos de station trading de los hubs (RF-4.16) y los publica
+    en su propia tabla (`current_station/0`), con el mismo versionado.
 
-  Implementa: RF-1.12, RF-4.13, RNF-1.2, RNF-9.1.
+  Implementa: RF-1.12, RF-4.13, RF-4.16, RNF-1.2, RNF-9.1.
   """
   use GenServer
 
   alias Eth.{Clock, Events, GameRules, Sde}
-  alias Eth.Engine.{Evaluator, Fees, Query, Summary}
+  alias Eth.Engine.{Evaluator, Fees, Query, StationEvaluator, Summary}
   alias Eth.Market.{History, TableOwner}
 
   @catalog :eth_opportunities_catalog
@@ -39,6 +41,17 @@ defmodule Eth.Engine.Coordinator do
     if :ets.whereis(@catalog) != :undefined do
       case :ets.lookup(@catalog, :current) do
         [{:current, tid, meta}] -> {tid, meta}
+        [] -> nil
+      end
+    end
+  end
+
+  @doc "Tabla vigente de candidatos de station trading (`nil` si todavía no hubo evaluación)."
+  @spec current_station() :: :ets.tid() | nil
+  def current_station do
+    if :ets.whereis(@catalog) != :undefined do
+      case :ets.lookup(@catalog, :station) do
+        [{:station, tid}] -> tid
         [] -> nil
       end
     end
@@ -152,17 +165,39 @@ defmodule Eth.Engine.Coordinator do
       |> Enum.sort_by(& &1.profit, :desc)
       |> Enum.take(GameRules.get(:max_universal_opportunities))
 
-    History.demand(history_demand(opportunities))
+    stations = StationEvaluator.run(entries, types)
+    History.demand(history_demand(opportunities) ++ station_history_demand(stations))
 
     stats = %{
       duration_ms: System.monotonic_time(:millisecond) - started,
       summaries_ms: summaries_ms,
       types: length(all_types),
       sources: length(sources),
-      opportunities: length(opportunities)
+      opportunities: length(opportunities),
+      station_candidates: length(stations)
     }
 
-    {summarized, types, opportunities, stats}
+    {summarized, types, opportunities, stations, stats}
+  end
+
+  # Historial para los candidatos de station trading: sin volumen no se proponen
+  # (RF-4.16). Prioridad baja frente a los trades directos, creciente con el diferencial;
+  # a lo sumo `:history_demand_max` pares por evaluación.
+  @doc false
+  @spec station_history_demand([Eth.Engine.StationOpportunity.t()]) :: [
+          {{pos_integer(), pos_integer()}, number()}
+        ]
+  def station_history_demand(stations) do
+    max = GameRules.get(:station_trading).history_demand_max
+
+    stations
+    |> Enum.map(fn st ->
+      [{bid, _, _, _, _} | _] = st.bids
+      [{ask, _, _, _, _} | _] = st.asks
+      {{st.location.region_id, st.type_id}, min(40.0, (ask - bid) / bid * 100)}
+    end)
+    |> Enum.sort_by(&elem(&1, 1), :desc)
+    |> Enum.take(max)
   end
 
   # Pares (región, tipo) cuyo historial hace falta, priorizados por el TVS preliminar del
@@ -204,9 +239,23 @@ defmodule Eth.Engine.Coordinator do
     }
   end
 
-  defp publish({summarized, types, opportunities, stats}, state) do
+  defp publish({summarized, types, opportunities, stations, stats}, state) do
     tid = :ets.new(:eth_opportunities, [:set, :public, read_concurrency: true])
     :ets.insert(tid, Enum.map(opportunities, &{&1.id, &1}))
+    station_tid = :ets.new(:eth_station_opportunities, [:set, :public, read_concurrency: true])
+    # Con la clave (región, tipo) aparte: la consulta filtra por historial sin copiar el
+    # candidato completo (RNF-1.1).
+    :ets.insert(
+      station_tid,
+      Enum.map(stations, &{&1.id, {&1.location.region_id, &1.type_id}, &1})
+    )
+
+    case current_station() do
+      nil -> :ok
+      old -> Process.send_after(self(), {:drop, old}, @grace_ms)
+    end
+
+    :ets.insert(@catalog, {:station, station_tid})
 
     version = state.version + 1
     meta = Map.merge(stats, %{version: version, evaluated_at: Clock.utc_now()})

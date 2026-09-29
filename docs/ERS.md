@@ -732,14 +732,16 @@ Oportunidades de comprar y vender el mismo tipo **en la misma estación** con ó
 
 **CA:** con un fixture de libro e historial, el margen neto coincide con el cálculo manual (broker ×2 + *sales tax*); un tipo con libro cruzado sospechoso queda marcado por el anti-scam; sin historial el tipo no se propone.
 
+- Implementación (F9): `Eth.Engine.StationEvaluator` busca en cada evaluación los candidatos de las estaciones de `:station_trading_location_ids` (los 5 hubs) con margen de al menos `screen_margin` usando las comisiones más bajas posibles, y guarda el libro de la estación (hasta `book_depth` órdenes por lado) en su propia tabla ETS. `Eth.Engine.StationQuery` personaliza en la consulta: descarta primero, sin copiar los candidatos, los que no tienen volumen suficiente en el historial; después cotiza con los precios legales (`Eth.Engine.OrderRules`), las comisiones del piloto (broker por Broker Relations y standings con la corporación dueña de la estación y su facción) y el anti-scam. Certeza = frescura × anti-scam × competencia; el orden por defecto es el beneficio por día ponderado por la Certeza. Los candidatos sin historial se piden a `Eth.Market.History` con prioridad baja (a lo sumo `history_demand_max` por evaluación). Medición con los 5 hubs: ~36.000 candidatos universales, ~350 viables, consulta p95 de 40 ms.
+
 #### RF-4.17 · Órdenes propias y seguimiento — S · F9
 
 Con `esi-markets.read_character_orders.v1` (scope 13, §4 M5) se leen las órdenes abiertas (`/characters/{id}/orders`) y el historial (`/characters/{id}/orders/history`) de cada personaje:
 
 - **Exclusión:** las órdenes propias no cuentan como competencia ni como contraparte en el motor.
-- **Estado por orden:** vigente, **superada** (hay un precio mejor), parcialmente ejecutada, vencida o cancelada; precio sugerido para volver a quedar primero y costo estimado de modificarla (P-05).
+- **Estado por orden:** vigente, **superada** (hay un precio mejor), parcialmente ejecutada, vencida o cancelada; precio sugerido para volver a quedar primero y costo estimado de modificarla (P-12).
 - **Capital comprometido:** el *escrow* de las órdenes de compra y el valor de las órdenes de venta se descuentan del capital disponible (RF-5.5).
-- **Límite de órdenes:** órdenes abiertas frente al máximo según las habilidades del personaje (P-05).
+- **Límite de órdenes:** órdenes abiertas frente al máximo según las habilidades del personaje (P-12).
 - Alertas de orden superada (RF-10.5).
 
 **CA:** una orden propia no aparece como contraparte en ninguna oportunidad; al publicar una orden mejor en un fixture, la propia pasa a "superada" con el precio sugerido.
@@ -1480,7 +1482,7 @@ Station trading (misma estación):
               beneficio_día ≈ margen_u × q_objetivo × P(ejecución)    # estimación: se muestra como tal
 ```
 
-El `tick` (paso mínimo de precio), el costo de **modificar** una orden (relist) y el límite de órdenes por habilidades deben verificarse contra las fuentes del Anexo C antes de implementar F9 (P-05); las habilidades se leen del SDE (dogma), como la bodega (RF-5.8).
+Reglas de las órdenes verificadas el 2026-09-29 (P-12): los precios admiten **como máximo 4 cifras significativas** y 0,01 ISK de precisión (blog de CCP *Broker Relations*, 2020-02-24); modificar una orden cuesta `broker × max(0, V2 − V1) + (1 − RD) × broker × V2` con `RD = 50 % + 6 % × Advanced Broker Relations` (descripción vigente de la habilidad en el SDE, que corrige el 5 % del blog de 2020); el límite de órdenes es `5 + 4·Trade + 8·Retail + 16·Wholesale + 32·Tycoon` (máx. 305); y el SDE vigente ya no tiene la habilidad Margin Trading, así que una orden de compra inmoviliza el 100 % de su valor (escrow). El `tick` de superar una orden es el siguiente precio legal (`Eth.Engine.OrderRules`).
 
 Los importes se calculan con float; se redondean a 2 decimales solo para mostrarlos, y nunca se comparan floats por igualdad.
 
@@ -2102,7 +2104,7 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | P-02 | ¿Umbrales anti-scam por defecto (sospechoso 1,5× / scam 3× la mediana de 7 días)? | Sí; en F5 se implementaron así. Calibrar con los reportes de falso positivo (`scam_reports`) |
 | P-03 | ¿Se piensa exponer la app fuera de localhost (LAN o Internet)? | No: uso local (solo loopback). Quien quiera usarla en su LAN puede, con HTTPS y lista blanca (RNF-4.5) |
 | P-04 | ¿Formato numérico por defecto? | Estilo EVE (`1,234,567.89`), con opción en español |
-| P-05 | Reglas vigentes de las órdenes: paso mínimo de precio (tick), costo de modificar una orden (relist) y límite de órdenes por habilidades | Verificar contra el Anexo C y el SDE antes de F9; hasta entonces, sin implementar |
+| P-12 | Reglas vigentes de las órdenes: paso mínimo de precio (tick), costo de modificar una orden (relist) y límite de órdenes por habilidades | **Resuelta (2026-09-29):** ver §8.4 (4 cifras significativas; RD = 50 % + 6 % × ABR; 5 + 4/8/16/32 por nivel; escrow 100 %) |
 | P-05 | ¿Nombres de ítems para Multibuy en inglés o según el idioma del cliente del juego? | Inglés por defecto, configurable |
 | P-06 | ~~¿Mover el repo a WSL2 o seguir en `C:\` con polling?~~ | **Resuelta (2026-09-28):** se queda en `C:\` con polling (§10.4, opción B) |
 
@@ -2283,6 +2285,10 @@ Aproximación de la escala del cliente. En el tema claro se usan como fondo de i
 | `notify.cooldown_min` | 10 | Anti-spam de alertas |
 | `downtime_window_utc` | 10:59–11:15 | Pausa de pollers |
 | `guest.accounting_level` | 4 | Modo invitado |
+| `guest_broker_relations_level` | 4 | Broker del modo invitado en station trading (RF-4.16) |
+| `station_trading` | screen 2 % · margen mín. 5 % · volumen mín. 10/día · participación 10 % · banda ±5 % · media competencia 10 · profundidad 25 · historial 2.000 pares | Station trading (RF-4.16) |
+| `min_broker_fee` | 1 % | Cota del screening (BR V y standings 10/10) |
+| `order_price_significant_digits` / `relist_discount_*` / `order_limit_*` / `buy_order_escrow_ratio` | 4 / 50 % + 6 % por nivel / 5 + 4·8·16·32 / 100 % | Reglas de órdenes (P-12) |
 | `route.base_system` | Jita | Triángulo sin ubicación |
 | `guest.cargo_m3` | 38,500 | Bodega del modo invitado (Iteron Mark V con módulos de carga) |
 | `accounting_skill_id` | 16622 | Habilidad Accounting en el SDE (RF-5.6) |

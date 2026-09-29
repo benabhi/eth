@@ -44,6 +44,10 @@ defmodule Eth.Sde do
   @spec type_group(pos_integer()) :: pos_integer() | nil
   def type_group(id), do: get(:type_groups, id)
 
+  @doc "Corporación NPC por ID (`%{name, faction_id}`): dueña de estaciones (broker fee)."
+  @spec corporation(pos_integer()) :: map() | nil
+  def corporation(id), do: get(:corporations, id)
+
   @doc "Grupo del SDE por ID (`%{name, category_id}`)."
   @spec group(pos_integer()) :: map() | nil
   def group(id), do: get(:groups, id)

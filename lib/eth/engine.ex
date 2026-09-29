@@ -6,7 +6,19 @@ defmodule Eth.Engine do
   """
 
   alias Eth.{Clock, Events, Repo}
-  alias Eth.Engine.{Coordinator, Opportunity, Query, RouteRisk, SaleQuote, ScamReport, Summary}
+
+  alias Eth.Engine.{
+    Coordinator,
+    Opportunity,
+    Query,
+    RouteRisk,
+    SaleQuote,
+    ScamReport,
+    StationOpportunity,
+    StationQuery,
+    Summary
+  }
+
   alias Eth.Market.TableOwner
 
   @doc "Tópico con los anuncios de nueva versión de oportunidades."
@@ -142,5 +154,64 @@ defmodule Eth.Engine do
     )
 
     result
+  end
+
+  ## Station trading (RF-4.16)
+
+  @doc "Candidatos universales de station trading vigentes."
+  @spec station_all() :: [StationOpportunity.t()]
+  def station_all do
+    case Coordinator.current_station() do
+      nil -> []
+      tid -> tid |> :ets.tab2list() |> Enum.map(&elem(&1, 2))
+    end
+  rescue
+    ArgumentError -> []
+  end
+
+  @doc "Candidato de station trading por ID."
+  @spec station_get(String.t()) :: StationOpportunity.t() | nil
+  def station_get(id) do
+    case Coordinator.current_station() do
+      nil ->
+        nil
+
+      tid ->
+        case :ets.lookup(tid, id) do
+          [{^id, _pair, opp}] -> opp
+          [] -> nil
+        end
+    end
+  rescue
+    ArgumentError -> nil
+  end
+
+  @doc """
+  Consulta personalizada de station trading: `{filas, total}`. Primero descarta, sin
+  copiar los candidatos, los que no tienen historial suficiente (la gran mayoría).
+  """
+  @spec station_query(StationQuery.params()) :: {[map()], non_neg_integer()}
+  def station_query(params \\ %{}) do
+    opportunities =
+      case Coordinator.current_station() do
+        nil -> []
+        tid -> liquid_station_candidates(tid, StationQuery.liquid_pair_fun(params))
+      end
+
+    StationQuery.run(opportunities, params, Clock.utc_now())
+  rescue
+    ArgumentError -> {[], 0}
+  end
+
+  defp liquid_station_candidates(tid, liquid?) do
+    tid
+    |> :ets.select([{{:"$1", :"$2", :_}, [], [{{:"$1", :"$2"}}]}])
+    |> Enum.filter(fn {_id, pair} -> liquid?.(pair) end)
+    |> Enum.flat_map(fn {id, _pair} ->
+      case :ets.lookup(tid, id) do
+        [{^id, _pair, opp}] -> [opp]
+        [] -> []
+      end
+    end)
   end
 end
