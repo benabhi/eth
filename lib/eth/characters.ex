@@ -176,6 +176,22 @@ defmodule Eth.Characters do
     end
   end
 
+  @doc """
+  Fija una lista de waypoints en orden (limpia los anteriores con el primero). La ruta
+  evasiva de un viaje (RF-7.4) pasa por cada sistema del desvío para que el autopiloto no
+  vuelva al camino con la amenaza.
+  """
+  @spec set_waypoints(pos_integer(), [pos_integer()]) :: :ok | {:error, term()}
+  def set_waypoints(character_id, [_ | _] = ids) do
+    with {:ok, token} <- Sessions.token(character_id) do
+      ids
+      |> Enum.with_index()
+      |> Enum.reduce_while(:ok, fn {id, i}, :ok ->
+        add_waypoint(character_id, token, id, i == 0)
+      end)
+    end
+  end
+
   defp add_waypoint(character_id, token, destination_id, clear?) do
     case Esi.set_waypoint(character_id, token, destination_id, clear_other_waypoints: clear?) do
       {:ok, _resp} -> {:cont, :ok}

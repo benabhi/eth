@@ -49,6 +49,15 @@ defmodule Eth.Esi do
   def character_wallet(id, token, etag \\ nil),
     do: character_get(id, "wallet", token, etag, "char-wallet")
 
+  @doc """
+  Transacciones de mercado de la billetera (`esi-wallet.read_character_wallet.v1`): las
+  últimas, con caché de ESI de 1 h (RF-7.5).
+  """
+  @spec character_wallet_transactions(pos_integer(), String.t(), String.t() | nil) ::
+          {:ok, Response.t()} | {:error, Client.error()}
+  def character_wallet_transactions(id, token, etag \\ nil),
+    do: character_get(id, "wallet/transactions", token, etag, "char-wallet")
+
   @doc "Habilidades (`esi-skills.read_skills.v1`)."
   @spec character_skills(pos_integer(), String.t(), String.t() | nil) ::
           {:ok, Response.t()} | {:error, Client.error()}

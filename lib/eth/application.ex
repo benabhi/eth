@@ -37,7 +37,9 @@ defmodule Eth.Application do
         Eth.Market.Supervisor,
         Eth.Threat.Supervisor,
         Eth.Engine.Supervisor,
-        Eth.Characters.Supervisor
+        Eth.Characters.Supervisor,
+        # Después de las sesiones: los viajes se registran como observadores.
+        Eth.Tracking.Supervisor
       ]
     else
       []
