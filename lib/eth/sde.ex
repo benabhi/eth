@@ -40,6 +40,15 @@ defmodule Eth.Sde do
   @spec type(pos_integer()) :: map() | nil
   def type(id), do: get(:types, id)
 
+  @doc "Subconjunto de dogma para calcular la bodega (`Eth.Sde.Dogma`); `nil` sin SDE."
+  @spec dogma() :: Eth.Sde.Dogma.t() | nil
+  def dogma do
+    case data() do
+      %{dogma: dogma} -> dogma
+      _ -> nil
+    end
+  end
+
   @doc "Busca un sistema por nombre exacto (sin distinguir mayúsculas)."
   @spec system_by_name(String.t()) :: {pos_integer(), map()} | nil
   def system_by_name(name) do

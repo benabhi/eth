@@ -229,14 +229,10 @@ defmodule EthWeb.Layouts do
                 id="ship-profile-open"
                 type="button"
                 phx-click="pilot_ship_open"
-                class={[
-                  "badge badge-xs ml-1 cursor-pointer",
-                  if(ship.cargo_confirmed, do: "badge-ghost", else: "badge-warning")
-                ]}
+                title={cargo_source_hint(ship, @pilot)}
+                class={["badge badge-xs ml-1 cursor-pointer", cargo_source_class(ship.cargo_source)]}
               >
-                {if ship.cargo_confirmed,
-                  do: gettext("editar"),
-                  else: gettext("Capacidad sin confirmar")}
+                {cargo_source_label(ship.cargo_source)}
               </button>
             </div>
           </div>
@@ -371,6 +367,38 @@ defmodule EthWeb.Layouts do
       {gettext("Otra"), "other"}
     ]
   end
+
+  defp cargo_source_label(:fitting), do: gettext("calculada")
+  defp cargo_source_label(:profile), do: gettext("manual")
+  defp cargo_source_label(:skills), do: gettext("estimada")
+  defp cargo_source_label(_sde), do: gettext("Capacidad sin confirmar")
+
+  defp cargo_source_class(:fitting), do: "badge-success"
+  defp cargo_source_class(:profile), do: "badge-ghost"
+  defp cargo_source_class(:skills), do: "badge-info"
+  defp cargo_source_class(_sde), do: "badge-warning"
+
+  defp cargo_source_hint(%{cargo_source: :fitting} = ship, _pilot) do
+    gettext(
+      "Casco + habilidades + %{count} módulos montados. ESI informa los módulos cada hora.",
+      count: ship.fitted_modules
+    )
+  end
+
+  defp cargo_source_hint(%{cargo_source: :profile}, _pilot),
+    do: gettext("Perfil guardado a mano: se usa mientras no se puedan leer los módulos.")
+
+  defp cargo_source_hint(%{cargo_source: :skills}, pilot) do
+    if Pilot.scope?(pilot, "esi-assets.read_assets.v1"),
+      do: gettext("Casco + habilidades; ESI todavía no informó los módulos de esta nave."),
+      else:
+        gettext(
+          "Casco + habilidades. Para sumar los módulos, volvé a iniciar sesión y concedé el permiso de assets."
+        )
+  end
+
+  defp cargo_source_hint(_ship, _pilot),
+    do: gettext("Capacidad base del casco, sin habilidades ni módulos: confirmala.")
 
   defp online_class(true), do: "bg-success"
   defp online_class(false), do: "bg-base-content/30"

@@ -61,6 +61,22 @@ defmodule Eth.Esi do
   def character_standings(id, token, etag \\ nil),
     do: character_get(id, "standings", token, etag, "char-social")
 
+  @doc """
+  Una página de los assets del personaje (`esi-assets.read_assets.v1`, paginado con
+  `X-Pages`). Se usa para conocer los módulos montados en sus naves (RF-5.8).
+  """
+  @spec character_assets(pos_integer(), String.t(), pos_integer(), String.t() | nil) ::
+          {:ok, Response.t()} | {:error, Client.error()}
+  def character_assets(id, token, page, etag \\ nil) do
+    Client.get("/characters/#{id}/assets",
+      params: [page: page],
+      token: token,
+      etag: etag,
+      character_id: id,
+      group: "char-asset"
+    )
+  end
+
   defp character_get(id, resource, token, etag, group) do
     Client.get("/characters/#{id}/#{resource}",
       token: token,

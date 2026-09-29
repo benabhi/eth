@@ -15,26 +15,31 @@ defmodule Eth.Characters.Session do
   | billetera | 2 min | 10 min | 30 min |
   | habilidades | 30 min | 60 min | 6 h |
   | standings | 60 min | 6 h | 24 h |
+  | assets (módulos montados) | 60 min | 60 min | 6 h |
+
+  De los assets solo se guardan los módulos montados en cada nave
+  (`%{ship_item_id => [type_id]}`), para calcular la bodega (RF-5.8).
 
   "UI activa" = algún LiveView observa al personaje (`watch/1`). Cada cambio del
   contexto se publica en `character:<id>`.
 
-  Implementa: RF-5.3, RF-5.4, RF-5.5, RF-5.6, RF-5.7.
+  Implementa: RF-5.3, RF-5.4, RF-5.5, RF-5.6, RF-5.7, RF-5.8.
   """
   use GenServer
 
-  alias Eth.{Characters, Clock, Esi, Events, Sso}
+  alias Eth.{Characters, Clock, Esi, Events, GameRules, Sso}
   alias Eth.Esi.Response
   alias Eth.Sso.Token
 
-  @resources [:online, :location, :ship, :wallet, :skills, :standings]
+  @resources [:online, :location, :ship, :wallet, :skills, :standings, :assets]
   @scopes %{
     online: "esi-location.read_online.v1",
     location: "esi-location.read_location.v1",
     ship: "esi-location.read_ship_type.v1",
     wallet: "esi-wallet.read_character_wallet.v1",
     skills: "esi-skills.read_skills.v1",
-    standings: "esi-characters.read_standings.v1"
+    standings: "esi-characters.read_standings.v1",
+    assets: "esi-assets.read_assets.v1"
   }
   @intervals %{
     location: %{active: 10_000, idle: 60_000, offline: nil},
@@ -42,7 +47,8 @@ defmodule Eth.Characters.Session do
     online: %{active: 60_000, idle: 60_000, offline: 300_000},
     wallet: %{active: 120_000, idle: 600_000, offline: 1_800_000},
     skills: %{active: 1_800_000, idle: 3_600_000, offline: 21_600_000},
-    standings: %{active: 3_600_000, idle: 21_600_000, offline: 86_400_000}
+    standings: %{active: 3_600_000, idle: 21_600_000, offline: 86_400_000},
+    assets: %{active: 3_600_000, idle: 3_600_000, offline: 21_600_000}
   }
   @error_retry_ms 60_000
   @refresh_margin_s 60
@@ -219,6 +225,8 @@ defmodule Eth.Characters.Session do
     end
   end
 
+  defp fetch(state, :assets), do: fetch_assets(state)
+
   defp fetch(state, resource) do
     fun =
       case resource do
@@ -231,6 +239,34 @@ defmodule Eth.Characters.Session do
       end
 
     fun.(state.id, state.access_token, Map.get(state.etags, resource))
+  end
+
+  # Assets paginados: la página 1 con ETag; si cambió, se piden las demás y se unen.
+  defp fetch_assets(state) do
+    etag = Map.get(state.etags, :assets)
+
+    case Esi.character_assets(state.id, state.access_token, 1, etag) do
+      {:ok, %Response{status: 200, pages: pages} = first} when is_integer(pages) and pages > 1 ->
+        fetch_asset_pages(state, first, 2..pages//1)
+
+      other ->
+        other
+    end
+  end
+
+  defp fetch_asset_pages(state, first, pages) do
+    Enum.reduce_while(pages, {:ok, first}, fn page, {:ok, acc} ->
+      case Esi.character_assets(state.id, state.access_token, page) do
+        {:ok, %Response{status: 200, body: items}} ->
+          {:cont, {:ok, %{acc | body: acc.body ++ items}}}
+
+        {:ok, resp} ->
+          {:halt, {:error, {:http, resp}}}
+
+        error ->
+          {:halt, error}
+      end
+    end)
   end
 
   defp handle_response({:ok, %Response{status: 304} = resp}, state, resource) do
@@ -295,9 +331,22 @@ defmodule Eth.Characters.Session do
     end
   end
 
+  defp parse(:assets, items) do
+    prefixes = GameRules.get(:fitted_location_flag_prefixes)
+
+    items
+    |> Enum.filter(&(&1["location_type"] == "item" and fitted?(&1["location_flag"], prefixes)))
+    |> Enum.group_by(& &1["location_id"], & &1["type_id"])
+  end
+
   defp parse(:standings, body) do
     for %{"from_id" => id, "standing" => standing} <- body, into: %{}, do: {id, standing}
   end
+
+  defp fitted?(flag, prefixes) when is_binary(flag),
+    do: Enum.any?(prefixes, &String.starts_with?(flag, &1))
+
+  defp fitted?(_flag, _prefixes), do: false
 
   # Próximo pedido: el intervalo del modo actual, pero nunca antes de Expires.
   defp schedule(state, resource, %Response{expires: expires}) do

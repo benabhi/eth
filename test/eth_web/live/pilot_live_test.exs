@@ -31,19 +31,22 @@ defmodule EthWeb.PilotLiveTest do
     :ok
   end
 
-  defp login do
+  @assets_scope "esi-assets.read_assets.v1"
+
+  defp login(scopes \\ Eth.Sso.scopes()) do
     %{
       character_id: @id,
       name: "Hernan Test",
       owner_hash: "owner-hash-1",
-      scopes: Eth.Sso.scopes(),
+      scopes: scopes,
       access_token: "access-1",
       refresh_token: "refresh-1",
       expires_at: DateTime.add(DateTime.utc_now(), 1199, :second)
     }
   end
 
-  # ESI simulado: el piloto está en Jita 4-4, en línea, con una Iteron Mark V sin perfil.
+  # ESI simulado: el piloto está en Jita 4-4, en línea, con una Iteron Mark V sin perfil,
+  # Gallente Hauler V y un Expanded Cargohold II montado.
   # Las acciones de UI se reenvían al test.
   defp stub_esi do
     test = self()
@@ -70,17 +73,37 @@ defmodule EthWeb.PilotLiveTest do
   defp character_body("ship"), do: %{"ship_type_id" => 657, "ship_item_id" => 1_001}
   defp character_body("wallet"), do: 2_500_000_000.0
 
-  defp character_body("skills"),
-    do: %{"skills" => [%{"skill_id" => 16_622, "active_skill_level" => 5}]}
+  defp character_body("skills") do
+    %{
+      "skills" => [
+        %{"skill_id" => 16_622, "active_skill_level" => 5},
+        %{"skill_id" => 3_340, "active_skill_level" => 5}
+      ]
+    }
+  end
+
+  defp character_body("assets") do
+    [
+      %{
+        "item_id" => 5_000,
+        "type_id" => 1_319,
+        "location_id" => 1_001,
+        "location_flag" => "LoSlot0",
+        "location_type" => "item",
+        "quantity" => 1,
+        "is_singleton" => true
+      }
+    ]
+  end
 
   defp character_body("standings"), do: []
 
   # Espera a que la sesión tenga todo el contexto y a que la LiveView lo haya procesado.
-  defp await_pilot(view, attempts \\ 50) do
+  defp await_pilot(view, resources \\ 7, attempts \\ 50) do
     context = Sessions.context(@id)
 
     cond do
-      context && map_size(context.context) == 6 ->
+      context && map_size(context.context) == resources ->
         _ = :sys.get_state(view.pid)
         :ok
 
@@ -89,14 +112,14 @@ defmodule EthWeb.PilotLiveTest do
 
       true ->
         assert_receive {:character, @id, _event, _public}, 1_000
-        await_pilot(view, attempts - 1)
+        await_pilot(view, resources, attempts - 1)
     end
   end
 
-  defp logged_in(conn) do
+  defp logged_in(conn, login \\ login()) do
     stub_esi()
-    {:ok, _} = Characters.upsert_login(login())
-    :ok = Sessions.start(@id, login())
+    {:ok, _} = Characters.upsert_login(login)
+    :ok = Sessions.start(@id, login)
     Phoenix.PubSub.subscribe(Eth.PubSub, Session.topic(@id))
     init_test_session(conn, character_id: @id)
   end
@@ -135,7 +158,9 @@ defmodule EthWeb.PilotLiveTest do
     assert has_element?(view, "#character-menu img[src*='/characters/#{@id}/portrait']")
     assert has_element?(view, "#pilot-ship img[src*='/types/657/render']")
     assert has_element?(view, "#pilot-ship", "Iteron Mark V")
-    assert has_element?(view, "#pilot-ship", "Capacidad sin confirmar")
+    # Bodega calculada: 5.800 × 1,25 (Gallente Hauler V) × 1,275 (expansor) = 9.243,75 m³.
+    assert has_element?(view, "#pilot-ship", "9,244")
+    assert has_element?(view, "#ship-profile-open", "calculada")
     assert has_element?(view, "#pilot-location", "Jita")
     assert has_element?(view, "#pilot-wallet", "2.50B")
 
@@ -146,13 +171,18 @@ defmodule EthWeb.PilotLiveTest do
            )
 
     assert has_element?(view, "#filters input[name='filters[capital]'][value='2500M']")
-    assert has_element?(view, "#filters input[name='filters[cargo_m3]'][value='5800']")
+    assert has_element?(view, "#filters input[name='filters[cargo_m3]'][value='9243']")
   end
 
-  test "el diálogo de la nave guarda el perfil de carga (RF-5.8)", %{conn: conn} do
-    conn = logged_in(conn)
+  test "sin el permiso de assets estima con habilidades y el perfil manual manda", %{
+    conn: conn
+  } do
+    conn = logged_in(conn, login(Eth.Sso.scopes() -- [@assets_scope]))
     {:ok, view, _html} = live(conn, ~p"/")
-    await_pilot(view)
+    await_pilot(view, 6)
+
+    assert has_element?(view, "#pilot-ship", "7,250")
+    assert has_element?(view, "#ship-profile-open", "estimada")
 
     view |> element("#ship-profile-open") |> render_click()
     assert has_element?(view, "#ship-dialog")

@@ -100,29 +100,73 @@ defmodule Eth.CharactersTest do
         ["", "characters", id, resource] = String.split(conn.request_path, "/")
         assert id == Integer.to_string(@id)
 
-        body =
-          case resource do
-            "online" ->
-              %{"online" => true}
-
-            "location" ->
-              %{"solar_system_id" => 30_000_142, "station_id" => 60_003_760}
-
-            "ship" ->
-              %{"ship_type_id" => 657, "ship_item_id" => 1_001, "ship_name" => "Carguero"}
-
-            "wallet" ->
-              5_020_000_000.55
-
-            "skills" ->
-              %{"skills" => [%{"skill_id" => 16_622, "active_skill_level" => 5}]}
-
-            "standings" ->
-              [%{"from_id" => 1_000_035, "from_type" => "npc_corp", "standing" => 2.5}]
-          end
-
-        EsiStub.respond(conn, 200, body, expires: DateTime.add(DateTime.utc_now(), 5, :second))
+        if resource == "assets",
+          do: assets_page(conn),
+          else: character_resource(conn, resource)
       end)
+    end
+
+    # Assets en dos páginas: módulos montados en la nave 1001 (y cosas que no lo son).
+    defp assets_page(conn) do
+      conn = Plug.Conn.fetch_query_params(conn)
+
+      items =
+        case conn.query_params["page"] do
+          "1" ->
+            [
+              asset(1, 1_319, 1_001, "LoSlot0", "item"),
+              asset(2, 34, 1_001, "Cargo", "item"),
+              asset(3, 1_319, 60_003_760, "Hangar", "station")
+            ]
+
+          "2" ->
+            [
+              asset(4, 1_319, 1_001, "LoSlot1", "item"),
+              asset(5, 31_119, 1_001, "RigSlot0", "item")
+            ]
+        end
+
+      EsiStub.respond(conn, 200, items,
+        pages: 2,
+        expires: DateTime.add(DateTime.utc_now(), 3600, :second)
+      )
+    end
+
+    defp asset(item_id, type_id, location_id, flag, location_type) do
+      %{
+        "item_id" => item_id,
+        "type_id" => type_id,
+        "location_id" => location_id,
+        "location_flag" => flag,
+        "location_type" => location_type,
+        "quantity" => 1,
+        "is_singleton" => true
+      }
+    end
+
+    defp character_resource(conn, resource) do
+      body =
+        case resource do
+          "online" ->
+            %{"online" => true}
+
+          "location" ->
+            %{"solar_system_id" => 30_000_142, "station_id" => 60_003_760}
+
+          "ship" ->
+            %{"ship_type_id" => 657, "ship_item_id" => 1_001, "ship_name" => "Carguero"}
+
+          "wallet" ->
+            5_020_000_000.55
+
+          "skills" ->
+            %{"skills" => [%{"skill_id" => 16_622, "active_skill_level" => 5}]}
+
+          "standings" ->
+            [%{"from_id" => 1_000_035, "from_type" => "npc_corp", "standing" => 2.5}]
+        end
+
+      EsiStub.respond(conn, 200, body, expires: DateTime.add(DateTime.utc_now(), 5, :second))
     end
 
     defp await_context(check, attempts \\ 50) do
@@ -145,13 +189,15 @@ defmodule Eth.CharactersTest do
       stub_esi()
       :ok = Sessions.start(@id, login())
 
-      context = await_context(&(map_size(&1.context) == 6))
+      context = await_context(&(map_size(&1.context) == 7))
       assert context.status == :ok
       assert context.context.location.station_id == 60_003_760
       assert context.context.ship.ship_name == "Carguero"
       assert context.context.wallet == 5_020_000_000.55
       assert context.context.skills[16_622] == 5
       assert context.context.standings[1_000_035] == 2.5
+      # De los assets (dos páginas) quedan solo los módulos montados, por nave.
+      assert context.context.assets == %{1_001 => [1_319, 1_319, 31_119]}
       assert {:ok, "access-1"} = Sessions.token(@id)
     end
 

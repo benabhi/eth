@@ -66,6 +66,7 @@ config :eth, Eth.Sso,
     esi-ui.write_waypoint.v1
     esi-location.read_online.v1
     esi-ui.open_window.v1
+    esi-assets.read_assets.v1
   )
 
 config :ueberauth, Ueberauth, providers: [eve: {Eth.Sso.Strategy, []}]
@@ -148,6 +149,12 @@ config :eth, Eth.GameRules,
     513 => :freighter,
     902 => :freighter
   },
+  # Bodega calculada (RF-5.8): atributos dogma del SDE (verificados en el SDE 3552227).
+  # 38 = capacity (bodega general, stackable); 280 = skillLevel.
+  dogma_capacity_attribute_id: 38,
+  dogma_skill_level_attribute_id: 280,
+  # Flags de ESI /assets de los módulos montados en una nave (OpenAPI de ESI).
+  fitted_location_flag_prefixes: ~w(HiSlot MedSlot LoSlot RigSlot SubSystemSlot),
   # Certeza de acceso (ERS §8.9): estructura con mercado público 0,9; NPC 1.
   structure_access_certainty: 0.9,
   # TVS y Certeza (ERS §8.9)

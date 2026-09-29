@@ -92,7 +92,11 @@ defmodule Eth.Sde.ProcessorTest do
       }
     ],
     "groups" => [%{"_key" => 28, "name" => %{"en" => "Industrial"}, "categoryID" => 6}],
-    "categories" => [%{"_key" => 6, "name" => %{"en" => "Ship"}}]
+    "categories" => [%{"_key" => 6, "name" => %{"en" => "Ship"}}],
+    # Dogma mínimo: el cálculo de la bodega se prueba en Eth.Sde.DogmaTest.
+    "typeDogma" => [%{"_key" => 34, "dogmaAttributes" => [], "dogmaEffects" => []}],
+    "dogmaEffects" => [%{"_key" => 11, "name" => "loPower"}],
+    "dogmaAttributes" => [%{"_key" => 38, "defaultValue" => 0.0, "stackable" => true}]
   }
 
   defp write_files(dir) do

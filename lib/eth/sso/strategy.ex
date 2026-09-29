@@ -3,7 +3,7 @@ defmodule Eth.Sso.Strategy do
   Estrategia Ueberauth propia para EVE SSO v2 (RF-5.1, decisión D-03: `ueberauth_eve_sso`
   no se mantiene desde 2019).
 
-  - Solicitud: redirige al endpoint de autorización con los 11 scopes y el `state`
+  - Solicitud: redirige al endpoint de autorización con los scopes configurados y el `state`
     anti-CSRF que gestiona Ueberauth.
   - Callback: intercambia el código, verifica el JWT y expone los datos en
     `conn.assigns.ueberauth_auth`.

@@ -69,6 +69,59 @@ defmodule Eth.SdeFixture do
       "categories" => [
         %{"_key" => 4, "name" => %{"en" => "Material"}},
         %{"_key" => 6, "name" => %{"en" => "Ship"}}
+      ],
+      # Dogma real (SDE 3552227) de la Iteron Mark V (657), Expanded Cargohold II (1319) y
+      # la habilidad Gallente Hauler (3340), más un tipo sin relación con la bodega (34).
+      "typeDogma" => [
+        %{
+          "_key" => 657,
+          "dogmaAttributes" => [
+            %{"attributeID" => 496, "value" => 5.0},
+            %{"attributeID" => 37, "value" => 105.0}
+          ],
+          "dogmaEffects" => [%{"effectID" => 726}, %{"effectID" => 729}]
+        },
+        %{
+          "_key" => 1319,
+          "dogmaAttributes" => [
+            %{"attributeID" => 149, "value" => 1.275},
+            %{"attributeID" => 306, "value" => 0.82}
+          ],
+          "dogmaEffects" => [%{"effectID" => 59}, %{"effectID" => 3046}]
+        },
+        %{
+          "_key" => 3340,
+          "dogmaAttributes" => [
+            %{"attributeID" => 275, "value" => 4.0},
+            %{"attributeID" => 280, "value" => 0.0}
+          ],
+          "dogmaEffects" => [%{"effectID" => 132}, %{"effectID" => 532}]
+        },
+        %{"_key" => 34, "dogmaAttributes" => [%{"attributeID" => 182, "value" => 3386.0}]}
+      ],
+      "dogmaEffects" => [
+        effect(726, "shipBonusCargo2GI", [ship_mod(38, 496, 6)]),
+        effect(729, "shipBonusVelocityGI", [ship_mod(37, 496, 6)]),
+        effect(59, "cargoCapacityMultiply", [ship_mod(38, 149, 4)]),
+        effect(3046, "modifyMaxVelocityOfShipPassive", [ship_mod(37, 306, 4)]),
+        effect(132, "skillEffect", [
+          %{
+            "domain" => "itemID",
+            "func" => "ItemModifier",
+            "modifiedAttributeID" => 280,
+            "modifyingAttributeID" => 276,
+            "operation" => 2
+          }
+        ]),
+        effect(532, "gallenteIndustrialSkillLevelPreMulShipBonusGIShip", [ship_mod(496, 280, 0)])
+      ],
+      "dogmaAttributes" => [
+        %{"_key" => 38, "defaultValue" => 0.0, "stackable" => true},
+        %{"_key" => 37, "defaultValue" => 0.0, "stackable" => false},
+        %{"_key" => 149, "defaultValue" => 1.0, "stackable" => true},
+        %{"_key" => 496, "defaultValue" => 5.0, "stackable" => true},
+        %{"_key" => 280, "defaultValue" => 0.0, "stackable" => true},
+        %{"_key" => 276, "defaultValue" => 0.0, "stackable" => true}
       ]
     }
   end
@@ -99,6 +152,19 @@ defmodule Eth.SdeFixture do
       :zip.create(~c"sde.zip", names, [:memory, cwd: String.to_charlist(src)])
 
     binary
+  end
+
+  defp effect(id, name, modifiers),
+    do: %{"_key" => id, "name" => name, "modifierInfo" => modifiers}
+
+  defp ship_mod(modified, modifying, operation) do
+    %{
+      "domain" => "shipID",
+      "func" => "ItemModifier",
+      "modifiedAttributeID" => modified,
+      "modifyingAttributeID" => modifying,
+      "operation" => operation
+    }
   end
 
   defp system(id, name, sec) do

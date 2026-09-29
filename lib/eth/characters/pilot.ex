@@ -8,6 +8,14 @@ defmodule Eth.Characters.Pilot do
   Las funciones que derivan valores (`capital/1`, `evasion_class/1`, `query_overrides/1`)
   son puras; `build/2` solo agrega las búsquedas en el SDE y el perfil de la nave.
 
+  **Bodega** (`ship.cargo_source`), de mayor a menor prioridad:
+
+  1. `:fitting`: calculada con dogma (casco + habilidades + módulos montados según
+     `/assets`, que ESI actualiza cada hora);
+  2. `:profile`: perfil guardado a mano (RF-5.8);
+  3. `:skills`: calculada solo con las habilidades (no se conocen los módulos);
+  4. `:sde`: capacidad base del casco, "sin confirmar".
+
   Implementa: RF-5.5, RF-5.6, RF-5.7, RF-5.8, RF-6.1.
   """
 
@@ -15,6 +23,7 @@ defmodule Eth.Characters.Pilot do
   alias Eth.Characters.ShipProfile
   alias Eth.Engine.Fees
   alias Eth.{GameRules, Sde}
+  alias Eth.Sde.Dogma
 
   @images "https://images.evetech.net"
 
@@ -53,7 +62,7 @@ defmodule Eth.Characters.Pilot do
       accounting: accounting,
       sales_tax: accounting && Fees.sales_tax(accounting),
       location: location(context[:location]),
-      ship: ship(context[:ship]),
+      ship: ship(context[:ship], context),
       scopes: (session && session.scopes) || character.scopes
     }
   end
@@ -134,38 +143,69 @@ defmodule Eth.Characters.Pilot do
     }
   end
 
-  defp ship(nil), do: nil
+  defp ship(nil, _context), do: nil
 
-  defp ship(%{ship_type_id: type_id} = ship) do
+  defp ship(%{ship_type_id: type_id} = ship, context) do
     type = Sde.type(type_id)
     profile = Characters.ship_profile(ship.ship_item_id, type_id)
+    calculated = calculated_cargo(ship, type, context)
 
-    ship
-    |> Map.merge(%{
+    evasion =
+      if profile,
+        do: evasion_atom(profile.evasion_class),
+        else: evasion_class(type && type.group_id)
+
+    {cargo_m3, source} = cargo(calculated, profile, type)
+
+    Map.merge(ship, %{
       type_name: (type && type.name) || "#{type_id}",
       group_id: type && type.group_id,
       render_url: ship_render_url(type_id),
       base_capacity: type && type.capacity,
-      profile: profile
+      profile: profile,
+      calculated_cargo_m3: calculated && calculated.cargo_m3,
+      fitted_modules: calculated && calculated.modules,
+      cargo_m3: cargo_m3,
+      cargo_source: source,
+      cargo_confirmed: source in [:fitting, :profile],
+      evasion_class: evasion
     })
-    |> Map.merge(cargo(profile, type))
   end
 
-  # Con perfil: su bodega y su clase. Sin perfil: capacidad base del SDE, sin confirmar.
-  defp cargo(%ShipProfile{} = profile, _type) do
-    %{
-      cargo_m3: profile.cargo_m3,
-      cargo_confirmed: true,
-      evasion_class: evasion_atom(profile.evasion_class)
-    }
-  end
+  defp cargo(%{source: :fitting} = calculated, _profile, _type),
+    do: {calculated.cargo_m3, :fitting}
 
-  defp cargo(nil, type) do
-    %{
-      cargo_m3: base_capacity(type),
-      cargo_confirmed: false,
-      evasion_class: evasion_class(type && type.group_id)
-    }
+  defp cargo(_calculated, %ShipProfile{} = profile, _type), do: {profile.cargo_m3, :profile}
+  defp cargo(%{source: :skills} = calculated, nil, _type), do: {calculated.cargo_m3, :skills}
+  defp cargo(nil, nil, type), do: {base_capacity(type), :sde}
+
+  @doc """
+  Bodega calculada con dogma (RF-5.8): `%{cargo_m3, source, modules}` o `nil` si faltan
+  las habilidades, la capacidad base o los datos de dogma. `source` es `:fitting` si se
+  conocen los módulos montados de esa nave y `:skills` si no.
+  """
+  @spec calculated_cargo(map(), map() | nil, map()) :: map() | nil
+  def calculated_cargo(ship, type, context) do
+    with %{} = skills <- context[:skills],
+         capacity when is_number(capacity) and capacity > 0 <- type && type.capacity,
+         %{} = dogma <- Sde.dogma() do
+      modules = context[:assets] && Map.get(context[:assets], ship.ship_item_id)
+
+      fit = %{
+        ship_type_id: ship.ship_type_id,
+        base_capacity: capacity,
+        modules: modules || [],
+        skills: skills
+      }
+
+      %{
+        cargo_m3: Dogma.cargo_capacity(dogma, fit),
+        source: if(modules, do: :fitting, else: :skills),
+        modules: length(modules || [])
+      }
+    else
+      _ -> nil
+    end
   end
 
   defp base_capacity(%{capacity: capacity}) when capacity > 0, do: capacity

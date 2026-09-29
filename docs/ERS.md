@@ -115,7 +115,7 @@ Verificado contra la documentación oficial vigente al 2026-09-28 (fuentes en el
 | 7 | Rutas versionadas (`/v1/...`). | ESI migró a rutas sin versión + cabecera **`X-Compatibility-Date`** (sin cabecera se usa la fecha más antigua disponible). | El cliente fija una fecha de compatibilidad configurable. RF-1.1 |
 | 8 | SDE genérico. | CCP reformuló el SDE (sep-2025): archivos **JSONL/YAML**, número de build, feed de cambios y soporte de ETag. | Carga y actualización automática por build. RF-2.1 |
 | 9 | "Ueberauth con estrategia OAuth2". | `ueberauth_eve_sso` tiene una única versión (0.1.0, de 2019) y no se mantiene. | Estrategia Ueberauth propia con validación JWT/JWKS. RF-5.1 |
-| 10 | Exactamente 9 scopes. | Dos scopes más aportan mucho: `esi-location.read_online.v1` (polling según actividad, ahorra presupuesto) y `esi-ui.open_window.v1` (abrir el mercado del ítem en el juego). Agregar scopes después obliga a volver a loguear todos los personajes. | 11 scopes. RF-5.2 |
+| 10 | Exactamente 9 scopes. | Dos scopes más aportan mucho: `esi-location.read_online.v1` (polling según actividad, ahorra presupuesto) y `esi-ui.open_window.v1` (abrir el mercado del ítem en el juego). Agregar scopes después obliga a volver a loguear todos los personajes. | 12 scopes (el 12.º, `esi-assets.read_assets.v1`, se sumó en F4 para calcular la bodega). RF-5.2 |
 | 11 | Epithal con 44.800 m³ para PLEX y Cap Boosters. | La bodega grande de la Epithal es **exclusiva para comodidades planetarias**; su carga general es pequeña. | La capacidad considera solo la bodega general; perfiles por nave. RF-5.8 |
 | 12 | `[Forzar Pull]` en cualquier momento. | Pedir antes de `Expires` devuelve el mismo caché, y **eludir la caché de ESI puede causar un baneo**. | "Actualizar ahora" solo si `Expires` venció o si la región está en error. RF-8.8 |
 | 13 | Live reload con `volumes: .:/app` en Windows. | Los contenedores Linux solo reciben eventos `inotify` si los archivos están en un sistema de archivos Linux (WSL2); Tailwind v4 eliminó `--poll`. | Código dentro de WSL2 (recomendado) o *fallback* por polling. RNF-11 |
@@ -682,9 +682,10 @@ Siempre excluidos: PLEX (tipo 44992) y la región 19000001. Listas del usuario: 
 | 9 | `esi-ui.write_waypoint.v1` | Fijar ruta | RF-5.9 | Borrador |
 | 10 | `esi-location.read_online.v1` | Polling según actividad (ahorra presupuesto) y estado en línea | RF-5.4 | **Nuevo** |
 | 11 | `esi-ui.open_window.v1` | Abrir en el juego la ventana de mercado del ítem | RF-5.9 | **Nuevo** |
+| 12 | `esi-assets.read_assets.v1` | Módulos montados en las naves para calcular la bodega real | RF-5.8 | **Nuevo** (F4, pedido del operador) |
 
-- Pedir un scope nuevo más adelante obliga a volver a loguear todos los personajes; por eso v1 pide exactamente estos 11 y ninguno más (mínimo privilegio).
-- Futuros (no se piden en v1): `esi-markets.read_character_orders.v1` (modo Listado avanzado, excluir órdenes propias) y `esi-assets.read_assets.v1` (stock existente, bodega real).
+- Pedir un scope nuevo más adelante obliga a volver a loguear todos los personajes; por eso v1 pide exactamente estos 12 y ninguno más (mínimo privilegio). Un personaje logueado con los 11 anteriores sigue funcionando: la bodega se estima solo con habilidades hasta que vuelva a loguear.
+- Futuros (no se piden en v1): `esi-markets.read_character_orders.v1` (modo Listado avanzado, excluir órdenes propias).
 
 **CA:** si un personaje concedió menos scopes, la UI indica qué funciones quedan deshabilitadas y ofrece volver a loguear.
 
@@ -728,8 +729,11 @@ Sistema, estación o estructura actual, y nave (`ship_type_id`, `ship_item_id`, 
 
 #### RF-5.8 · Perfiles de capacidad de carga — M · F4
 
-- Al detectar una nave sin perfil se muestra **una sola vez** un diálogo no bloqueante (§9.7) con tres campos:
-  - capacidad de la **bodega general** (m³), sugiriendo la capacidad base del SDE (sin habilidades ni módulos);
+- **Bodega calculada:** con el subconjunto de dogma del SDE (`typeDogma`, `dogmaEffects`, `dogmaAttributes`) se calcula la bodega general = capacidad base del casco + bonos del casco premultiplicados por el nivel **activo** de sus habilidades + módulos montados (expansores, rigs, subsistemas), leídos de `/characters/{id}/assets` (flags `HiSlot*`, `MedSlot*`, `LoSlot*`, `RigSlot*`, `SubSystemSlot*`). Operaciones y orden de dogma, con penalización por apilamiento para atributos no apilables (la capacidad es apilable). ESI informa los assets cada hora: un refit puede tardar hasta 1 h en reflejarse.
+- **Prioridad de la bodega:** calculada con módulos › perfil manual › calculada solo con habilidades (sin permiso de assets o nave aún no informada) › capacidad base del SDE ("Capacidad sin confirmar"). La UI indica el origen (calculada, manual, estimada, sin confirmar).
+- Verificado con el SDE 3552227: Iteron Mark V 5.800 m³ → 7.250 con Gallente Hauler V; Charon 465.000 → 581.250 con Caldari Freighter V.
+- Si la bodega no se puede calcular, al detectar una nave sin perfil se muestra **una sola vez** un diálogo no bloqueante (§9.7) con tres campos:
+  - capacidad de la **bodega general** (m³), sugiriendo la mejor estimación disponible (calculada con habilidades o, si no, la capacidad base del SDE);
   - clase de evasión (derivada del grupo del SDE, editable);
   - valor máximo de carga (opcional).
 - Clave: `ship_item_id` (la nave concreta: dos naves del mismo casco pueden tener distinto fitting), con *fallback* por casco.
@@ -1147,6 +1151,7 @@ Los tiempos de caché y los grupos son **de referencia** (verificados a sep-2026
 | `GET /characters/{id}/standings` | `esi-characters.read_standings.v1` | 3600 s | `char-social` | RF-5.6 |
 | `POST /ui/autopilot/waypoint` | `esi-ui.write_waypoint.v1` | — | `ui` 900 / 15 min | RF-5.9 |
 | `POST /ui/openwindow/marketdetails` | `esi-ui.open_window.v1` | — | `ui` | RF-5.9 |
+| `GET /characters/{id}/assets` | `esi-assets.read_assets.v1` | 3600 s | `char-asset` 1.800 / 15 min (paginado, `X-Pages`) | RF-5.8 |
 | `POST /universe/names` | — | — | — | *(C)* Nombres en el feed del radar |
 
 **Costo en tokens:** 2XX = 2 · 3XX = 1 · 4XX = 5 (salvo 429) · 5XX = 0. Las rutas sin grupo siguen bajo el *error limit* legado: 100 respuestas que no sean 2XX/3XX por minuto ⇒ 420.
@@ -1715,7 +1720,7 @@ EXPOSE 4000
 
 **Opción B — elegida (P-06, 2026-09-28):** repo en `C:\...`. Con `ETH_FS_POLL=true`, el live reload usa `:fs_poll` (solo en `lib/`, `priv/static` y `priv/gettext`) y Tailwind se recompila con `Eth.Dev.TailwindPoller`. esbuild `--watch` y el code reloader ya funcionan sin inotify. Verificado: la edición de una plantilla desde Windows recarga el navegador y recompila el CSS en ~5 s.
 
-Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una aplicación con el callback `http://localhost:4000/auth/eve/callback` y los 11 scopes de RF-5.2.
+Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una aplicación con el callback `http://localhost:4000/auth/eve/callback` y los 12 scopes de RF-5.2.
 
 ### 10.5 Producción
 
@@ -1757,7 +1762,7 @@ Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una
 
 ### 11.4 Checklist manual con el cliente del juego (por release)
 
-1. Login con SSO y aceptación de los 11 scopes.
+1. Login con SSO y aceptación de los 12 scopes.
 2. "Fijar ruta" (origen + destino) y "Ruta evasiva" con anclas.
 3. "Abrir mercado" sobre un ítem.
 4. Pegar un Multibuy con un nombre terminado en número.
@@ -1823,7 +1828,7 @@ Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una
 | RF 2.5 Optimización de retorno | RF-4.11, §8.6 | Tolerancia de k saltos; métricas del ciclo |
 | RF 2.6 Escudo anti-scam | RF-4.8, §8.7 | Umbral único de 1000 % → reglas AS-1…AS-8 explicables |
 | RF 2.7 TVS y Certeza adaptativos | RF-4.12, §8.9 | Fórmulas definidas + valor de la carga + ejemplo trabajado |
-| RF 3.1 Perfil de permisos (9 scopes) | RF-5.2 | 11 scopes (+ `read_online`, + `open_window`) |
+| RF 3.1 Perfil de permisos (9 scopes) | RF-5.2 | 12 scopes (+ `read_online`, + `open_window`, + `read_assets`) |
 | RF 3.2 Impuestos y billetera | RF-4.5, 4.6, 5.5, 5.6 | El modo Instantáneo solo paga *sales tax*; fórmulas vigentes |
 | RF 3.3 Capacidad de carga | RF-5.8 | Por `ship_item_id`; sugerencia del SDE; bodegas especializadas |
 | RF 4.1 Diseño táctico interactivo | RF-6.2 | + ISK/h y orden estable |
@@ -1855,7 +1860,7 @@ Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una
 | D-02 | PostgreSQL 18 en Docker con volumen nombrado | Default de Phoenix, robusto y sin los problemas de SQLite sobre bind mounts de Windows | SQLite |
 | D-03 | Estrategia Ueberauth propia para EVE SSO | `ueberauth_eve_sso` no se mantiene desde 2019 | Depender de ese paquete |
 | D-04 | Kills en vivo desde zKillboard R2Z2 (+ killmail.stream como alternativa); línea base con ESI | ESI no ofrece un stream en vivo; RedisQ fue discontinuado | ESI `system_kills` solo (resolución de 1 h) |
-| D-05 | 11 scopes | Valor alto por scope y costo de re-login si se agregan después | 9 scopes |
+| D-05 | 12 scopes | Valor alto por scope y costo de re-login si se agregan después | 9 scopes |
 | D-06 | Req/Finch para HTTP; Oban para jobs periódicos y durables; GenServers para los ciclos de alta frecuencia | Estándar del ecosistema; `Req.Test`; Oban Web | HTTPoison, jobs a mano |
 | D-07 | Modo Instantáneo en el MVP; modo Listado en v1.x | Menor riesgo y cálculo exacto; el Listado requiere modelar la velocidad de venta | Ambos en el MVP |
 | D-08 | Floats para ISK en el motor; redondeo solo al mostrar | Rendimiento; la precisión es suficiente para estimaciones | Decimal |
@@ -2039,6 +2044,8 @@ Aproximación de la escala del cliente. En el tema claro se usan como fondo de i
 | `guest.cargo_m3` | 38,500 | Bodega del modo invitado (Iteron Mark V con módulos de carga) |
 | `accounting_skill_id` | 16622 | Habilidad Accounting en el SDE (RF-5.6) |
 | `capital.wallet_share` / `capital.reserve_isk` | 100 % / 0 | Capital = saldo × porcentaje − reserva (RF-5.5) |
+| `dogma_capacity_attribute_id` / `dogma_skill_level_attribute_id` | 38 / 280 | Atributos dogma de capacidad y nivel de habilidad (RF-5.8) |
+| `fitted_location_flag_prefixes` | HiSlot, MedSlot, LoSlot, RigSlot, SubSystemSlot | Módulos montados en `/assets` (RF-5.8) |
 | `ship_group_evasion_classes` | 31 Shuttle · 1202 BR · 380 DST · 28 Industrial · 513 y 902 Freighter · resto Otras | Clase sugerida por grupo del SDE (RF-5.8) |
 
 ### B.8 Matriz de vulnerabilidad (calibrable)

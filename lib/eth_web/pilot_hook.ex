@@ -71,8 +71,9 @@ defmodule EthWeb.PilotHook do
 
   defp handle_info(_msg, socket), do: {:cont, socket}
 
-  # Una nave sin perfil abre el diálogo una sola vez, al subirse a ella (RF-5.8).
-  defp maybe_open_ship_dialog(socket, :ship, previous, %{ship: %{profile: nil} = ship}) do
+  # Una nave sin perfil ni bodega calculable abre el diálogo una sola vez, al subirse a
+  # ella (RF-5.8).
+  defp maybe_open_ship_dialog(socket, :ship, previous, %{ship: %{cargo_source: :sde} = ship}) do
     previous_item = previous && previous.ship && previous.ship.ship_item_id
 
     if previous_item != ship.ship_item_id and is_nil(socket.assigns.ship_form),
@@ -134,7 +135,7 @@ defmodule EthWeb.PilotHook do
       case ship.profile do
         nil ->
           %{
-            "cargo_m3" => ship.base_capacity,
+            "cargo_m3" => ship.cargo_m3,
             "evasion_class" => Atom.to_string(ship.evasion_class)
           }
 

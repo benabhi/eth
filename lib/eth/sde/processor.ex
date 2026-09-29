@@ -12,6 +12,7 @@ defmodule Eth.Sde.Processor do
   - `types`: solo tipos publicados con grupo de mercado:
     `id => %{name, name_es, group_id, market_group_id, volume, packaged_volume, capacity}`
   - `groups`: `id => %{name, category_id}` y `categories`: `id => name`
+  - `dogma`: subconjunto de dogma para calcular la bodega (`Eth.Sde.Dogma`, RF-5.8)
 
   Los nombres de estaciones no vienen armados en el SDE; se resuelven con una función
   externa (ESI `/universe/names`, exacta) y, si falta alguno, se componen con la regla
@@ -20,7 +21,10 @@ defmodule Eth.Sde.Processor do
   """
 
   @files ~w(mapRegions mapSolarSystems mapStargates npcStations npcCorporations stationOperations
-            types groups categories)
+            types groups categories typeDogma dogmaEffects dogmaAttributes)
+
+  alias Eth.GameRules
+  alias Eth.Sde.Dogma
 
   @type data :: %{
           regions: map(),
@@ -29,7 +33,8 @@ defmodule Eth.Sde.Processor do
           corporations: map(),
           types: map(),
           groups: map(),
-          categories: map()
+          categories: map(),
+          dogma: Dogma.t()
         }
 
   @doc "Extrae del zip los archivos necesarios en `dir`."
@@ -110,7 +115,14 @@ defmodule Eth.Sde.Processor do
       corporations: corporations,
       types: types(dir),
       groups: groups,
-      categories: categories
+      categories: categories,
+      dogma:
+        Dogma.build(
+          stream(dir, "typeDogma"),
+          stream(dir, "dogmaEffects"),
+          stream(dir, "dogmaAttributes"),
+          GameRules.get(:dogma_capacity_attribute_id)
+        )
     }
   end
 

@@ -25,6 +25,8 @@ defmodule Eth.Sde.Store do
   @status_table :eth_sde_status
   @topic "sde:status"
   @retry_ms 600_000
+  # Versión del formato de la caché procesada: subirla cuando el procesador agrega datos.
+  @format 2
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -96,13 +98,23 @@ defmodule Eth.Sde.Store do
       file ->
         started = System.monotonic_time(:millisecond)
         cache = file |> File.read!() |> Plug.Crypto.non_executable_binary_to_term()
-        publish(cache, System.monotonic_time(:millisecond) - started, :cache)
-        {:ok, cache.meta.build}
+        use_cache(cache, System.monotonic_time(:millisecond) - started)
     end
   rescue
     error ->
       Logger.warning("Caché del SDE ilegible, se descarga de nuevo: #{Exception.message(error)}")
       :none
+  end
+
+  # Una caché de un formato anterior (le faltan datos nuevos) se reprocesa.
+  defp use_cache(%{meta: %{format: @format}} = cache, duration_ms) do
+    publish(cache, duration_ms, :cache)
+    {:ok, cache.meta.build}
+  end
+
+  defp use_cache(_cache, _duration_ms) do
+    Logger.info("Caché del SDE de un formato anterior: se procesa de nuevo")
+    :none
   end
 
   ## Descarga y procesamiento
@@ -121,7 +133,14 @@ defmodule Eth.Sde.Store do
          :ok <- Processor.extract(zip, extract_dir) do
       data = Processor.process(extract_dir, &resolve_station_names/1)
       graph = Graph.build(data.systems, graph_opts())
-      meta = %{build: build, release_date: release, processed_at: Clock.utc_now()}
+
+      meta = %{
+        build: build,
+        release_date: release,
+        processed_at: Clock.utc_now(),
+        format: @format
+      }
+
       cache = %{meta: meta, data: data, graph: graph}
 
       File.write!(
