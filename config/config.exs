@@ -163,8 +163,24 @@ config :eth, Eth.GameRules,
   tvs_weights: %{isk_per_hour: 0.40, profit: 0.25, roi: 0.15, liquidity: 0.20},
   tvs_refs: %{isk_per_hour: 150_000_000, profit: 100_000_000, roi: 0.25},
   order_tau_min: 180,
-  # Liquidez neutra hasta tener historial de mercado (F5, RF-4.7).
+  # Liquidez neutra mientras no hay historial del tipo (RF-4.7).
   default_liquidity: 0.5,
+  # Liquidez (RF-4.7): índice 1 si la cantidad no supera el volumen de `full_at_days`
+  # días; ilíquido con menos de `min_days_traded` días operados en 30.
+  liquidity: %{full_at_days: 1, min_days_traded: 5},
+  # Escudo anti-scam (ERS §8.7, calibrables). Mediana de 7 días si hubo al menos
+  # `min_days_7d` días operados; si no, la de 30. Certeza por estado según §8.9.
+  anti_scam: %{
+    scam_bid_ratio: 3.0,
+    suspicious_bid_ratio: 1.5,
+    global_price_ratio: 5.0,
+    origin_ask_ratio: 1.5,
+    fresh_order_minutes: 120,
+    min_days_traded: 3,
+    min_days_7d: 3,
+    no_history_max_roi: 1.0,
+    certainty: %{ok: 1.0, no_history: 0.7, suspicious: 0.5, scam: 0.0}
+  },
   # Downtime diario de Tranquility (UTC) (RF-1.8)
   downtime_window_utc: {~T[10:59:00], ~T[11:15:00]},
   status_poll_ms: 60_000,
