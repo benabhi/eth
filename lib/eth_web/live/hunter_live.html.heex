@@ -536,6 +536,17 @@
               <.icon name="hero-building-storefront" class="size-4" /> {gettext("Abrir mercado")}
             </button>
           </span>
+          <span title={start_run_blocked(@pilot, r)}>
+            <button
+              id="start-run"
+              type="button"
+              phx-click="start_run"
+              disabled={start_run_blocked(@pilot, r) != nil}
+              class="btn btn-sm btn-accent"
+            >
+              <.icon name="hero-rocket-launch" class="size-4" /> {gettext("Iniciar viaje")}
+            </button>
+          </span>
         </div>
         <p :if={@pilot} class="mt-1 text-xs text-base-content/60">
           {gettext(

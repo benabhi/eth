@@ -434,7 +434,7 @@ defmodule EthWeb.Layouts do
   defp sections do
     [
       {:hunter, gettext("Cazador"), ~p"/"},
-      {:run, gettext("Viaje activo"), nil},
+      {:run, gettext("Viaje activo"), ~p"/run"},
       {:control, gettext("Centro de control"), ~p"/control"},
       {:settings, gettext("Ajustes"), ~p"/settings"}
     ]

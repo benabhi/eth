@@ -1,0 +1,187 @@
+<Layouts.app
+  flash={@flash}
+  radar_degraded={@radar_degraded}
+  active={:run}
+  pilot={@pilot}
+  characters={@characters}
+  ship_form={@ship_form}
+>
+  <h1 class="text-2xl font-bold">{gettext("Viaje activo")}</h1>
+
+  <%= cond do %>
+    <% is_nil(@pilot) -> %>
+      <p id="run-guest" class="text-base-content/70">
+        {gettext(
+          "Iniciá sesión con EVE para seguir un viaje: hace falta tu ubicación y tu billetera."
+        )}
+      </p>
+    <% is_nil(@run) -> %>
+      <p id="run-empty" class="text-base-content/70">
+        {gettext(
+          "No tenés un viaje en curso. Elegí una oportunidad en el Cazador y tocá \"Iniciar viaje\"."
+        )}
+      </p>
+    <% true -> %>
+      <section id="run" class="card border border-base-300 p-4 space-y-4">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <h2 class="text-lg font-semibold">
+              {@run.plan["type_name"]} ×{Format.integer(@run.plan["quantity"])}
+            </h2>
+            <p class="text-sm">
+              {@run.plan["origin_name"]}<br />→ {@run.plan["destination_name"]}
+            </p>
+          </div>
+          <div class="text-right tabular-nums">
+            <div class="text-xs text-base-content/60">{gettext("Beneficio proyectado")}</div>
+            <div class="text-xl font-semibold">{Format.compact(@run.predicted_profit)}</div>
+            <div :if={@live && @live.revalidation} id="run-now" class="text-sm">
+              {gettext("ahora")} {Format.compact(@live.revalidation.profit)}
+            </div>
+          </div>
+        </div>
+
+        <%!-- Etapas (RF-7.2) --%>
+        <ol id="run-steps" class="steps steps-horizontal w-full text-xs">
+          <li
+            :for={step <- @steps}
+            class={["step", step_state(@run, step) in [:done, :current] && "step-primary"]}
+            data-state={step_state(@run, step)}
+          >
+            <span>{label(step)}</span>
+            <span :if={step_time(@run, step)} class="text-base-content/60">
+              {step_time(@run, step)}
+            </span>
+          </li>
+        </ol>
+
+        <p id="run-location" class="text-sm text-base-content/70">
+          {location_label(@live && @live.location)}
+          <span :if={@live && @live.wallet}>
+            · {gettext("billetera")} {Format.compact(@live.wallet)}
+          </span>
+        </p>
+
+        <%!-- Revalidación (RF-7.3) --%>
+        <div :if={@live && @live.revalidation} id="run-revalidation" class="space-y-1">
+          <div :for={alert <- @live.revalidation.alerts} class="alert alert-warning py-2 text-sm">
+            {alert}
+          </div>
+          <div :if={s = @live.revalidation.suggestion} class="alert alert-info py-2 text-sm">
+            {gettext("Mejor destino: %{name} (+%{gain}, %{jumps} saltos desde el destino)",
+              name: s.name,
+              gain: Format.compact(s.gain),
+              jumps: s.extra_jumps
+            )}
+          </div>
+        </div>
+
+        <%!-- Amenazas en la ruta restante (RF-7.4) --%>
+        <div
+          :if={@live && @live.threats != []}
+          id="run-threats"
+          class="alert alert-error flex-col items-start py-2 text-sm"
+        >
+          <div :for={t <- @live.threats}>
+            ▲ {t.name}: {t.description} · {gettext("a %{n} saltos", n: t.jumps_away)}
+          </div>
+          <button
+            :if={@live.evasive}
+            id="apply-evasive"
+            type="button"
+            phx-click="apply_evasive"
+            class="btn btn-sm"
+          >
+            {gettext("Aplicar ruta evasiva (+%{n} saltos, fija waypoints)",
+              n: @live.evasive.extra_jumps
+            )}
+          </button>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <button
+            id="run-set-route"
+            type="button"
+            phx-click="set_route"
+            class="btn btn-sm btn-primary"
+          >
+            {gettext("Fijar ruta")}
+          </button>
+          <button
+            :if={@run.status in ["planned", "to_origin"]}
+            id="run-confirm-bought"
+            type="button"
+            phx-click="confirm"
+            phx-value-action="bought"
+            class="btn btn-sm"
+          >
+            {gettext("Ya compré")}
+          </button>
+          <button
+            :if={@run.status in ["bought", "in_transit", "at_destination"]}
+            id="run-confirm-sold"
+            type="button"
+            phx-click="confirm"
+            phx-value-action="sold"
+            class="btn btn-sm"
+          >
+            {gettext("Ya vendí")}
+          </button>
+          <button
+            id="run-abort"
+            type="button"
+            phx-click="abort"
+            data-confirm={gettext("¿Abortar el viaje?")}
+            class="btn btn-sm btn-ghost"
+          >
+            {gettext("Abortar")}
+          </button>
+        </div>
+        <p class="text-xs text-base-content/60">
+          {gettext(
+            "Las etapas avanzan solas con tu ubicación y tu billetera; el P&L exacto llega con las transacciones de ESI (hasta 1 h de demora)."
+          )}
+        </p>
+      </section>
+  <% end %>
+
+  <%!-- Historial (RF-7.6) --%>
+  <section :if={@history != []} id="run-history" class="card border border-base-300 p-4">
+    <h2 class="font-semibold">{gettext("Historial de viajes")}</h2>
+    <div class="overflow-x-auto">
+      <table class="table table-sm tabular-nums">
+        <thead>
+          <tr>
+            <th>{gettext("Inicio")}</th>
+            <th>{gettext("Objeto")}</th>
+            <th>{gettext("Estado")}</th>
+            <th class="text-right">{gettext("Proyectado")}</th>
+            <th class="text-right">{gettext("Real")}</th>
+            <th class="text-right">{gettext("Desvío")}</th>
+            <th class="text-right">{gettext("ISK/h real")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr :for={r <- @history} id={"run-#{r.id}"}>
+            <td>{Calendar.strftime(r.started_at, "%d/%m %H:%M")}</td>
+            <td>{r.plan["type_name"]} ×{Format.integer(r.plan["quantity"])}</td>
+            <td>{label(r.status)}</td>
+            <td class="text-right">{Format.compact(r.predicted_profit)}</td>
+            <td class="text-right">
+              <%= cond do %>
+                <% r.realized_profit -> %>
+                  {Format.compact(r.realized_profit)}
+                <% r.status == "closed" -> %>
+                  <span class="text-base-content/50">{gettext("reconciliando")}</span>
+                <% true -> %>
+                  —
+              <% end %>
+            </td>
+            <td class="text-right">{deviation(r)}</td>
+            <td class="text-right">{real_isk_per_hour(r)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</Layouts.app>
