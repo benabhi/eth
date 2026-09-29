@@ -16,9 +16,9 @@ defmodule EthWeb.SettingsLive do
   """
   use EthWeb, :live_view
 
-  alias Eth.{Accounts, Characters, GameRules, Market, Routing, Sde, Sso}
+  alias Eth.{Accounts, Characters, GameRules, Market, Notifications, Routing, Sde, Sso}
   alias Eth.Characters.{Pilot, Session, Sessions, ShipProfile}
-  alias EthWeb.Format
+  alias EthWeb.{Format, HunterParams}
 
   @tabs [
     characters: {"Personajes", "/settings"},
@@ -26,6 +26,7 @@ defmodule EthWeb.SettingsLive do
     rules: {"Reglas", "/settings/rules"},
     radar: {"Radar", "/settings/radar"},
     markets: {"Regiones y estructuras", "/settings/markets"},
+    notifications: {"Notificaciones", "/settings/notifications"},
     setup: {"Primer arranque", "/settings/setup"}
   ]
 
@@ -78,6 +79,22 @@ defmodule EthWeb.SettingsLive do
     |> assign(:rules, rules)
     |> assign(:rules_form, form)
     |> assign(:verified_on, GameRules.get(:rules_verified_on, nil))
+  end
+
+  defp load(socket, :notifications) do
+    rule = Notifications.rule()
+
+    form =
+      to_form(
+        %{
+          "enabled" => to_string(rule.enabled),
+          "min_tvs" => Integer.to_string(rule.min_tvs),
+          "min_profit" => HunterParams.format_isk(rule.min_profit)
+        },
+        as: :rule
+      )
+
+    assign(socket, :rule_form, form)
   end
 
   defp load(socket, :markets) do
@@ -227,6 +244,41 @@ defmodule EthWeb.SettingsLive do
     end
   end
 
+  ## Notificaciones (RF-10.2, RF-10.3)
+
+  def handle_event("save_rule", %{"rule" => params}, socket) do
+    attrs = %{
+      enabled: params["enabled"] == "true",
+      min_tvs: parse_int(params["min_tvs"]),
+      min_profit: HunterParams.parse_isk(params["min_profit"])
+    }
+
+    case Notifications.put_rule(attrs) do
+      :ok ->
+        {:noreply,
+         socket |> put_flash(:info, gettext("Regla de alertas guardada")) |> load(:notifications)}
+
+      {:error, _} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           gettext("TVS entre 0 y 100 y un beneficio válido (por ejemplo 20M)")
+         )}
+    end
+  end
+
+  def handle_event("test_alert", _params, socket) do
+    Notifications.notify(%{
+      key: "test:#{System.unique_integer([:positive])}",
+      title: gettext("Alerta de prueba"),
+      body: gettext("Así se ven las notificaciones de EVE Trade Hunter"),
+      url: "/settings/notifications"
+    })
+
+    {:noreply, socket}
+  end
+
   ## Regiones y estructuras (RF-9.6)
 
   def handle_event("add_structure", %{"structure" => %{"id" => text}}, socket) do
@@ -325,6 +377,13 @@ defmodule EthWeb.SettingsLive do
   defp tier_order(:hub), do: 0
   defp tier_order(:active), do: 1
   defp tier_order(_rest), do: 2
+
+  defp parse_int(text) do
+    case Integer.parse(String.trim(text || "")) do
+      {n, ""} -> n
+      _ -> nil
+    end
+  end
 
   defp parse_alpha(text) do
     case Float.parse(String.replace(String.trim(text || ""), ",", ".")) do

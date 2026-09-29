@@ -19,7 +19,19 @@ defmodule Eth.Tracking.RunMonitor do
   """
   use GenServer, restart: :transient
 
-  alias Eth.{Characters, Clock, Engine, Events, GameRules, Routing, Sde, Threat, Tracking}
+  alias Eth.{
+    Characters,
+    Clock,
+    Engine,
+    Events,
+    GameRules,
+    Notifications,
+    Routing,
+    Sde,
+    Threat,
+    Tracking
+  }
+
   alias Eth.Characters.{Session, Sessions}
   alias Eth.Engine.Locations
   alias Eth.Esi
@@ -314,16 +326,17 @@ defmodule Eth.Tracking.RunMonitor do
     for alert <- info.alerts -- old do
       Events.emit(:warning, "Viajes", "#{run.plan["type_name"]}: #{alert}")
       Tracking.broadcast(run, {:alert, alert})
+      notify(run, alert, :warning)
     end
 
     if info.suggestion && !(previous && previous.suggestion) do
       s = info.suggestion
 
-      Tracking.broadcast(
-        run,
-        {:alert,
-         "Mejor destino: #{s.name} (+#{round(s.gain / 1.0e6)}M, #{s.extra_jumps} saltos desde el destino)"}
-      )
+      message =
+        "Mejor destino: #{s.name} (+#{round(s.gain / 1.0e6)}M, #{s.extra_jumps} saltos desde el destino)"
+
+      Tracking.broadcast(run, {:alert, message})
+      notify(run, message, :info)
     end
 
     Tracking.broadcast(run, :revalidated)
@@ -361,6 +374,7 @@ defmodule Eth.Tracking.RunMonitor do
         message = "Amenaza en la ruta: #{t.description} (a #{t.jumps_away} saltos)"
         Events.emit(:warning, "Viajes", message)
         Tracking.broadcast(run, {:alert, message})
+        notify(run, message, :error)
       end
 
       %{state | threats: threats, evasive: evasive}
@@ -403,6 +417,17 @@ defmodule Eth.Tracking.RunMonitor do
     else
       _ -> nil
     end
+  end
+
+  # Alerta del viaje también fuera de /run (RF-10.3: eventos del viaje y amenazas).
+  defp notify(run, message, level) do
+    Notifications.notify(%{
+      key: "run:#{run.id}:#{:erlang.phash2(message)}",
+      level: level,
+      title: "Viaje · #{run.plan["type_name"]}",
+      body: message,
+      url: "/run"
+    })
   end
 
   ## Transacciones y cierre (RF-7.5)

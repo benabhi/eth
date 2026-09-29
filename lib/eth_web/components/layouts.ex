@@ -99,6 +99,77 @@ defmodule EthWeb.Layouts do
     </main>
 
     <.flash_group flash={@flash} />
+
+    <%!-- Notificaciones del navegador y sonido (RF-10.2): opt-in por navegador --%>
+    <div id="eth-notifier" phx-hook=".Notifier" class="hidden"></div>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".Notifier">
+      // Preferencias por navegador (localStorage): "eth-notify" y "eth-sound" = "on" | "off".
+      const pref = (key) => localStorage.getItem(key) === "on"
+
+      const describe = () => {
+        const el = document.getElementById("notify-status")
+        if (!el) return
+        const permission = "Notification" in window ? Notification.permission : "unsupported"
+        const browser =
+          permission === "unsupported" ? "este navegador no las admite"
+          : pref("eth-notify") && permission === "granted" ? "activadas"
+          : permission === "denied" ? "bloqueadas en el navegador"
+          : "desactivadas"
+        el.textContent = `Notificaciones del navegador: ${browser} · Sonido: ${pref("eth-sound") ? "activado" : "desactivado"}`
+      }
+
+      // Tono corto con WebAudio: sin archivos de audio externos.
+      const beep = () => {
+        const Ctx = window.AudioContext || window.webkitAudioContext
+        if (!Ctx) return
+        const ctx = new Ctx()
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.frequency.value = 880
+        gain.gain.setValueAtTime(0.08, ctx.currentTime)
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25)
+        osc.connect(gain).connect(ctx.destination)
+        osc.start()
+        osc.stop(ctx.currentTime + 0.25)
+      }
+
+      export default {
+        mounted() {
+          this.handleEvent("eth:notify", ({title, body, url}) => {
+            if (pref("eth-sound")) beep()
+            if (pref("eth-notify") && "Notification" in window && Notification.permission === "granted") {
+              const n = new Notification(title, {body, tag: title})
+              if (url) n.onclick = () => { window.focus(); window.location.href = url }
+            }
+          })
+
+          this.onPermission = () => {
+            if (!("Notification" in window)) return describe()
+            Notification.requestPermission().then((p) => {
+              localStorage.setItem("eth-notify", p === "granted" ? "on" : "off")
+              describe()
+            })
+          }
+          this.onDisable = () => { localStorage.setItem("eth-notify", "off"); describe() }
+          this.onSound = () => {
+            localStorage.setItem("eth-sound", pref("eth-sound") ? "off" : "on")
+            if (pref("eth-sound")) beep()
+            describe()
+          }
+
+          window.addEventListener("eth:notify-permission", this.onPermission)
+          window.addEventListener("eth:notify-disable", this.onDisable)
+          window.addEventListener("eth:notify-sound", this.onSound)
+          describe()
+        },
+        updated() { describe() },
+        destroyed() {
+          window.removeEventListener("eth:notify-permission", this.onPermission)
+          window.removeEventListener("eth:notify-disable", this.onDisable)
+          window.removeEventListener("eth:notify-sound", this.onSound)
+        }
+      }
+    </script>
     """
   end
 

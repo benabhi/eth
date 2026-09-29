@@ -169,4 +169,22 @@ defmodule EthWeb.SettingsLiveTest do
       assert render(view) =~ "tiene que ser un número"
     end
   end
+
+  describe "notificaciones (RF-10.2, RF-10.3)" do
+    test "guarda la regla y muestra una alerta de prueba como toast", %{conn: conn} do
+      start_supervised!(Eth.Notifications.Dispatcher)
+      {:ok, view, _html} = live(conn, ~p"/settings/notifications")
+      assert has_element?(view, "#notify-status")
+      assert has_element?(view, "#eth-notifier[phx-hook]")
+
+      view
+      |> form("#rule-form", rule: %{enabled: "true", min_tvs: "80", min_profit: "50M"})
+      |> render_submit()
+
+      assert %{enabled: true, min_tvs: 80, min_profit: 50_000_000} = Eth.Notifications.rule()
+
+      view |> element("#notify-test") |> render_click()
+      assert render(view) =~ "Alerta de prueba"
+    end
+  end
 end

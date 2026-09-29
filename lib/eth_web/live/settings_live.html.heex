@@ -355,6 +355,89 @@
     </.form>
   </section>
 
+  <%!-- Notificaciones (RF-10.2, RF-10.3) --%>
+  <section :if={@live_action == :notifications} id="settings-notifications" class="space-y-4">
+    <div class="card border border-base-300 p-4 space-y-2">
+      <h2 class="font-semibold">{gettext("En este navegador")}</h2>
+      <p class="text-sm text-base-content/70">
+        {gettext(
+          "Las alertas siempre aparecen dentro de la app. Además podés recibirlas como notificación del sistema y con un sonido corto, útil con el juego en primer plano. Se guarda en este navegador."
+        )}
+      </p>
+      <p id="notify-status" class="text-sm font-semibold">
+        {gettext("Notificaciones del navegador: cargando…")}
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <button
+          id="notify-enable"
+          type="button"
+          phx-click={JS.dispatch("eth:notify-permission")}
+          class="btn btn-sm btn-primary"
+        >
+          {gettext("Activar notificaciones")}
+        </button>
+        <button
+          id="notify-disable"
+          type="button"
+          phx-click={JS.dispatch("eth:notify-disable")}
+          class="btn btn-sm"
+        >
+          {gettext("Desactivar")}
+        </button>
+        <button
+          id="notify-sound"
+          type="button"
+          phx-click={JS.dispatch("eth:notify-sound")}
+          class="btn btn-sm"
+        >
+          {gettext("Activar o desactivar sonido")}
+        </button>
+        <button id="notify-test" type="button" phx-click="test_alert" class="btn btn-sm btn-ghost">
+          {gettext("Probar")}
+        </button>
+      </div>
+    </div>
+
+    <div class="card border border-base-300 p-4">
+      <h2 class="font-semibold">{gettext("Contratos nuevos")}</h2>
+      <p class="text-sm text-base-content/70">
+        {gettext(
+          "Avisa cuando aparece un contrato que no estaba en la evaluación anterior y supera estos mínimos (con los parámetros del modo invitado). Como mucho 3 por evaluación; el mismo contrato no vuelve a sonar antes de 10 minutos."
+        )}
+      </p>
+      <.form
+        for={@rule_form}
+        id="rule-form"
+        phx-submit="save_rule"
+        class="mt-2 flex flex-wrap items-end gap-3"
+      >
+        <.input field={@rule_form[:enabled]} type="checkbox" label={gettext("Activada")} />
+        <div class="w-32">
+          <.input
+            field={@rule_form[:min_tvs]}
+            type="number"
+            min="0"
+            max="100"
+            label={gettext("TVS ≥")}
+          />
+        </div>
+        <div class="w-40">
+          <.input
+            field={@rule_form[:min_profit]}
+            label={gettext("Beneficio ≥")}
+            placeholder="20M"
+          />
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary mb-2">{gettext("Guardar")}</button>
+      </.form>
+      <p class="text-xs text-base-content/60">
+        {gettext(
+          "Siempre avisan, sin configurar: eventos y amenazas de tu viaje activo y tokens de EVE que requieren volver a loguear."
+        )}
+      </p>
+    </div>
+  </section>
+
   <%!-- Regiones y estructuras (RF-9.6) --%>
   <section :if={@live_action == :markets} id="settings-markets" class="space-y-4">
     <div class="card border border-base-300 p-4">
