@@ -1633,8 +1633,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    hostname: eth                           # nodo eth@eth para consola remota (--remsh)
     command: >
-      bash -lc "mix deps.get && mix assets.setup && mix ecto.create && mix ecto.migrate && exec mix phx.server"
+      bash -lc "mix deps.get && mix assets.setup && mix ecto.create && mix ecto.migrate && exec elixir --sname eth --cookie eth -S mix phx.server"
     stdin_open: true
     tty: true
 

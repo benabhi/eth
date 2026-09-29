@@ -51,7 +51,8 @@ docker compose exec phoenix mix credo --strict
 docker compose exec -e MIX_ENV=test phoenix mix dialyzer   # igual que en CI
 docker compose exec phoenix mix ecto.migrate
 docker compose exec phoenix mix ecto.reset
-docker compose run --rm --service-ports phoenix iex -S mix phx.server   # consola IEx (con el servicio detenido)
+docker compose exec phoenix iex --sname console --cookie eth --remsh eth@eth   # consola IEx conectada al servidor en vivo
+docker compose exec phoenix elixir --sname probe --cookie eth --rpc-eval eth@eth 'IO.inspect(Eth.Market.RegionPoller.status(10000002))'
 ```
 
 Para iterar sin gastar presupuesto de ESI: `ETH_REGIONS=10000002,10000043` (subconjunto de regiones) o `ETH_DATA_SOURCE=replay` (datos grabados).
