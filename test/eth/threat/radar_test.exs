@@ -56,6 +56,11 @@ defmodule Eth.Threat.RadarTest do
       assert length(Radar.recent_kills()) == 3
     end
 
+    test "una kill en un gate con víctima que no es de transporte también es relevante" do
+      Radar.ingest(kill(system_id: 30_000_142, location_id: 1, victim_type: 670))
+      assert_receive {:kill, %{gate_to: "Perimeter", victim_transport: false}}, 1_000
+    end
+
     test "descarta kills fuera de la ventana" do
       Radar.ingest(kill(system_id: @ahbazon, time: DateTime.add(DateTime.utc_now(), -3_600)))
       Radar.recent_kills()

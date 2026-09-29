@@ -130,17 +130,21 @@ defmodule Eth.Threat.Radar do
   def handle_cast({:ingest, kill}, state) do
     now = Clock.utc_now()
     state = %{state | last_kill_at: now}
+    state = if in_window?(kill, now), do: add_kill(state, kill, now), else: state
+    {:noreply, publish_meta(state, now)}
+  end
 
-    if in_window?(kill, now) do
-      kills = Map.update(state.kills, kill.system_id, [kill], &[kill | &1])
-      state = %{state | kills: kills}
-      {changed?, entry} = update_system(kill.system_id, kills[kill.system_id], now)
-      state = remember(state, kill, entry)
-      state = if changed?, do: bump(state), else: state
-      {:noreply, publish_meta(state, now)}
-    else
-      {:noreply, publish_meta(state, now)}
-    end
+  # Los datos vienen de un tercero: una kill que no se puede procesar se registra y se
+  # descarta, en lugar de tirar abajo el radar (y con él las kills de la ventana).
+  defp add_kill(state, kill, now) do
+    kills = Map.update(state.kills, kill.system_id, [kill], &[kill | &1])
+    {changed?, entry} = update_system(kill.system_id, kills[kill.system_id], now)
+    state = remember(%{state | kills: kills}, kill, entry)
+    if changed?, do: bump(state), else: state
+  rescue
+    error ->
+      Events.emit(:warning, "Radar", "Kill #{kill.id} descartada: #{Exception.message(error)}")
+      state
   end
 
   @impl true
@@ -229,7 +233,7 @@ defmodule Eth.Threat.Radar do
 
   # Kills relevantes para el panel: transportes, en un gate o en un sistema en alerta.
   defp remember(state, kill, entry) do
-    if kill.victim_transport or kill.gate_id or entry.alert do
+    if kill.victim_transport or kill.gate_id != nil or entry.alert do
       summary = %{
         id: kill.id,
         time: kill.time,
