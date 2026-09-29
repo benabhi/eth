@@ -25,6 +25,7 @@ defmodule EthWeb.Router do
       live "/settings/ships", SettingsLive, :ships
       live "/settings/rules", SettingsLive, :rules
       live "/settings/radar", SettingsLive, :radar
+      live "/settings/markets", SettingsLive, :markets
       live "/settings/setup", SettingsLive, :setup
     end
   end

@@ -355,6 +355,119 @@
     </.form>
   </section>
 
+  <%!-- Regiones y estructuras (RF-9.6) --%>
+  <section :if={@live_action == :markets} id="settings-markets" class="space-y-4">
+    <div class="card border border-base-300 p-4">
+      <h2 class="font-semibold">{gettext("Regiones habilitadas")}</h2>
+      <p class="text-sm text-base-content/70">
+        {gettext(
+          "Se eligen con ETH_REGIONS en .env (vacío: todo el universo) y se aplican al reiniciar. El nivel decide la frecuencia cuando el presupuesto de ESI escasea."
+        )}
+      </p>
+      <div class="mt-2 flex flex-wrap gap-2">
+        <span :for={r <- @regions} id={"region-#{r.region_id}"} class="badge badge-outline">
+          {r.name} · {tier_label(r.tier)}
+        </span>
+      </div>
+    </div>
+
+    <div class="card border border-base-300 p-4">
+      <h2 class="font-semibold">{gettext("Estructuras")}</h2>
+      <p class="text-sm text-base-content/70">
+        {gettext(
+          "Se siguen las 30 públicas con más órdenes de las regiones habilitadas, más las que marques. El acceso se prueba con tus personajes; un 403 no se reintenta antes de 24 h."
+        )}
+      </p>
+
+      <.form
+        for={@add_form}
+        id="structure-add"
+        phx-submit="add_structure"
+        class="mt-2 flex items-end gap-2"
+      >
+        <div class="w-64">
+          <.input
+            field={@add_form[:id]}
+            label={gettext("Agregar por ID (privadas)")}
+            inputmode="numeric"
+          />
+        </div>
+        <button type="submit" class="btn btn-sm mb-2">{gettext("Agregar")}</button>
+      </.form>
+
+      <div class="overflow-x-auto">
+        <table class="table table-sm tabular-nums">
+          <thead>
+            <tr>
+              <th>{gettext("Estructura")}</th>
+              <th class="text-right">{gettext("Órdenes")}</th>
+              <th>{gettext("Acceso")}</th>
+              <th>{gettext("Seguida")}</th>
+              <th class="w-40">{gettext("Broker fee (%)")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr :for={row <- @structures} id={"structure-#{row.structure.id}"}>
+              <td>
+                <div class="font-semibold">
+                  {row.structure.name || gettext("Sin resolver (%{id})", id: row.structure.id)}
+                </div>
+                <div class="text-xs text-base-content/60">
+                  {if row.structure.public_market,
+                    do: gettext("pública"),
+                    else: gettext("privada")}
+                  <span :if={row.selected} class="badge badge-success badge-xs">
+                    {gettext("en seguimiento")}
+                  </span>
+                </div>
+              </td>
+              <td class="text-right">{Format.integer(row.structure.orders_count)}</td>
+              <td class="text-xs">
+                <span :if={row.access == %{}} class="text-base-content/50">
+                  {gettext("sin probar")}
+                </span>
+                <div :for={{cid, status} <- row.access}>
+                  {Map.get(@character_names, cid, cid)}: {access_label(status)}
+                </div>
+              </td>
+              <td>
+                <input
+                  type="checkbox"
+                  class="toggle toggle-sm"
+                  checked={row.structure.followed}
+                  phx-click="toggle_follow"
+                  phx-value-id={row.structure.id}
+                  aria-label={gettext("Seguir siempre")}
+                />
+              </td>
+              <td>
+                <form phx-submit="save_broker_fee" class="flex gap-1">
+                  <input type="hidden" name="structure_id" value={row.structure.id} />
+                  <input
+                    name="fee"
+                    value={
+                      row.structure.broker_fee_override &&
+                        percent_input(row.structure.broker_fee_override)
+                    }
+                    placeholder={gettext("por defecto")}
+                    inputmode="decimal"
+                    class="input input-xs w-20"
+                  />
+                  <button type="submit" class="btn btn-ghost btn-xs">{gettext("Guardar")}</button>
+                </form>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-xs text-base-content/60">
+        {gettext(
+          "El broker fee por estructura se usará en los modos por órdenes (F9); en el arbitraje directo solo aplica el sales tax."
+        )}
+      </p>
+    </div>
+  </section>
+
   <%!-- Primer arranque (RF-9.1) --%>
   <section :if={@live_action == :setup} id="settings-setup" class="space-y-3">
     <p class="text-sm text-base-content/70">
