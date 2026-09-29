@@ -10,14 +10,16 @@ defmodule Eth.Engine.Coordinator do
   - Publica el resultado en una tabla ETS nueva, cambia el catálogo atómicamente
     (versión + 1) y borra la anterior tras un período de gracia. Anuncia la versión en
     `engine:opportunities`.
+  - Declara a `Eth.Market.History` los pares (región, tipo) de las oportunidades, con
+    prioridad por TVS preliminar (RF-1.12).
 
-  Implementa: RF-4.13, RNF-1.2, RNF-9.1.
+  Implementa: RF-1.12, RF-4.13, RNF-1.2, RNF-9.1.
   """
   use GenServer
 
   alias Eth.{Clock, Events, GameRules, Sde}
-  alias Eth.Engine.{Evaluator, Fees, Summary}
-  alias Eth.Market.TableOwner
+  alias Eth.Engine.{Evaluator, Fees, Query, Summary}
+  alias Eth.Market.{History, TableOwner}
 
   @catalog :eth_opportunities_catalog
   @topic "engine:opportunities"
@@ -150,6 +152,8 @@ defmodule Eth.Engine.Coordinator do
       |> Enum.sort_by(& &1.profit, :desc)
       |> Enum.take(GameRules.get(:max_universal_opportunities))
 
+    History.demand(history_demand(opportunities))
+
     stats = %{
       duration_ms: System.monotonic_time(:millisecond) - started,
       summaries_ms: summaries_ms,
@@ -160,6 +164,31 @@ defmodule Eth.Engine.Coordinator do
 
     {summarized, types, opportunities, stats}
   end
+
+  # Pares (región, tipo) cuyo historial hace falta, priorizados por el TVS preliminar del
+  # modo invitado (RF-1.12). Los sospechosos sin historial van primero (AS-3); el
+  # destino, apenas antes que el origen.
+  @doc false
+  @spec history_demand([Eth.Engine.Opportunity.t()]) :: [
+          {{pos_integer(), pos_integer()}, number()}
+        ]
+  def history_demand(opportunities) do
+    # Sin mínimo de beneficio: el universo ya pasó el filtro del motor.
+    params = Map.put(Query.defaults(), :min_profit, 0)
+    now = Clock.utc_now()
+
+    for opp <- opportunities,
+        row = Query.personalize(opp, params, now),
+        row != nil,
+        priority = row.tvs + if(unverified_suspect?(row), do: 100, else: 0),
+        {loc, bump} <- [{opp.destination, 0.5}, {opp.origin, 0}],
+        loc.region_id != nil do
+      {{loc.region_id, opp.type_id}, priority + bump}
+    end
+  end
+
+  defp unverified_suspect?(row),
+    do: row.shield.status == :suspicious and row.history.destination == nil
 
   defp source({{:region, id} = source, entry}) do
     %{source: source, tid: entry.tid, region_id: id, last_modified: entry.meta.last_modified}

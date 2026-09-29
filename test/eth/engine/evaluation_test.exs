@@ -5,7 +5,7 @@ defmodule Eth.Engine.EvaluationTest do
   alias Eth.Engine
   alias Eth.Engine.{Coordinator, Evaluator, Fees, Query, Summary}
   alias Eth.EngineFixture, as: F
-  alias Eth.Market.TableOwner
+  alias Eth.Market.{History, HistoryStats, TableOwner}
 
   @moduletag :tmp_dir
   @moduletag :capture_log
@@ -139,12 +139,89 @@ defmodule Eth.Engine.EvaluationTest do
       assert row.total_jumps == 1
       assert row.seconds == 50 + 2 * 180
       assert row.isk_per_hour > 0
-      # Órdenes vigentes al llegar (410 s) × datos frescos × acceso a estructura (0,9).
-      assert_in_delta row.certainty, :math.exp(-(410 / 60) / 180) * 0.9, 1.0e-6
+      # Órdenes vigentes al llegar (410 s) × datos frescos × sin historial (0,7) × acceso a
+      # estructura (0,9).
+      assert_in_delta row.certainty, :math.exp(-(410 / 60) / 180) * 0.7 * 0.9, 1.0e-6
       assert row.breakdown.access_certainty == 0.9
+      assert row.shield.status == :no_history
       assert row.tvs in 1..100
 
       assert {[], 0} = Query.run(opps, %{route_mode: :secure, search: "amarr"}, now)
+    end
+  end
+
+  describe "anti-scam y liquidez en la consulta (RF-4.7, RF-4.8)" do
+    setup do
+      start_supervised!(History)
+      :ok
+    end
+
+    # Historial estable de 30 días en The Forge (origen y destino de los fixtures).
+    defp put_history(price, volume) do
+      as_of = HistoryStats.last_day(DateTime.utc_now())
+
+      stats =
+        0..29
+        |> Enum.map(
+          &%{
+            "date" => Date.to_iso8601(Date.add(as_of, -&1)),
+            "average" => price,
+            "volume" => volume
+          }
+        )
+        |> HistoryStats.compute(as_of)
+
+      :ets.insert(:eth_history_stats, {{10_000_002, @tritanium}, stats})
+    end
+
+    test "margin trading scam: se oculta por defecto y, si se muestra, queda con TVS 0" do
+      put_history(4.5, 1_000_000)
+
+      opps =
+        evaluate([
+          {:sell, @tritanium, 4.0, 100_000, F.jita_44(), F.jita(), []},
+          {:buy, @tritanium, 50.0, 100_000, F.perimeter_station(), F.perimeter(), []}
+        ])
+
+      now = DateTime.utc_now()
+      params = %{route_mode: :secure, cargo_m3: nil, min_profit: 1_000}
+
+      assert {[], 0} = Query.run(opps, params, now)
+
+      {[row], 1} = Query.run(opps, Map.put(params, :shield, :all), now)
+      assert row.shield.status == :scam
+      assert "Compra a 11,1× la mediana de 7 días" in row.shield.reasons
+      assert row.certainty == 0.0
+      assert row.tvs == 0
+    end
+
+    test "oportunidad legítima: ok, Certeza completa y liquidez del historial" do
+      put_history(4.8, 50_000)
+
+      opps =
+        evaluate([
+          {:sell, @tritanium, 4.0, 100_000, F.jita_44(), F.jita(), []},
+          {:buy, @tritanium, 5.0, 100_000, F.perimeter_station(), F.perimeter(), []}
+        ])
+
+      {[row], 1} =
+        Query.run(
+          opps,
+          %{route_mode: :secure, cargo_m3: nil, min_profit: 1_000},
+          DateTime.utc_now()
+        )
+
+      assert row.shield.status == :ok
+      assert row.breakdown.scam_certainty == 1.0
+      # 100.000 unidades frente a 50.000 por día: log10(1 + 9 × 0,5).
+      assert_in_delta row.breakdown.liquidity, :math.log10(5.5), 1.0e-9
+      refute row.illiquid
+      assert row.history.destination.days_traded_30d == 30
+
+      assert [{{10_000_002, @tritanium}, dest}, {{10_000_002, @tritanium}, origin}] =
+               Coordinator.history_demand(opps)
+
+      assert dest > origin
     end
   end
 

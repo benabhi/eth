@@ -2,16 +2,22 @@ defmodule Eth.Engine.Query do
   @moduledoc """
   Personalización en tiempo de consulta (RF-4.14, RF-6.4): sobre las oportunidades
   universales aplica impuestos del piloto, capital, bodega, modo de ruta, triángulo
-  (piloto → origen → destino), tiempo, ISK/h, Certeza y TVS; después filtra y ordena.
+  (piloto → origen → destino), tiempo, ISK/h, liquidez, anti-scam, Certeza y TVS;
+  después filtra y ordena.
 
   Solo se vuelve a recorrer el libro si cambia el impuesto o hay límites de capital o
   bodega; si no, se reutiliza el cálculo universal.
 
-  Implementa: RF-2.8, RF-4.6, RF-4.12, RF-4.14, RF-6.2, RF-6.4.
+  El anti-scam y la liquidez se calculan acá y no en la evaluación universal: leen las
+  estadísticas de historial de ETS en cada consulta, así el historial que va llegando se
+  refleja sin volver a evaluar todo el universo.
+
+  Implementa: RF-2.8, RF-4.6, RF-4.7, RF-4.8, RF-4.12, RF-4.14, RF-6.2, RF-6.4.
   """
 
-  alias Eth.Engine.{Book, Fees, Opportunity, Score}
+  alias Eth.Engine.{Book, Fees, Liquidity, Opportunity, Score, Shield}
   alias Eth.{GameRules, Routing}
+  alias Eth.Market.{History, Prices}
 
   @sorts [:tvs, :profit, :isk_per_hour, :roi, :jumps, :cost, :age]
 
@@ -25,6 +31,8 @@ defmodule Eth.Engine.Query do
           optional(:max_jumps) => pos_integer() | nil,
           optional(:min_profit) => number(),
           optional(:min_roi) => number(),
+          optional(:shield) => :all | :hide_scam | :safe,
+          optional(:liquid_only) => boolean(),
           optional(:search) => String.t(),
           optional(:sort) => atom(),
           optional(:limit) => pos_integer()
@@ -48,6 +56,9 @@ defmodule Eth.Engine.Query do
       max_jumps: nil,
       min_profit: GameRules.get(:min_profit_isk),
       min_roi: 0.0,
+      # La seguridad del jugador primero: los SCAM se ocultan salvo que se pida verlos.
+      shield: :hide_scam,
+      liquid_only: false,
       search: "",
       sort: :tvs,
       limit: 200
@@ -87,7 +98,10 @@ defmodule Eth.Engine.Query do
       isk_per_hour = Score.isk_per_hour(result.profit, seconds)
       roi = result.profit / result.cost
       order_certainty = Score.order_certainty(seconds / 60)
-      liquidity = GameRules.get(:default_liquidity)
+      dest_stats = History.stats(opp.destination.region_id, opp.type_id)
+      origin_stats = History.stats(opp.origin.region_id, opp.type_id)
+      liquidity = Liquidity.index(dest_stats, result.quantity)
+      shield = shield(opp, result, roi, dest_stats, origin_stats, now)
 
       utility =
         Score.utility(%{
@@ -98,7 +112,8 @@ defmodule Eth.Engine.Query do
         })
 
       access_certainty = access_certainty(opp)
-      certainty = order_certainty * data_certainty * access_certainty
+      scam_certainty = Shield.certainty(shield.status)
+      certainty = order_certainty * data_certainty * scam_certainty * access_certainty
 
       %{
         opportunity: opp,
@@ -125,16 +140,35 @@ defmodule Eth.Engine.Query do
         utility: utility,
         certainty: certainty,
         tvs: Score.tvs(utility, certainty),
+        shield: shield,
+        illiquid: Liquidity.illiquid?(dest_stats),
+        history: %{destination: dest_stats, origin: origin_stats},
         breakdown: %{
           liquidity: liquidity,
           order_certainty: order_certainty,
           data_certainty: data_certainty,
+          scam_certainty: scam_certainty,
           access_certainty: access_certainty
         }
       }
     else
       _ -> nil
     end
+  end
+
+  # Anti-scam sobre las órdenes que consume la cantidad personalizada (RF-4.8).
+  defp shield(opp, result, roi, dest_stats, origin_stats, now) do
+    Shield.evaluate(%{
+      bid: result.bids_used |> Enum.map(&elem(&1, 0)) |> Enum.max(),
+      ask: result.asks_used |> Enum.map(&elem(&1, 0)) |> Enum.min(),
+      roi: roi,
+      bid_min_volume: result.bids_used |> Enum.map(&elem(&1, 2)) |> Enum.max(),
+      bid_issued: opp.bid_issued,
+      dest_stats: dest_stats,
+      origin_stats: origin_stats,
+      global_average: Prices.average(opp.type_id),
+      now: now
+    })
   end
 
   # Órdenes en estructuras con mercado público: acceso sujeto a ACL (ERS §8.9).
@@ -174,8 +208,14 @@ defmodule Eth.Engine.Query do
   end
 
   defp keep?(row, p) do
-    row.roi >= p.min_roi and (is_nil(p.max_jumps) or row.total_jumps <= p.max_jumps)
+    row.roi >= p.min_roi and (is_nil(p.max_jumps) or row.total_jumps <= p.max_jumps) and
+      shield_visible?(row.shield.status, p.shield) and not (p.liquid_only and row.illiquid)
   end
+
+  # Filtro anti-scam (RF-6.4): todo, sin SCAM (por defecto) o solo sin alertas.
+  defp shield_visible?(_status, :all), do: true
+  defp shield_visible?(status, :hide_scam), do: status != :scam
+  defp shield_visible?(status, :safe), do: status in [:ok, :no_history]
 
   defp matches?(_opp, ""), do: true
 
