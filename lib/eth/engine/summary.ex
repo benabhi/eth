@@ -7,7 +7,8 @@ defmodule Eth.Engine.Summary do
   - `asks`: mejor precio de venta por ubicación `[{price, location_id, system_id}]`
     (ascendente);
   - `bids`: todas las órdenes de compra
-    `[{price, location_id, system_id, range, volume, min_volume}]` (descendente).
+    `[{price, location_id, system_id, range, volume, min_volume, issued_unix}]`
+    (descendente).
 
   Se construye con una sola pasada por la tabla de órdenes y se guarda en una tabla ETS
   `ordered_set` con clave `{fuente, tipo}`: reemplazar una fuente borra solo su prefijo.
@@ -70,8 +71,8 @@ defmodule Eth.Engine.Summary do
     end)
   end
 
-  defp accumulate({{type, :buy, _, _}, loc, sys, vol, min_vol, range, _issued, price, _page}, acc) do
-    bid = {price, loc, sys, range, vol, min_vol}
+  defp accumulate({{type, :buy, _, _}, loc, sys, vol, min_vol, range, issued, price, _page}, acc) do
+    bid = {price, loc, sys, range, vol, min_vol, issued}
     Map.update(acc, type, {%{}, [bid]}, fn {asks, bids} -> {asks, [bid | bids]} end)
   end
 end

@@ -88,7 +88,7 @@ defmodule Eth.Engine.Evaluator do
         end)
 
       bids =
-        Enum.reduce(src_bids, bids, fn {price, loc, sys, range, vol, min_vol}, acc ->
+        Enum.reduce(src_bids, bids, fn {price, loc, sys, range, vol, min_vol, issued}, acc ->
           [
             %{
               price: price,
@@ -98,6 +98,7 @@ defmodule Eth.Engine.Evaluator do
               range: range,
               volume: vol,
               min_volume: min_vol,
+              issued: issued,
               src: src
             }
             | acc
@@ -195,8 +196,21 @@ defmodule Eth.Engine.Evaluator do
       last_modified: Enum.min([origin.src.last_modified, dest_src], DateTime),
       remote_sale: remote?,
       asks: result.asks_used,
-      bids: result.bids_used
+      bids: result.bids_used,
+      bid_issued: newest_issued(eligible, result.bids_used)
     }
+  end
+
+  # Creación de la orden de compra más reciente entre las que caen en el rango de precios
+  # consumido (AS-6: una compra inflada suele ser recién creada).
+  defp newest_issued(eligible, bids_used) do
+    floor_price = bids_used |> Enum.map(&elem(&1, 0)) |> Enum.min()
+
+    eligible
+    |> Enum.filter(&(&1.price >= floor_price))
+    |> Enum.map(& &1.issued)
+    |> Enum.max()
+    |> DateTime.from_unix!()
   end
 
   # Las mismas órdenes de compra alcanzadas desde varias estaciones: queda la más cercana.
