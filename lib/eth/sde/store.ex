@@ -26,7 +26,7 @@ defmodule Eth.Sde.Store do
   @topic "sde:status"
   @retry_ms 600_000
   # Versión del formato de la caché procesada: subirla cuando el procesador agrega datos.
-  @format 2
+  @format 3
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)

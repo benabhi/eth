@@ -60,15 +60,43 @@ defmodule Eth.SdeFixture do
           "volume" => 275_000,
           "packagedVolume" => 20_000,
           "capacity" => 5_800
+        },
+        # Radar: cápsula (fuera del mercado), Sabre (interdictor), Tornado y una smartbomb.
+        %{"_key" => 670, "name" => %{"en" => "Capsule"}, "groupID" => 29, "published" => false},
+        %{
+          "_key" => 22_456,
+          "name" => %{"en" => "Sabre"},
+          "groupID" => 541,
+          "marketGroupID" => 1_070,
+          "published" => true
+        },
+        %{
+          "_key" => 4_310,
+          "name" => %{"en" => "Tornado"},
+          "groupID" => 1_201,
+          "marketGroupID" => 1_376,
+          "published" => true
+        },
+        %{
+          "_key" => 3_561,
+          "name" => %{"en" => "Large EMP Smartbomb I"},
+          "groupID" => 72,
+          "marketGroupID" => 382,
+          "published" => true
         }
       ],
       "groups" => [
         %{"_key" => 18, "name" => %{"en" => "Mineral"}, "categoryID" => 4},
-        %{"_key" => 28, "name" => %{"en" => "Hauler"}, "categoryID" => 6}
+        %{"_key" => 28, "name" => %{"en" => "Hauler"}, "categoryID" => 6},
+        %{"_key" => 29, "name" => %{"en" => "Capsule"}, "categoryID" => 6},
+        %{"_key" => 541, "name" => %{"en" => "Interdictor"}, "categoryID" => 6},
+        %{"_key" => 1_201, "name" => %{"en" => "Attack Battlecruiser"}, "categoryID" => 6},
+        %{"_key" => 72, "name" => %{"en" => "Smart Bomb"}, "categoryID" => 7}
       ],
       "categories" => [
         %{"_key" => 4, "name" => %{"en" => "Material"}},
-        %{"_key" => 6, "name" => %{"en" => "Ship"}}
+        %{"_key" => 6, "name" => %{"en" => "Ship"}},
+        %{"_key" => 7, "name" => %{"en" => "Module"}}
       ],
       # Dogma real (SDE 3552227) de la Iteron Mark V (657), Expanded Cargohold II (1319) y
       # la habilidad Gallente Hauler (3340), más un tipo sin relación con la bodega (34).
@@ -178,6 +206,10 @@ defmodule Eth.SdeFixture do
   end
 
   defp gate(id, from, to) do
-    %{"_key" => id, "solarSystemID" => from, "destination" => %{"solarSystemID" => to}}
+    %{
+      "_key" => id,
+      "solarSystemID" => from,
+      "destination" => %{"solarSystemID" => to, "stargateID" => id + 100}
+    }
   end
 end

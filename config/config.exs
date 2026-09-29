@@ -188,7 +188,94 @@ config :eth, Eth.GameRules,
   history_max_per_min: 250,
   history_concurrency: 4,
   # Agrupa los anuncios de estadísticas nuevas para no re-consultar el Cazador por cada una.
-  history_announce_ms: 5_000
+  history_announce_ms: 5_000,
+  # Radar (RF-3.x, ERS §8.8). Categorías del SDE cuyos tipos guardan su grupo aunque no
+  # estén en el mercado: 6 Ship, 7 Module (verificado en el SDE 3552227).
+  radar_type_categories: [6, 7],
+  radar: %{
+    window_min: 15,
+    half_life_min: 10,
+    min_kills: 3,
+    p_value: 0.01,
+    # Multiplicadores de intensidad: víctima de transporte y kill en un stargate.
+    hauler_weight: 1.5,
+    gate_weight: 1.5,
+    # Línea base: 14 días por franja horaria; con menos de 7, promedio del sistema.
+    baseline_days: 14,
+    baseline_min_days: 7,
+    lambda_min: 0.05,
+    # Prior de λ (kills por ventana) por banda cuando no hay datos del sistema.
+    lambda_prior: %{highsec: 0.05, lowsec: 0.2, nullsec: 0.3},
+    base_risk_max: 0.2,
+    # Suavizado del riesgo base: kills / (saltos + k) para sistemas con poco tráfico.
+    base_risk_smoothing_jumps: 50,
+    activity_retention_days: 30,
+    # Sin kills del feed durante este tiempo: radar degradado (RF-3.8).
+    feed_stale_s: 120,
+    # Penalización de la Certeza por sistema low/null con el radar degradado.
+    degraded_penalty: 0.97,
+    max_alert_probability: 0.95
+  },
+  # Grupos del SDE (verificados en el SDE 3552227) para normalizar killmails (RF-3.2) y
+  # clasificar amenazas (§8.8).
+  radar_groups: %{
+    # Hauler, Deep Space Transport, Blockade Runner, Freighter, Jump Freighter.
+    transport: [28, 380, 1202, 513, 902],
+    # Capsule, Shuttle, Corvette y fragatas.
+    small: [29, 31, 237, 25, 324, 830, 831, 893, 1283, 1527],
+    # Interdictor y Heavy Interdiction Cruiser.
+    interdictor: [541, 894],
+    smart_bomb: [72]
+  },
+  # CONCORD (corporación NPC 1000125): sus kills confirman un hauler_gank.
+  concord_corporation_id: 1_000_125,
+  # Modo Evasiva (RF-2.5): costo por sistema 1 + α × amenaza.
+  evasive_alpha: 20,
+  # Matriz de vulnerabilidad por clase de nave (ERS Anexo B.8).
+  vulnerability: %{
+    freighter: %{
+      gate_camp: 0.95,
+      bubble_camp: 0.95,
+      smartbomb_camp: 0.30,
+      hauler_gank: 0.90,
+      roaming: 0.60
+    },
+    industrial: %{
+      gate_camp: 0.85,
+      bubble_camp: 0.90,
+      smartbomb_camp: 0.60,
+      hauler_gank: 0.70,
+      roaming: 0.50
+    },
+    deep_space_transport: %{
+      gate_camp: 0.50,
+      bubble_camp: 0.70,
+      smartbomb_camp: 0.30,
+      hauler_gank: 0.35,
+      roaming: 0.25
+    },
+    blockade_runner: %{
+      gate_camp: 0.20,
+      bubble_camp: 0.45,
+      smartbomb_camp: 0.40,
+      hauler_gank: 0.15,
+      roaming: 0.10
+    },
+    shuttle: %{
+      gate_camp: 0.30,
+      bubble_camp: 0.50,
+      smartbomb_camp: 0.90,
+      hauler_gank: 0.05,
+      roaming: 0.20
+    },
+    other: %{
+      gate_camp: 0.70,
+      bubble_camp: 0.80,
+      smartbomb_camp: 0.50,
+      hauler_gank: 0.30,
+      roaming: 0.40
+    }
+  }
 
 # Configure esbuild (the version is required)
 config :esbuild,

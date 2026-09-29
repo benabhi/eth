@@ -11,6 +11,8 @@ defmodule Eth.Sde.Processor do
   - `corporations`: `id => %{name, faction_id}`
   - `types`: solo tipos publicados con grupo de mercado:
     `id => %{name, name_es, group_id, market_group_id, volume, packaged_volume, capacity}`
+  - `type_groups`: `type_id => group_id` de naves y módulos, publicados o no (radar, RF-3.2)
+  - `stargates`: `id => %{system_id, destination_system_id}` (radar, RF-3.2)
   - `groups`: `id => %{name, category_id}` y `categories`: `id => name`
   - `dogma`: subconjunto de dogma para calcular la bodega (`Eth.Sde.Dogma`, RF-5.8)
 
@@ -32,6 +34,8 @@ defmodule Eth.Sde.Processor do
           stations: map(),
           corporations: map(),
           types: map(),
+          type_groups: map(),
+          stargates: map(),
           groups: map(),
           categories: map(),
           dogma: Dogma.t()
@@ -59,7 +63,8 @@ defmodule Eth.Sde.Processor do
   @spec process(Path.t(), ([pos_integer()] -> %{pos_integer() => String.t()})) :: data()
   def process(dir, resolve_station_names) do
     regions = dir |> stream("mapRegions") |> Map.new(&{&1["_key"], %{name: en(&1["name"])}})
-    neighbors = dir |> stream("mapStargates") |> neighbors()
+    gates = dir |> stream("mapStargates") |> Enum.to_list()
+    neighbors = neighbors(gates)
 
     systems =
       dir
@@ -114,6 +119,8 @@ defmodule Eth.Sde.Processor do
       stations: stations,
       corporations: corporations,
       types: types(dir),
+      type_groups: type_groups(dir, groups),
+      stargates: stargates(gates),
       groups: groups,
       categories: categories,
       dogma:
@@ -142,6 +149,31 @@ defmodule Eth.Sde.Processor do
         else: ""
 
     String.trim_trailing("#{planet}#{moon} - #{corp}#{operation}")
+  end
+
+  # Grupo de cada tipo de las categorías del radar (naves y módulos: víctimas, atacantes y
+  # armas), publicados o no: las cápsulas y las naves de CONCORD no están en el mercado.
+  # sobelow_skip ["Traversal.FileModule"]
+  defp type_groups(dir, groups) do
+    categories = GameRules.get(:radar_type_categories)
+
+    dir
+    |> Path.join("types.jsonl")
+    |> File.stream!(:line)
+    |> Stream.map(&Jason.decode!/1)
+    |> Stream.filter(&(get_in(groups, [&1["groupID"], :category_id]) in categories))
+    |> Map.new(&{&1["_key"], &1["groupID"]})
+  end
+
+  # Stargates: id => %{system_id, destination_system_id} (RF-3.2: "en el gate hacia X").
+  defp stargates(gates) do
+    Map.new(gates, fn gate ->
+      {gate["_key"],
+       %{
+         system_id: gate["solarSystemID"],
+         destination_system_id: get_in(gate, ["destination", "solarSystemID"])
+       }}
+    end)
   end
 
   # Solo tipos publicados con grupo de mercado (≈ 19.500 de 53.000). Cada línea trae
