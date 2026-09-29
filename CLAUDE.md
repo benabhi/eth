@@ -2,7 +2,7 @@
 
 Instrucciones permanentes para Claude Code (y cualquier colaborador). La fuente de verdad funcional es **[docs/ERS.md](docs/ERS.md)**: antes de implementar, leer la sección del requisito (`RF-x.y` / `RNF-x.y`) y cumplir sus criterios de aceptación.
 
-**Estado actual:** fases **F0**, **F1** y **F2** completas (cliente ESI con presupuesto, pollers regionales con snapshots ETS, reinicio en caliente, modo Replay, Centro de control, SDE con caché por build y grafo con matrices de distancia Rápida/Segura). Pendiente menor de F1: métricas globales de 1 h (RF-8.9). Próxima: **F3 — Motor v1 + Cazador (MVP-0)**. Actualizar esta línea al cambiar de fase (ERS §12).
+**Estado actual:** fases **F0 a F3** completas: **MVP-0 (modo invitado)**. Mercado en ETS con presupuesto de ESI, SDE y ruteo Rápida/Segura, motor de arbitraje instantáneo (walk-the-book, rango de órdenes, impuestos, TVS/Certeza parcial) y Cazador en `/` con filtros en la URL, detalle y Multibuy. Pendientes menores: métricas de 1 h (RF-8.9), pipeline en vivo (RF-8.4). Próxima: **F4 — EVE SSO y contexto del piloto (MVP)**. Actualizar esta línea al cambiar de fase (ERS §12).
 
 ## Reglas innegociables
 

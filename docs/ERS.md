@@ -580,6 +580,8 @@ Si el feed en vivo no entrega datos durante > 2 min: estado "Radar degradado", u
 
 Para cada tipo con órdenes, combinar los resúmenes por ubicación (RF-1.5) de todas las fuentes: mejores precios de venta por ubicación frente a mejores precios de compra alcanzables (RF-4.3). Hay candidato si `bid × (1 − t_min) > ask`, donde `t_min` es el impuesto mínimo posible. Se paraleliza por tipo (`Task.async_stream`, con concurrencia = schedulers).
 
+**Implementación v1 (2026-09-29):** para acotar el trabajo se evalúan como máximo 8 ubicaciones de compra por tipo (las más baratas) y 6 estaciones de venta por origen; cuando las mismas órdenes de compra se alcanzan desde varias estaciones (rango región), queda la más cercana. Medido con los 5 hubs (≈ 890 mil órdenes, 19.238 tipos): evaluación completa 431–593 ms; resúmenes incrementales 122–310 ms; consulta personalizada p50 8,9 ms y p95 33,6 ms (RNF-1.1).
+
 #### RF-4.3 · Rango de órdenes y venta remota — M · F3
 
 - Una orden de compra puede satisfacerse desde cualquier estación dentro de su `range` (`station`, `solarsystem`, `1`…`40` saltos, `region`), medido por la ruta más corta del juego.
@@ -607,6 +609,7 @@ Calcular la cantidad óptima recorriendo el libro: las órdenes de venta de meno
 - **Bodega:** capacidad del perfil de la nave activa (RF-5.8) u override.
 - **Valor en riesgo:** tope opcional de valor de carga por perfil de nave; limita la exposición a ganks.
 - **Oportunidades impagables:** se recalculan con la cantidad que sí se puede pagar ("parcial") o se ocultan (toggle "Mostrar no asequibles").
+- **Modo invitado (F3):** bodega por defecto de 38.500 m³ (Iteron Mark V con módulos de carga, *calibrable*) y ruta Segura. Sin tope de bodega el ranking lo dominaban cargas imposibles (naves capitales de 1.000.000 m³, millones de m³ de isótopos).
 
 #### RF-4.7 · Filtro de liquidez — M · F5
 
