@@ -36,7 +36,7 @@ defmodule Eth.Characters.Sessions do
   @doc "Detiene la sesión (al olvidar el personaje)."
   @spec stop(pos_integer()) :: :ok
   def stop(id) do
-    case GenServer.whereis(Session.via(id)) do
+    case whereis(id) do
       nil -> :ok
       pid -> DynamicSupervisor.terminate_child(Eth.Characters.SessionSupervisor, pid)
     end
@@ -44,8 +44,15 @@ defmodule Eth.Characters.Sessions do
     :ok
   end
 
+  # Sin el Registry (supervisor apagado, p. ej. en tests) no hay sesiones.
+  defp whereis(id) do
+    GenServer.whereis(Session.via(id))
+  rescue
+    ArgumentError -> nil
+  end
+
   defp call(id, message) do
-    case GenServer.whereis(Session.via(id)) do
+    case whereis(id) do
       nil -> nil
       pid -> GenServer.call(pid, message)
     end

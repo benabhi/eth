@@ -8,8 +8,8 @@ defmodule Eth.Characters do
 
   import Ecto.Query
 
-  alias Eth.Characters.{Character, ShipProfile}
-  alias Eth.{Clock, Events, Repo, Sso}
+  alias Eth.Characters.{Character, Sessions, ShipProfile}
+  alias Eth.{Clock, Esi, Events, Repo, Sso}
   alias Eth.Sso.Token
 
   ## Personajes
@@ -85,6 +85,7 @@ defmodule Eth.Characters do
         :ok
 
       character ->
+        Sessions.stop(id)
         if character.refresh_token, do: Token.revoke(character.refresh_token)
         Repo.delete!(character)
         Events.emit(:action, "Usuario", "Personaje olvidado: #{character.name}")
@@ -128,4 +129,42 @@ defmodule Eth.Characters do
   @doc "Perfiles de nave guardados."
   @spec list_ship_profiles() :: [ShipProfile.t()]
   def list_ship_profiles, do: Repo.all(from p in ShipProfile, order_by: [p.ship_type_id, p.id])
+
+  ## Acciones in-game (RF-5.9): solo por clic explícito del operador.
+
+  @doc """
+  Fija la ruta del autopiloto hacia un trade. Si el piloto no está en el origen, el
+  waypoint 1 es la estación de compra (limpiando los anteriores) y el 2 la de venta; si ya
+  está en el origen, solo el destino.
+  """
+  @spec set_route(pos_integer(), pos_integer(), pos_integer(), boolean()) ::
+          :ok | {:error, term()}
+  def set_route(character_id, origin_id, destination_id, at_origin?) do
+    with {:ok, token} <- Sessions.token(character_id) do
+      waypoints =
+        if at_origin?,
+          do: [{destination_id, true}],
+          else: [{origin_id, true}, {destination_id, false}]
+
+      Enum.reduce_while(waypoints, :ok, fn {id, clear?}, :ok ->
+        add_waypoint(character_id, token, id, clear?)
+      end)
+    end
+  end
+
+  defp add_waypoint(character_id, token, destination_id, clear?) do
+    case Esi.set_waypoint(character_id, token, destination_id, clear_other_waypoints: clear?) do
+      {:ok, _resp} -> {:cont, :ok}
+      {:error, reason} -> {:halt, {:error, reason}}
+    end
+  end
+
+  @doc "Abre en el cliente la ventana de mercado del tipo."
+  @spec open_market(pos_integer(), pos_integer()) :: :ok | {:error, term()}
+  def open_market(character_id, type_id) do
+    with {:ok, token} <- Sessions.token(character_id),
+         {:ok, _resp} <- Esi.open_market(character_id, token, type_id) do
+      :ok
+    end
+  end
 end

@@ -664,7 +664,7 @@ Siempre excluidos: PLEX (tipo 44992) y la región 19000001. Listas del usuario: 
 #### RF-5.1 · Autenticación EVE SSO — M · F4
 
 - OAuth 2.0 *authorization code* (cliente confidencial) con `state` anti-CSRF (PKCE opcional), mediante una **estrategia Ueberauth propia** (`Eth.Sso.Strategy`).
-- Validación del access token JWT: firma RS256 con JWKS cacheado (`/oauth/jwks`, que se refresca ante un `kid` desconocido), `iss`, `aud` (debe contener el `client_id` y "EVE Online") y `exp`. El personaje sale de `sub` (`CHARACTER:EVE:<id>`), `name` y `owner`.
+- Validación del access token JWT: firma RS256 o ES256 (el JWKS publica claves de ambos tipos; verificado 2026-09-29) con JWKS cacheado (`/oauth/jwks`, que se refresca ante un `kid` desconocido), `iss`, `aud` (debe contener el `client_id` y "EVE Online") y `exp`. El personaje sale de `sub` (`CHARACTER:EVE:<id>`), `name` y `owner`.
 - Callback: `EVE_CALLBACK_URL`, que debe coincidir exactamente con la aplicación registrada.
 
 #### RF-5.2 · Perfil de permisos (scopes) — M · F4
@@ -1143,8 +1143,8 @@ Los tiempos de caché y los grupos son **de referencia** (verificados a sep-2026
 | `GET /characters/{id}/online` | `esi-location.read_online.v1` | 60 s | `char-location` | RF-5.4 |
 | `GET /characters/{id}/wallet` | `esi-wallet.read_character_wallet.v1` | 120 s | `char-wallet` 150 / 15 min | RF-5.5 |
 | `GET /characters/{id}/wallet/transactions` | `esi-wallet.read_character_wallet.v1` | 3600 s | `char-wallet` | RF-7.5 |
-| `GET /characters/{id}/skills` | `esi-skills.read_skills.v1` | 120 s | Ver cabeceras | RF-5.6 |
-| `GET /characters/{id}/standings` | `esi-characters.read_standings.v1` | 3600 s | Ver cabeceras | RF-5.6 |
+| `GET /characters/{id}/skills` | `esi-skills.read_skills.v1` | 120 s | `char-detail` | RF-5.6 |
+| `GET /characters/{id}/standings` | `esi-characters.read_standings.v1` | 3600 s | `char-social` | RF-5.6 |
 | `POST /ui/autopilot/waypoint` | `esi-ui.write_waypoint.v1` | — | `ui` 900 / 15 min | RF-5.9 |
 | `POST /ui/openwindow/marketdetails` | `esi-ui.open_window.v1` | — | `ui` | RF-5.9 |
 | `POST /universe/names` | — | — | — | *(C)* Nombres en el feed del radar |
@@ -1160,7 +1160,7 @@ Los tiempos de caché y los grupos son **de referencia** (verificados a sep-2026
 | Token / refresh | `https://login.eveonline.com/v2/oauth/token` |
 | JWKS | `https://login.eveonline.com/oauth/jwks` |
 | Flujo | Authorization code (cliente confidencial) + `state`; PKCE opcional |
-| Access token | JWT RS256, dura 20 min; `sub = CHARACTER:EVE:<id>`, `name`, `owner`, `scp`; `aud` contiene el `client_id` y "EVE Online" |
+| Access token | JWT RS256 (el JWKS también publica claves ES256), dura 20 min; `sub = CHARACTER:EVE:<id>`, `name`, `owner`, `scp`; `aud` contiene el `client_id` y "EVE Online" |
 | Refresh token | Persistente; **puede rotar**: guardar siempre el devuelto |
 | Callback (dev) | `http://localhost:4000/auth/eve/callback` (debe coincidir exactamente con la app registrada) |
 
@@ -2036,6 +2036,10 @@ Aproximación de la escala del cliente. En el tema claro se usan como fondo de i
 | `downtime_window_utc` | 10:59–11:15 | Pausa de pollers |
 | `guest.accounting_level` | 4 | Modo invitado |
 | `route.base_system` | Jita | Triángulo sin ubicación |
+| `guest.cargo_m3` | 38,500 | Bodega del modo invitado (Iteron Mark V con módulos de carga) |
+| `accounting_skill_id` | 16622 | Habilidad Accounting en el SDE (RF-5.6) |
+| `capital.wallet_share` / `capital.reserve_isk` | 100 % / 0 | Capital = saldo × porcentaje − reserva (RF-5.5) |
+| `ship_group_evasion_classes` | 31 Shuttle · 1202 BR · 380 DST · 28 Industrial · 513 y 902 Freighter · resto Otras | Clase sugerida por grupo del SDE (RF-5.8) |
 
 ### B.8 Matriz de vulnerabilidad (calibrable)
 

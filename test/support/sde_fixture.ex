@@ -50,10 +50,26 @@ defmodule Eth.SdeFixture do
           "published" => true,
           "volume" => 0.01,
           "packagedVolume" => 0.01
+        },
+        %{
+          "_key" => 657,
+          "name" => %{"en" => "Iteron Mark V"},
+          "groupID" => 28,
+          "marketGroupID" => 83,
+          "published" => true,
+          "volume" => 275_000,
+          "packagedVolume" => 20_000,
+          "capacity" => 5_800
         }
       ],
-      "groups" => [%{"_key" => 18, "name" => %{"en" => "Mineral"}, "categoryID" => 4}],
-      "categories" => [%{"_key" => 4, "name" => %{"en" => "Material"}}]
+      "groups" => [
+        %{"_key" => 18, "name" => %{"en" => "Mineral"}, "categoryID" => 4},
+        %{"_key" => 28, "name" => %{"en" => "Hauler"}, "categoryID" => 6}
+      ],
+      "categories" => [
+        %{"_key" => 4, "name" => %{"en" => "Material"}},
+        %{"_key" => 6, "name" => %{"en" => "Ship"}}
+      ]
     }
   end
 

@@ -1,4 +1,11 @@
-<Layouts.app flash={@flash} active={:hunter} wide>
+<Layouts.app
+  flash={@flash}
+  active={:hunter}
+  wide
+  pilot={@pilot}
+  characters={@characters}
+  ship_form={@ship_form}
+>
   <div class="flex flex-wrap items-baseline justify-between gap-2">
     <h1 class="text-2xl font-bold">{gettext("Cazador de trades")}</h1>
     <p id="hunter-status" class="text-sm text-base-content/70 tabular-nums">
@@ -91,10 +98,17 @@
       <button type="button" phx-click="reset_filters" class="btn btn-ghost btn-sm">
         {gettext("Restablecer")}
       </button>
-      <span class="text-xs text-base-content/60">
-        {gettext(
-          "Modo invitado: impuestos, capital y bodega manuales. Montos con sufijo: 5M, 1.5B."
-        )}
+      <span id="filters-hint" class="text-xs text-base-content/60">
+        <%= if @pilot do %>
+          {gettext(
+            "Accounting, capital y bodega de %{name}; distancias desde su sistema. Montos con sufijo: 5M, 1.5B.",
+            name: @pilot.name
+          )}
+        <% else %>
+          {gettext(
+            "Modo invitado: impuestos, capital y bodega manuales. Montos con sufijo: 5M, 1.5B."
+          )}
+        <% end %>
       </span>
     </div>
   </.form>
@@ -317,6 +331,36 @@
         >
           <.icon name="hero-clipboard-document" class="size-4" /> {gettext("Copiar Multibuy")}
         </button>
+
+        <div class="mt-2 flex flex-wrap gap-2">
+          <span title={action_blocked(@pilot, :waypoint)}>
+            <button
+              id="set-route"
+              type="button"
+              phx-click="set_route"
+              disabled={action_blocked(@pilot, :waypoint) != nil}
+              class="btn btn-sm"
+            >
+              <.icon name="hero-map" class="size-4" /> {gettext("Fijar ruta")}
+            </button>
+          </span>
+          <span title={action_blocked(@pilot, :market)}>
+            <button
+              id="open-market"
+              type="button"
+              phx-click="open_market"
+              disabled={action_blocked(@pilot, :market) != nil}
+              class="btn btn-sm"
+            >
+              <.icon name="hero-building-storefront" class="size-4" /> {gettext("Abrir mercado")}
+            </button>
+          </span>
+        </div>
+        <p :if={@pilot} class="mt-1 text-xs text-base-content/60">
+          {gettext(
+            "El autopiloto usa su propia preferencia de ruta (ESI no permite leerla ni cambiarla)."
+          )}
+        </p>
       <% else %>
         <h2 id="detail-title" class="text-lg font-semibold">{gettext("Detalle")}</h2>
         <p class="text-sm text-base-content/70">

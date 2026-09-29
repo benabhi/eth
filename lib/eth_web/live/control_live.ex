@@ -66,6 +66,9 @@ defmodule EthWeb.ControlLive do
   def handle_info({:esi_paused, _until, _reason}, socket), do: {:noreply, refresh_health(socket)}
   def handle_info(:esi_resumed, socket), do: {:noreply, refresh_health(socket)}
 
+  # El piloto lo actualiza `EthWeb.PilotHook`; aquí no hay nada más que hacer.
+  def handle_info({:character, _id, _event, _public}, socket), do: {:noreply, socket}
+
   def handle_info(:tick, socket) do
     schedule_tick()
     {:noreply, refresh_health(socket)}

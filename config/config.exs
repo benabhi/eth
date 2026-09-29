@@ -132,6 +132,22 @@ config :eth, Eth.GameRules,
   # Bodega por defecto del modo invitado (Iteron Mark V con módulos de carga). Sin este
   # tope el ranking lo dominan cargas imposibles (capitales, millones de m³).
   guest_cargo_m3: 38_500,
+  # Contexto del piloto (RF-5.5, RF-5.6, RF-5.8). Accounting: type_id 16622 del SDE.
+  accounting_skill_id: 16_622,
+  # Capital disponible = saldo × porcentaje − reserva fija (RF-5.5, calibrable).
+  capital_wallet_share: 1.0,
+  capital_reserve_isk: 0,
+  # Clase de evasión sugerida por grupo del SDE (verificado en el SDE 3552227): 31 Shuttle,
+  # 1202 Blockade Runner, 380 Deep Space Transport, 28 Hauler, 513 Freighter,
+  # 902 Jump Freighter. El resto: :other.
+  ship_group_evasion_classes: %{
+    31 => :shuttle,
+    1202 => :blockade_runner,
+    380 => :deep_space_transport,
+    28 => :industrial,
+    513 => :freighter,
+    902 => :freighter
+  },
   # Certeza de acceso (ERS §8.9): estructura con mercado público 0,9; NPC 1.
   structure_access_certainty: 0.9,
   # TVS y Certeza (ERS §8.9)

@@ -15,9 +15,12 @@ defmodule EthWeb.HunterParams do
   @spec fields() :: [String.t()]
   def fields, do: @fields
 
-  @doc "Valores del formulario por defecto (strings), a partir de los defaults del motor."
-  @spec form_defaults() :: %{String.t() => String.t()}
-  def form_defaults do
+  @doc """
+  Valores del formulario por defecto (strings): los defaults del motor, reemplazados por
+  los datos del piloto cuando los hay (`Eth.Characters.Pilot.query_overrides/1`).
+  """
+  @spec form_defaults(map()) :: %{String.t() => String.t()}
+  def form_defaults(pilot \\ %{}) do
     d = Query.defaults()
 
     %{
@@ -31,7 +34,24 @@ defmodule EthWeb.HunterParams do
       "accounting" => Integer.to_string(d.accounting),
       "sort" => Atom.to_string(d.sort)
     }
+    |> Map.merge(pilot_defaults(pilot))
   end
+
+  defp pilot_defaults(pilot) do
+    %{
+      "capital" => pilot[:capital] && format_capital(pilot.capital),
+      "cargo_m3" => pilot[:cargo_m3] && Integer.to_string(floor(pilot.cargo_m3)),
+      "accounting" => pilot[:accounting] && Integer.to_string(pilot.accounting)
+    }
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
+  end
+
+  # El capital se redondea hacia abajo al millón: el filtro nunca supera el saldo.
+  defp format_capital(capital) when capital >= 1.0e6,
+    do: format_isk(Float.floor(capital / 1.0e6) * 1.0e6)
+
+  defp format_capital(capital), do: Integer.to_string(floor(capital))
 
   @doc "Parámetros de la consulta a partir de strings (valores inválidos se ignoran)."
   @spec to_query(map()) :: map()
@@ -51,11 +71,9 @@ defmodule EthWeb.HunterParams do
     }
   end
 
-  @doc "Solo los campos que difieren del default (para una URL corta)."
-  @spec to_url_params(map()) :: map()
-  def to_url_params(form) do
-    defaults = form_defaults()
-
+  @doc "Solo los campos que difieren de los defaults (para una URL corta)."
+  @spec to_url_params(map(), map()) :: map()
+  def to_url_params(form, defaults \\ form_defaults()) do
     form
     |> Map.take(@fields)
     |> Enum.reject(fn {k, v} -> v == Map.get(defaults, k) end)

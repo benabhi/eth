@@ -2,7 +2,7 @@
 
 Instrucciones permanentes para Claude Code (y cualquier colaborador). La fuente de verdad funcional es **[docs/ERS.md](docs/ERS.md)**: antes de implementar, leer la sección del requisito (`RF-x.y` / `RNF-x.y`) y cumplir sus criterios de aceptación.
 
-**Estado actual:** fases **F0 a F3** completas: **MVP-0 (modo invitado)**. Mercado en ETS con presupuesto de ESI, SDE y ruteo Rápida/Segura, motor de arbitraje instantáneo (walk-the-book, rango de órdenes, impuestos, TVS/Certeza parcial) y Cazador en `/` con filtros en la URL, detalle y Multibuy. Pendientes menores: métricas de 1 h (RF-8.9), pipeline en vivo (RF-8.4). Próxima: **F4 — EVE SSO y contexto del piloto (MVP)**. Actualizar esta línea al cambiar de fase (ERS §12).
+**Estado actual:** fases **F0 a F3** completas: **MVP-0 (modo invitado)**. Mercado en ETS con presupuesto de ESI, SDE y ruteo Rápida/Segura, motor de arbitraje instantáneo (walk-the-book, rango de órdenes, impuestos, TVS/Certeza parcial) y Cazador en `/` con filtros en la URL, detalle y Multibuy. Pendientes menores: métricas de 1 h (RF-8.9), pipeline en vivo (RF-8.4). **F4 (MVP) en curso:** hechos el login con EVE SSO (tokens cifrados, sesión por personaje), la barra del piloto con retrato y nave, la personalización del Cazador (Accounting, capital, bodega, origen), los perfiles de carga y las acciones in-game; faltan RF-8.6, Ajustes (RF-9.1–9.4) y la prueba con la app registrada en developers.eveonline.com. Actualizar esta línea al cambiar de fase (ERS §12).
 
 ## Reglas innegociables
 
