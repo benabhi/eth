@@ -4,8 +4,9 @@ defmodule EthWeb.ControlLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Eth.{EngineFixture, Events, KillmailFixture}
   alias Eth.Esi.Budget
-  alias Eth.Events
+  alias Eth.Threat.{Killmail, Radar}
 
   setup do
     Budget.resume_all()
@@ -128,16 +129,16 @@ defmodule EthWeb.ControlLiveTest do
 
     @tag :tmp_dir
     test "muestra sistemas calientes y kills relevantes en vivo", %{conn: conn, tmp_dir: tmp_dir} do
-      :ok = Eth.EngineFixture.load_sde(tmp_dir)
-      start_supervised!(Eth.Threat.Radar)
+      :ok = EngineFixture.load_sde(tmp_dir)
+      start_supervised!(Radar)
       {:ok, view, _html} = live(conn, ~p"/control")
 
       {:ok, kill} =
-        Eth.KillmailFixture.raw(system_id: 30_005_196, value: 2.5e9)
-        |> Eth.Threat.Killmail.normalize()
+        KillmailFixture.raw(system_id: 30_005_196, value: 2.5e9)
+        |> Killmail.normalize()
 
-      Eth.Threat.Radar.ingest(kill)
-      Eth.Threat.Radar.recent_kills()
+      Radar.ingest(kill)
+      Radar.recent_kills()
       send(view.pid, :tick)
 
       assert has_element?(view, "#hot-30005196")

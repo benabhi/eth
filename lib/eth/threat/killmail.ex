@@ -74,39 +74,61 @@ defmodule Eth.Threat.Killmail do
   def normalize(_other), do: {:error, :invalid}
 
   defp build(id, time, system_id, esi, zkb) do
-    groups = GameRules.get(:radar_groups)
-    victim = esi["victim"] || %{}
-    attackers = esi["attackers"] || []
-    victim_group = victim["ship_type_id"] && Sde.type_group(victim["ship_type_id"])
-    gate = zkb["locationID"] && gate(zkb["locationID"], system_id)
-    final = Enum.find(attackers, & &1["final_blow"]) || %{}
-
-    %__MODULE__{
+    base = %__MODULE__{
       id: id,
       time: time,
       system_id: system_id,
+      value: zkb["totalValue"] && zkb["totalValue"] / 1,
+      solo: zkb["solo"] == true
+    }
+
+    base
+    |> Map.merge(victim_fields(esi["victim"] || %{}))
+    |> Map.merge(attacker_fields(esi["attackers"] || []))
+    |> Map.merge(gate_fields(zkb["locationID"], system_id))
+  end
+
+  defp victim_fields(victim) do
+    groups = GameRules.get(:radar_groups)
+    group = type_group(victim["ship_type_id"])
+
+    %{
       victim_type_id: victim["ship_type_id"],
       victim_character_id: victim["character_id"],
-      victim_group_id: victim_group,
-      victim_transport: victim_group in groups.transport,
-      victim_small: victim_group in groups.small,
-      gate_id: gate && zkb["locationID"],
-      gate_destination_id: gate && gate.destination_system_id,
-      final_blow_weapon_group_id:
-        final["weapon_type_id"] && Sde.type_group(final["weapon_type_id"]),
-      value: zkb["totalValue"] && zkb["totalValue"] / 1,
+      victim_group_id: group,
+      victim_transport: group in groups.transport,
+      victim_small: group in groups.small
+    }
+  end
+
+  defp attacker_fields(attackers) do
+    concord = GameRules.get(:concord_corporation_id)
+    final = Enum.find(attackers, & &1["final_blow"]) || %{}
+
+    %{
+      final_blow_weapon_group_id: type_group(final["weapon_type_id"]),
       attacker_count: length(attackers),
       attacker_ids: attackers |> Enum.map(& &1["character_id"]) |> Enum.reject(&is_nil/1),
       attacker_group_ids:
         attackers
-        |> Enum.map(&(&1["ship_type_id"] && Sde.type_group(&1["ship_type_id"])))
+        |> Enum.map(&type_group(&1["ship_type_id"]))
         |> Enum.reject(&is_nil/1)
         |> Enum.uniq(),
-      concord:
-        Enum.any?(attackers, &(&1["corporation_id"] == GameRules.get(:concord_corporation_id))),
-      solo: zkb["solo"] == true
+      concord: Enum.any?(attackers, &(&1["corporation_id"] == concord))
     }
   end
+
+  defp gate_fields(nil, _system_id), do: %{}
+
+  defp gate_fields(location_id, system_id) do
+    case gate(location_id, system_id) do
+      nil -> %{}
+      gate -> %{gate_id: location_id, gate_destination_id: gate.destination_system_id}
+    end
+  end
+
+  defp type_group(nil), do: nil
+  defp type_group(type_id), do: Sde.type_group(type_id)
 
   @doc "Mapa JSON de la kill normalizada (para guardarla en disco sin `binary_to_term`)."
   @spec to_json(t()) :: map()

@@ -1,8 +1,8 @@
 defmodule Eth.Engine.RouteRiskTest do
   use ExUnit.Case, async: false
 
-  alias Eth.EngineFixture
   alias Eth.Engine.{RouteRisk, Score}
+  alias Eth.EngineFixture
 
   @moduletag :tmp_dir
 

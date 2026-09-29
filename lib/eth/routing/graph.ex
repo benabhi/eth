@@ -187,17 +187,20 @@ defmodule Eth.Routing.Graph do
             graph.adjacency
             |> elem(k)
             |> Enum.filter(allowed?)
-            |> Enum.reduce({queue, dist, parents}, fn m, {q, dist, parents} ->
-              nd = d + cost.(elem(graph.ids, m))
-
-              if nd < Map.get(dist, m, :infinity),
-                do: {:gb_sets.add({nd, m}, q), Map.put(dist, m, nd), Map.put(parents, m, k)},
-                else: {q, dist, parents}
-            end)
+            |> Enum.reduce({queue, dist, parents}, &relax(&1, &2, k, d, graph, cost))
 
           dijkstra(graph, queue, dist, parents, target, allowed?, cost)
       end
     end
+  end
+
+  # Mejora la distancia al vecino `m` pasando por `k`, si corresponde.
+  defp relax(m, {queue, dist, parents}, k, d, graph, cost) do
+    nd = d + cost.(elem(graph.ids, m))
+
+    if nd < Map.get(dist, m, :infinity),
+      do: {:gb_sets.add({nd, m}, queue), Map.put(dist, m, nd), Map.put(parents, m, k)},
+      else: {queue, dist, parents}
   end
 
   defp to_ids(nil, _graph), do: nil

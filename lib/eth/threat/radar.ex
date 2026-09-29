@@ -283,7 +283,7 @@ defmodule Eth.Threat.Radar do
 
   ## Persistencia (reinicio en caliente y modo Replay)
 
-  @doc "Archivo con las kills de la ventana (`dir`: `\"threat\"` o `\"replay\"`)."
+  @doc "Archivo con las kills de la ventana en el directorio `threat` (vivo) o `replay`."
   @spec kills_file(String.t()) :: Path.t()
   def kills_file(dir) when dir in ["threat", "replay"],
     do: Path.join(Eth.Storage.path(dir), "kills.json")
