@@ -4,7 +4,9 @@ defmodule Eth.EventsTest do
   alias Eth.Events
   alias Eth.Events.Event
 
-  @tag :capture_log
+  # Los eventos también se escriben en el log de la aplicación.
+  @moduletag :capture_log
+
   test "emit persiste y publica el evento" do
     Phoenix.PubSub.subscribe(Eth.PubSub, Events.topic())
 

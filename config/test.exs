@@ -29,6 +29,13 @@ config :eth, Eth.Esi.Client, req_options: [plug: {Req.Test, Eth.Esi.Client}]
 # cada test levanta lo que necesita.
 config :eth, :start_workers, false
 
+# Ventana de downtime vacía: los tests no dependen de la hora a la que corren
+# (la ventana real se prueba como función pura). Backoff corto para tests rápidos.
+config :eth, Eth.GameRules,
+  downtime_window_utc: {~T[00:00:00], ~T[00:00:00]},
+  backoff_base_ms: 50,
+  poll_jitter_ms: 0..0
+
 # In test we don't send emails
 config :eth, Eth.Mailer, adapter: Swoosh.Adapters.Test
 

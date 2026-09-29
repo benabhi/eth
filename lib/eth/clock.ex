@@ -17,10 +17,14 @@ defmodule Eth.Clock do
     end
   end
 
-  @doc "Milisegundos desde `now` hasta `datetime` (0 si ya pasó)."
+  @doc """
+  Milisegundos desde `now` hasta `datetime` (0 si ya pasó), redondeando hacia arriba:
+  un timer programado con este valor nunca dispara antes de `datetime` (RNF-3.3).
+  """
   @spec ms_until(DateTime.t()) :: non_neg_integer()
   def ms_until(%DateTime{} = datetime) do
-    max(DateTime.diff(datetime, utc_now(), :millisecond), 0)
+    micro = DateTime.diff(datetime, utc_now(), :microsecond)
+    max(div(micro + 999, 1000), 0)
   end
 
   @doc "Fija la hora para el proceso actual (solo tests)."

@@ -27,7 +27,7 @@ defmodule Eth.Application do
   # Procesos de fondo; en tests se desactivan (config :eth, :start_workers).
   defp workers do
     if Application.get_env(:eth, :start_workers, true) do
-      [Eth.Events.Pruner]
+      [Eth.Events.Pruner, Eth.Esi.ServerStatus, Eth.Market.Supervisor]
     else
       []
     end

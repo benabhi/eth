@@ -29,11 +29,14 @@ if compatibility_date = System.get_env("ESI_COMPATIBILITY_DATE") do
   config :eth, Eth.Esi.Client, compatibility_date: compatibility_date
 end
 
-# Subconjunto de regiones para desarrollo (ETH_REGIONS=10000002,10000043).
-if regions = System.get_env("ETH_REGIONS") do
-  config :eth, Eth.GameRules,
-    only_region_ids:
-      regions |> String.split(",", trim: true) |> Enum.map(&String.to_integer(String.trim(&1)))
+# Subconjunto de regiones (ETH_REGIONS=10000002,10000043). Vacío o ausente = todas.
+case System.get_env("ETH_REGIONS", "") |> String.split(",", trim: true) do
+  [] ->
+    :ok
+
+  ids ->
+    config :eth, Eth.GameRules,
+      only_region_ids: Enum.map(ids, &String.to_integer(String.trim(&1)))
 end
 
 if config_env() == :dev do
