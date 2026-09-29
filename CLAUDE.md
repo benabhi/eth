@@ -2,7 +2,7 @@
 
 Instrucciones permanentes para Claude Code (y cualquier colaborador). La fuente de verdad funcional es **[docs/ERS.md](docs/ERS.md)**: antes de implementar, leer la sección del requisito (`RF-x.y` / `RNF-x.y`) y cumplir sus criterios de aceptación.
 
-**Estado actual:** fases **F0 a F4** completas: **MVP**. Mercado en ETS con presupuesto de ESI, SDE y ruteo Rápida/Segura, motor de arbitraje instantáneo y Cazador en `/`; login con EVE SSO (12 scopes, probado con la app real), barra del piloto, personalización (Accounting, capital, bodega calculada con dogma y `/assets`, origen), acciones in-game, Ajustes en `/settings` (personajes, naves, overrides de reglas, primer arranque) y sesiones en el Centro de control. Pendientes menores: métricas de 1 h (RF-8.9), pipeline en vivo (RF-8.4), broker fee por estructura (RF-9.4, con las estructuras de F7). Próxima: **F5 — Historial y anti-scam**. Actualizar esta línea al cambiar de fase (ERS §12).
+**Estado actual:** fases **F0 a F5** completas. MVP (F0–F4): mercado en ETS con presupuesto de ESI, SDE y ruteo Rápida/Segura, motor de arbitraje instantáneo y Cazador en `/`; login con EVE SSO (12 scopes, probado con la app real), barra del piloto, personalización (Accounting, capital, bodega calculada con dogma y `/assets`, origen), acciones in-game, Ajustes en `/settings` y sesiones en el Centro de control. F5: precios de referencia, historial bajo demanda (≤ 250 req/min, PostgreSQL + ETS), escudo anti-scam AS-1…AS-7 y liquidez en la consulta personalizada, insignias, sección Historial y "Reportar falso positivo" en el Cazador. Pendientes menores: métricas de 1 h (RF-8.9), pipeline en vivo (RF-8.4), broker fee por estructura (RF-9.4, con las estructuras de F7), estado de la cola de historial en el Centro de control. Próxima: **F6 — Radar**. Actualizar esta línea al cambiar de fase (ERS §12).
 
 ## Reglas innegociables
 
@@ -126,6 +126,7 @@ Presupuesto de ESI en desarrollo:
 ## Entorno (Windows 11 + Docker)
 
 - **Ubicación del repo:** `C:\Users\Benabhi\Documents\Code\eth` (NTFS, decisión P-06). Los eventos inotify no llegan al contenedor, así que `ETH_FS_POLL=true` activa live reload por polling y `Eth.Dev.TailwindPoller`. Si algún día se mueve a WSL2, se quita esa variable.
+- **Configuración:** el live reload recompila el código pero no `config/*.exs`. Después de cambiar la configuración, o si una migración nueva deja la página en error, correr `docker compose exec phoenix mix ecto.migrate` y `docker compose restart phoenix`.
 - **Entornos de Mix:** el contenedor no fija `MIX_ENV` (dev por defecto) para que `mix test` y `mix precommit` pasen a test solos. Los tests usan `DB_HOST=db`.
 - **Red:** Phoenix escucha en `0.0.0.0` dentro del contenedor (`PHX_BIND`); el host publica solo `127.0.0.1:4000`.
 - **Volúmenes:** `_build`, `deps` y `priv/data` viven en volúmenes nombrados; no borrarlos desde el host.
