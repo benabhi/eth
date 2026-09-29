@@ -313,6 +313,48 @@
     </.form>
   </section>
 
+  <%!-- Radar (RF-9.5) --%>
+  <section :if={@live_action == :radar} id="settings-radar" class="space-y-3">
+    <p class="text-sm text-base-content/70">
+      {gettext(
+        "El modo de ruta Evasiva suma α × amenaza al costo de cada sistema en alerta: con α más alto acepta desvíos más largos para esquivar camps y ganks. Los sistemas a evitar se sacan del camino en todos los modos (salvo si son el origen o el destino)."
+      )}
+    </p>
+
+    <.form
+      for={@radar_form}
+      id="radar-form"
+      phx-submit="save_radar"
+      class="card space-y-2 border border-base-300 p-4"
+    >
+      <div class="w-48">
+        <.input
+          field={@radar_form[:evasive_alpha]}
+          label={gettext("α del modo Evasiva")}
+          placeholder={"#{@alpha_default}"}
+          inputmode="decimal"
+        />
+      </div>
+      <.input
+        field={@radar_form[:avoid]}
+        type="textarea"
+        label={gettext("Sistemas a evitar")}
+        placeholder="Uedama, Niarja, Sivala"
+      />
+      <p class="text-xs text-base-content/60">
+        {gettext(
+          "Nombres exactos separados por comas o renglones. Vacío: no se evita ninguno. α vacío: %{alpha} (por defecto).",
+          alpha: @alpha_default
+        )}
+      </p>
+      <div>
+        <button id="radar-save" type="submit" class="btn btn-primary btn-sm">
+          {gettext("Guardar radar")}
+        </button>
+      </div>
+    </.form>
+  </section>
+
   <%!-- Primer arranque (RF-9.1) --%>
   <section :if={@live_action == :setup} id="settings-setup" class="space-y-3">
     <p class="text-sm text-base-content/70">

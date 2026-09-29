@@ -3,10 +3,11 @@ defmodule Eth.Accounts do
   Operador de la instancia y sus ajustes (ERS §2.3, §7.2). En el modo de operador único
   hay una sola fila en `operators`, que se crea al primer uso.
 
-  Por ahora los ajustes guardan los overrides de las reglas del juego (RF-9.4), en
-  `settings["game_rules"]` como `%{"sales_tax_base" => 0.075, ...}`.
+  Los ajustes guardan los overrides de las reglas del juego (RF-9.4), en
+  `settings["game_rules"]` como `%{"sales_tax_base" => 0.075, ...}`, y los del radar
+  (RF-9.5) en `settings["radar"]`.
 
-  Implementa: RF-9.4, RNF-15.2.
+  Implementa: RF-9.4, RF-9.5, RNF-15.2.
   """
 
   alias Eth.Accounts.Operator
@@ -64,6 +65,63 @@ defmodule Eth.Accounts do
     if Keyword.has_key?(GameRules.overridable(), key),
       do: update_rules(&Map.delete(&1, Atom.to_string(key)), key, nil),
       else: {:error, :unknown_rule}
+  end
+
+  ## Radar (RF-9.5)
+
+  @doc """
+  Ajustes del radar guardados: `%{evasive_alpha: número | nil, avoid_system_ids: [id]}`.
+  Se publican como overrides de `:evasive_alpha` y `:avoid_system_ids`.
+  """
+  @spec radar_settings() :: %{evasive_alpha: number() | nil, avoid_system_ids: [pos_integer()]}
+  def radar_settings do
+    stored = Map.get(operator().settings, "radar", %{})
+    alpha = stored["evasive_alpha"]
+    ids = stored["avoid_system_ids"]
+
+    %{
+      evasive_alpha: if(is_number(alpha), do: alpha / 1),
+      avoid_system_ids: if(is_list(ids), do: Enum.filter(ids, &is_integer/1), else: [])
+    }
+  end
+
+  @doc "Overrides del radar para la tabla de reglas (solo los definidos)."
+  @spec radar_overrides() :: %{atom() => term()}
+  def radar_overrides do
+    s = radar_settings()
+
+    %{avoid_system_ids: s.avoid_system_ids}
+    |> then(&if(s.evasive_alpha, do: Map.put(&1, :evasive_alpha, s.evasive_alpha), else: &1))
+  end
+
+  @doc """
+  Guarda α del modo Evasiva (`nil` = valor por defecto; entre 0 y 100) y los sistemas a
+  evitar (RF-2.5). Publica el cambio y pide una nueva evaluación.
+  """
+  @spec put_radar_settings(number() | nil, [pos_integer()]) :: :ok | {:error, :invalid_value}
+  def put_radar_settings(alpha, avoid_ids) do
+    if (is_nil(alpha) or (is_number(alpha) and alpha >= 0 and alpha <= 100)) and
+         Enum.all?(avoid_ids, &is_integer/1) do
+      operator = operator()
+      radar = %{"evasive_alpha" => alpha, "avoid_system_ids" => Enum.uniq(avoid_ids)}
+
+      operator
+      |> Operator.settings_changeset(Map.put(operator.settings, "radar", radar))
+      |> Repo.update!()
+
+      Overrides.reload()
+      if GenServer.whereis(Coordinator), do: Coordinator.request()
+
+      Events.emit(
+        :action,
+        "Usuario",
+        "Radar: α = #{alpha || "por defecto"} · #{length(avoid_ids)} sistemas a evitar"
+      )
+
+      :ok
+    else
+      {:error, :invalid_value}
+    end
   end
 
   defp update_rules(fun, key, value) do

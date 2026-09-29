@@ -233,6 +233,8 @@ config :eth, Eth.GameRules,
   concord_corporation_id: 1_000_125,
   # Modo Evasiva (RF-2.5): costo por sistema 1 + α × amenaza.
   evasive_alpha: 20,
+  # Sistemas a evitar (RF-2.5): los define el operador en Ajustes → Radar.
+  avoid_system_ids: [],
   # Matriz de vulnerabilidad por clase de nave (ERS Anexo B.8).
   vulnerability: %{
     freighter: %{

@@ -104,4 +104,41 @@ defmodule EthWeb.SettingsLiveTest do
     assert EthWeb.SettingsLive.parse_percent("abc") == :error
     assert EthWeb.SettingsLive.parse_percent("101") == :error
   end
+
+  describe "radar (RF-9.5)" do
+    @describetag :tmp_dir
+
+    setup %{tmp_dir: tmp_dir} do
+      :ok = Eth.EngineFixture.load_sde(tmp_dir)
+    end
+
+    test "guarda α y los sistemas a evitar, y los publica como reglas", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings/radar")
+
+      view
+      |> form("#radar-form", radar: %{evasive_alpha: "35", avoid: "perimeter, Ahbazon"})
+      |> render_submit()
+
+      assert render(view) =~ "Radar guardado"
+      assert GameRules.get(:evasive_alpha) == 35.0
+      assert Enum.sort(GameRules.get(:avoid_system_ids)) == [30_000_144, 30_005_196]
+      assert has_element?(view, "#radar-form textarea", "Perimeter, Ahbazon")
+
+      # Vacío: vuelve al valor por defecto y no evita nada.
+      view |> form("#radar-form", radar: %{evasive_alpha: "", avoid: ""}) |> render_submit()
+      assert GameRules.get(:evasive_alpha) == GameRules.default(:evasive_alpha)
+      assert GameRules.get(:avoid_system_ids) == []
+    end
+
+    test "rechaza sistemas desconocidos y α fuera de rango", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings/radar")
+
+      view |> form("#radar-form", radar: %{avoid: "Narnia"}) |> render_submit()
+      assert render(view) =~ "Sistemas desconocidos: Narnia"
+
+      view |> form("#radar-form", radar: %{evasive_alpha: "500", avoid: ""}) |> render_submit()
+      assert render(view) =~ "α tiene que ser un número entre 0 y 100"
+      assert GameRules.get(:avoid_system_ids) == []
+    end
+  end
 end

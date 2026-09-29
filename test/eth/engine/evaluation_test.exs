@@ -153,6 +153,19 @@ defmodule Eth.Engine.EvaluationTest do
       assert {[], 0} = Query.run(opps, %{route_mode: :secure, search: "amarr"}, now)
     end
 
+    test "un sistema a evitar deja fuera las rutas que no tienen alternativa", %{opps: opps} do
+      now = DateTime.utc_now()
+      params = %{route_mode: :shortest, cargo_m3: nil, min_profit: 1_000}
+
+      {rows, 2} = Query.run(opps, params, now)
+      assert length(rows) == 2
+
+      # Perimeter está entre Jita y Ahbazon: sin él no hay camino a Ahbazon. Como destino,
+      # Perimeter sigue permitido.
+      {[row], 1} = Query.run(opps, Map.put(params, :avoid, MapSet.new([F.perimeter()])), now)
+      assert row.opportunity.destination.system_id == F.perimeter()
+    end
+
     test "una alerta en el camino baja la Certeza y se informa; Evasiva la considera", %{
       opps: opps
     } do

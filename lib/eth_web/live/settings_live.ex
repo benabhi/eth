@@ -7,9 +7,10 @@ defmodule EthWeb.SettingsLive do
   - **Naves** (RF-9.3): editar y borrar los perfiles de carga guardados.
   - **Reglas** (RF-9.4): overrides de impuestos y coeficientes del broker, con el valor por
     defecto y su fecha de verificación.
+  - **Radar** (RF-9.5): α del modo Evasiva y sistemas a evitar.
   - **Primer arranque** (RF-9.1): checklist de puesta en marcha.
 
-  Implementa: RF-9.1, RF-9.2, RF-9.3, RF-9.4.
+  Implementa: RF-9.1, RF-9.2, RF-9.3, RF-9.4, RF-9.5.
   """
   use EthWeb, :live_view
 
@@ -21,6 +22,7 @@ defmodule EthWeb.SettingsLive do
     characters: {"Personajes", "/settings"},
     ships: {"Naves", "/settings/ships"},
     rules: {"Reglas", "/settings/rules"},
+    radar: {"Radar", "/settings/radar"},
     setup: {"Primer arranque", "/settings/setup"}
   ]
 
@@ -73,6 +75,25 @@ defmodule EthWeb.SettingsLive do
     |> assign(:rules, rules)
     |> assign(:rules_form, form)
     |> assign(:verified_on, GameRules.get(:rules_verified_on, nil))
+  end
+
+  defp load(socket, :radar) do
+    settings = Accounts.radar_settings()
+
+    form =
+      to_form(
+        %{
+          "evasive_alpha" =>
+            (settings.evasive_alpha && format_number(settings.evasive_alpha)) || "",
+          "avoid" => Enum.map_join(settings.avoid_system_ids, ", ", &system_name/1)
+        },
+        as: :radar
+      )
+
+    socket
+    |> assign(:radar_form, form)
+    |> assign(:radar_settings, settings)
+    |> assign(:alpha_default, GameRules.default(:evasive_alpha))
   end
 
   defp load(socket, :setup), do: assign(socket, :checks, setup_checks(socket.assigns.pilot))
@@ -194,6 +215,63 @@ defmodule EthWeb.SettingsLive do
         {:noreply, socket}
     end
   end
+
+  ## Radar (RF-9.5)
+
+  def handle_event("save_radar", %{"radar" => params}, socket) do
+    names =
+      (params["avoid"] || "")
+      |> String.split([",", "
+"],
+        trim: true
+      )
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+
+    resolved = Enum.map(names, &{&1, Sde.system_by_name(&1)})
+    unknown = for {name, nil} <- resolved, do: name
+    alpha = parse_alpha(params["evasive_alpha"])
+
+    cond do
+      unknown != [] ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           gettext("Sistemas desconocidos: %{names}", names: Enum.join(unknown, ", "))
+         )}
+
+      alpha == :error ->
+        {:noreply, put_flash(socket, :error, gettext("α tiene que ser un número entre 0 y 100"))}
+
+      true ->
+        ids = for {_name, {id, _system}} <- resolved, do: id
+
+        case Accounts.put_radar_settings(alpha, ids) do
+          :ok ->
+            {:noreply,
+             socket
+             |> put_flash(:info, gettext("Radar guardado: el mercado se vuelve a evaluar"))
+             |> load(:radar)}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, gettext("Algún valor no es válido"))}
+        end
+    end
+  end
+
+  defp parse_alpha(text) do
+    case Float.parse(String.replace(String.trim(text || ""), ",", ".")) do
+      :error -> if String.trim(text || "") == "", do: nil, else: :error
+      {n, ""} when n >= 0 and n <= 100 -> n
+      _ -> :error
+    end
+  end
+
+  defp system_name(id), do: (Sde.system(id) || %{name: "#{id}"}).name
+
+  defp format_number(n) when n == trunc(n), do: Integer.to_string(trunc(n))
+  defp format_number(n), do: Float.to_string(n)
 
   # Cambios en una sesión de personaje (el piloto lo actualiza EthWeb.PilotHook).
   @impl true

@@ -71,7 +71,7 @@ defmodule Eth.Engine.Query do
   """
   @spec run([Opportunity.t()], params(), DateTime.t()) :: {[map()], non_neg_integer()}
   def run(opportunities, params, now) do
-    p = defaults() |> Map.merge(params) |> Map.put_new_lazy(:risk, &RouteRisk.context/0)
+    p = defaults() |> Map.merge(params) |> with_route_context()
     search = normalize(p.search)
 
     rows =
@@ -86,7 +86,7 @@ defmodule Eth.Engine.Query do
   @doc "Personaliza una oportunidad (`nil` si no es viable con estos parámetros)."
   @spec personalize(Opportunity.t(), map(), DateTime.t()) :: map() | nil
   def personalize(%Opportunity{} = opp, p, now) do
-    p = Map.put_new_lazy(p, :risk, &RouteRisk.context/0)
+    p = with_route_context(p)
 
     with [_ | _] = route <- path(opp.origin.system_id, opp.destination.system_id, p),
          [_ | _] = to_origin_path <- path(p.base_system_id, opp.origin.system_id, p),
@@ -190,10 +190,33 @@ defmodule Eth.Engine.Query do
 
   # Caminos del triángulo (RF-2.8): Rápida y Segura desde la matriz; Evasiva evita las
   # alertas del radar sobre la restricción de Rápida (RF-2.5).
-  defp path(from, to, %{route_mode: :evasive, risk: risk}),
+  # Sistemas a evitar (RF-2.5): si el camino los cruza (salvo origen y destino), se busca
+  # otro que no los atraviese.
+  defp path(from, to, p) do
+    route = raw_path(from, to, p)
+
+    if route && Enum.any?(interior(route), &MapSet.member?(p.avoid, &1)) do
+      mode = if p.route_mode == :secure, do: :secure, else: :shortest
+      Routing.path(from, to, mode, MapSet.to_list(p.avoid))
+    else
+      route
+    end
+  end
+
+  defp raw_path(from, to, %{route_mode: :evasive, risk: risk}),
     do: Routing.evasive_path(from, to, :shortest, &threat(risk, &1))
 
-  defp path(from, to, p), do: Routing.matrix_path(from, to, p.route_mode)
+  defp raw_path(from, to, p), do: Routing.matrix_path(from, to, p.route_mode)
+
+  defp interior([_from | rest]), do: Enum.drop(rest, -1)
+  defp interior([]), do: []
+
+  # Contexto de ruta leído una vez por consulta: radar y sistemas a evitar.
+  defp with_route_context(p) do
+    p
+    |> Map.put_new_lazy(:risk, &RouteRisk.context/0)
+    |> Map.put_new_lazy(:avoid, fn -> MapSet.new(GameRules.get(:avoid_system_ids, [])) end)
+  end
 
   defp threat(risk, system_id) do
     case risk.alerts do
