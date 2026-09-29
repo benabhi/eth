@@ -46,6 +46,30 @@ config :eth, Eth.Esi.Client,
   compatibility_date: "2026-09-01",
   receive_timeout: 30_000
 
+# EVE SSO (RF-5.1, RF-5.2, ERS §6.2). Endpoints verificados en
+# /.well-known/oauth-authorization-server (2026-09-29). Credenciales en runtime.exs.
+config :eth, Eth.Sso,
+  authorize_url: "https://login.eveonline.com/v2/oauth/authorize",
+  token_url: "https://login.eveonline.com/v2/oauth/token",
+  revoke_url: "https://login.eveonline.com/v2/oauth/revoke",
+  jwks_url: "https://login.eveonline.com/oauth/jwks",
+  issuers: ["https://login.eveonline.com", "login.eveonline.com"],
+  scopes: ~w(
+    publicData
+    esi-markets.structure_markets.v1
+    esi-universe.read_structures.v1
+    esi-wallet.read_character_wallet.v1
+    esi-skills.read_skills.v1
+    esi-characters.read_standings.v1
+    esi-location.read_location.v1
+    esi-location.read_ship_type.v1
+    esi-ui.write_waypoint.v1
+    esi-location.read_online.v1
+    esi-ui.open_window.v1
+  )
+
+config :ueberauth, Ueberauth, providers: [eve: {Eth.Sso.Strategy, []}]
+
 # Reglas del juego y parámetros calibrables (ERS Anexo B). Nunca como literales en el código.
 config :eth, Eth.GameRules,
   # Regiones de nivel N1 (hubs): The Forge, Domain, Sinq Laison, Heimatar, Metropolis

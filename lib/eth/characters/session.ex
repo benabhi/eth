@@ -1,0 +1,360 @@
+defmodule Eth.Characters.Session do
+  @moduledoc """
+  Sesión de un personaje (RF-5.3, RF-5.4): tokens y polling de su contexto en ESI.
+
+  **Tokens.** El access token (20 min) vive solo en memoria y se renueva 60 s antes de
+  vencer; el refresh token rotado se persiste cifrado. `invalid_grant` ⇒ estado
+  `:relogin`, se detiene el polling y la UI pide volver a loguear.
+
+  **Polling según actividad** (tabla RF-5.4), siempre ≥ `Expires` y con ETag:
+
+  | Recurso | Activo (en línea + UI) | En línea sin UI | Offline |
+  |---|---|---|---|
+  | ubicación, nave | 10 s | 60 s | en pausa |
+  | en línea | 60 s | 60 s | 5 min |
+  | billetera | 2 min | 10 min | 30 min |
+  | habilidades | 30 min | 60 min | 6 h |
+  | standings | 60 min | 6 h | 24 h |
+
+  "UI activa" = algún LiveView observa al personaje (`watch/1`). Cada cambio del
+  contexto se publica en `character:<id>`.
+
+  Implementa: RF-5.3, RF-5.4, RF-5.5, RF-5.6, RF-5.7.
+  """
+  use GenServer
+
+  alias Eth.{Characters, Clock, Esi, Events, Sso}
+  alias Eth.Esi.Response
+  alias Eth.Sso.Token
+
+  @resources [:online, :location, :ship, :wallet, :skills, :standings]
+  @scopes %{
+    online: "esi-location.read_online.v1",
+    location: "esi-location.read_location.v1",
+    ship: "esi-location.read_ship_type.v1",
+    wallet: "esi-wallet.read_character_wallet.v1",
+    skills: "esi-skills.read_skills.v1",
+    standings: "esi-characters.read_standings.v1"
+  }
+  @intervals %{
+    location: %{active: 10_000, idle: 60_000, offline: nil},
+    ship: %{active: 10_000, idle: 60_000, offline: nil},
+    online: %{active: 60_000, idle: 60_000, offline: 300_000},
+    wallet: %{active: 120_000, idle: 600_000, offline: 1_800_000},
+    skills: %{active: 1_800_000, idle: 3_600_000, offline: 21_600_000},
+    standings: %{active: 3_600_000, idle: 21_600_000, offline: 86_400_000}
+  }
+  @error_retry_ms 60_000
+  @refresh_margin_s 60
+
+  ## API
+
+  @spec start_link({pos_integer(), Sso.login() | nil}) :: GenServer.on_start()
+  def start_link({id, login}), do: GenServer.start_link(__MODULE__, {id, login}, name: via(id))
+
+  @spec child_spec({pos_integer(), Sso.login() | nil}) :: Supervisor.child_spec()
+  def child_spec({id, _login} = arg) do
+    %{id: {__MODULE__, id}, start: {__MODULE__, :start_link, [arg]}, restart: :transient}
+  end
+
+  @doc false
+  @spec via(pos_integer()) :: GenServer.name()
+  def via(id), do: {:via, Registry, {Eth.Characters.Registry, id}}
+
+  @doc "Tópico PubSub del personaje."
+  @spec topic(pos_integer()) :: String.t()
+  def topic(id), do: "character:#{id}"
+
+  ## Callbacks
+
+  @impl true
+  def init({id, login}) do
+    character = Characters.get(id)
+
+    state =
+      Map.merge(
+        %{id: id, status: :starting, viewers: %{}, context: %{}, etags: %{}, timers: %{}},
+        initial_credentials(character, login)
+      )
+
+    {:ok, state, {:continue, :token}}
+  end
+
+  # Credenciales iniciales: las del login recién hecho o, si no hay, las persistidas.
+  defp initial_credentials(character, nil) do
+    %{
+      name: character && character.name,
+      scopes: (character && character.scopes) || [],
+      access_token: nil,
+      expires_at: nil,
+      refresh_token: character && character.refresh_token
+    }
+  end
+
+  defp initial_credentials(_character, login) do
+    %{
+      name: login.name,
+      scopes: login.scopes,
+      access_token: login.access_token,
+      expires_at: login.expires_at,
+      refresh_token: login.refresh_token
+    }
+  end
+
+  @impl true
+  def handle_continue(:token, state) do
+    state =
+      if state.access_token && DateTime.compare(state.expires_at, Clock.utc_now()) == :gt,
+        do: token_ready(state),
+        else: refresh(state)
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_call(:context, _from, state), do: {:reply, public(state), state}
+
+  def handle_call({:watch, pid}, _from, state) do
+    state =
+      if Map.has_key?(state.viewers, pid),
+        do: state,
+        else: %{state | viewers: Map.put(state.viewers, pid, Process.monitor(pid))}
+
+    # Pasar a modo activo: la ubicación y la nave se piden ya.
+    {:reply, public(state), reschedule(state, [:location, :ship], 0)}
+  end
+
+  def handle_call(:token, _from, %{status: :ok} = state) do
+    {:reply, {:ok, state.access_token}, state}
+  end
+
+  def handle_call(:token, _from, state), do: {:reply, {:error, state.status}, state}
+
+  def handle_call({:login, login}, _from, state) do
+    state = %{
+      state
+      | access_token: login.access_token,
+        expires_at: login.expires_at,
+        refresh_token: login.refresh_token,
+        scopes: login.scopes
+    }
+
+    {:reply, :ok, token_ready(state)}
+  end
+
+  @impl true
+  def handle_info(:refresh_token, state), do: {:noreply, refresh(state)}
+
+  def handle_info({:poll, resource}, %{status: :ok} = state) do
+    {:noreply, poll(state, resource)}
+  end
+
+  def handle_info({:poll, _resource}, state), do: {:noreply, state}
+
+  def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
+    {:noreply, %{state | viewers: Map.delete(state.viewers, pid)}}
+  end
+
+  def handle_info(_msg, state), do: {:noreply, state}
+
+  ## Tokens
+
+  defp refresh(%{refresh_token: nil} = state), do: relogin(state, "sin refresh token")
+
+  defp refresh(state) do
+    case Token.refresh(state.refresh_token) do
+      {:ok, tokens} ->
+        if tokens.refresh_token && tokens.refresh_token != state.refresh_token do
+          Characters.update_refresh_token(state.id, tokens.refresh_token)
+        end
+
+        state
+        |> Map.merge(%{
+          access_token: tokens.access_token,
+          expires_at: tokens.expires_at,
+          refresh_token: tokens.refresh_token || state.refresh_token
+        })
+        |> token_ready()
+
+      {:error, :invalid_grant} ->
+        relogin(state, "el SSO rechazó el refresh token")
+
+      {:error, reason} ->
+        Process.send_after(self(), :refresh_token, @error_retry_ms)
+        broadcast(%{state | status: :token_error}, {:token_error, reason})
+    end
+  end
+
+  defp token_ready(state) do
+    delay = max(Clock.ms_until(state.expires_at) - @refresh_margin_s * 1000, 1_000)
+    Process.send_after(self(), :refresh_token, delay)
+    was_ok = state.status == :ok
+    state = %{state | status: :ok}
+    state = if was_ok, do: state, else: reschedule(state, @resources, 0)
+    broadcast(state, :token_ok)
+  end
+
+  defp relogin(state, reason) do
+    Characters.mark_relogin(state.id)
+
+    Events.emit(
+      :warning,
+      "Personajes",
+      "#{state.name || state.id} debe volver a loguear: #{reason}"
+    )
+
+    state = cancel_all(state)
+    broadcast(%{state | status: :relogin, access_token: nil}, :relogin)
+  end
+
+  ## Polling
+
+  defp poll(state, resource) do
+    if Map.fetch!(@scopes, resource) in state.scopes do
+      state
+      |> fetch(resource)
+      |> handle_response(state, resource)
+    else
+      state
+    end
+  end
+
+  defp fetch(state, resource) do
+    fun =
+      case resource do
+        :location -> &Esi.character_location/3
+        :ship -> &Esi.character_ship/3
+        :online -> &Esi.character_online/3
+        :wallet -> &Esi.character_wallet/3
+        :skills -> &Esi.character_skills/3
+        :standings -> &Esi.character_standings/3
+      end
+
+    fun.(state.id, state.access_token, Map.get(state.etags, resource))
+  end
+
+  defp handle_response({:ok, %Response{status: 304} = resp}, state, resource) do
+    schedule(state, resource, resp)
+  end
+
+  defp handle_response({:ok, %Response{} = resp}, state, resource) do
+    before = state.context
+    context = Map.put(state.context, resource, parse(resource, resp.body))
+
+    state =
+      %{state | context: context, etags: Map.put(state.etags, resource, resp.etag)}
+      |> schedule(resource, resp)
+
+    # Cambiar de en línea a offline (o al revés) reprograma todo con el modo nuevo.
+    state =
+      if resource == :online and before[:online] != context[:online],
+        do: reschedule(state, @resources -- [:online], 0),
+        else: state
+
+    if before[resource] != context[resource],
+      do: broadcast(state, {:updated, resource}),
+      else: state
+  end
+
+  defp handle_response({:error, {:http, %Response{status: 403}}}, state, resource) do
+    # Scope no concedido o revocado para este recurso: no se insiste.
+    %{state | scopes: List.delete(state.scopes, Map.fetch!(@scopes, resource))}
+  end
+
+  defp handle_response({:error, {kind, until}}, state, resource)
+       when kind in [:paused, :rate_limited] do
+    reschedule(state, [resource], Clock.ms_until(until) + 1_000)
+  end
+
+  defp handle_response({:error, _reason}, state, resource) do
+    reschedule(state, [resource], @error_retry_ms)
+  end
+
+  defp parse(:location, body) do
+    %{
+      solar_system_id: body["solar_system_id"],
+      station_id: body["station_id"],
+      structure_id: body["structure_id"]
+    }
+  end
+
+  defp parse(:ship, body) do
+    %{
+      ship_type_id: body["ship_type_id"],
+      ship_item_id: body["ship_item_id"],
+      ship_name: body["ship_name"]
+    }
+  end
+
+  defp parse(:online, body), do: body["online"] == true
+  defp parse(:wallet, body), do: body / 1
+
+  defp parse(:skills, body) do
+    for %{"skill_id" => id} = skill <- body["skills"] || [], into: %{} do
+      {id, skill["active_skill_level"] || 0}
+    end
+  end
+
+  defp parse(:standings, body) do
+    for %{"from_id" => id, "standing" => standing} <- body, into: %{}, do: {id, standing}
+  end
+
+  # Próximo pedido: el intervalo del modo actual, pero nunca antes de Expires.
+  defp schedule(state, resource, %Response{expires: expires}) do
+    case interval(state, resource) do
+      nil -> cancel(state, resource)
+      ms -> reschedule(state, [resource], max(ms, (expires && Clock.ms_until(expires)) || 0))
+    end
+  end
+
+  defp interval(state, resource), do: get_in(@intervals, [resource, mode(state)])
+
+  defp mode(state) do
+    cond do
+      state.context[:online] == false -> :offline
+      map_size(state.viewers) > 0 -> :active
+      true -> :idle
+    end
+  end
+
+  defp reschedule(state, resources, delay) do
+    Enum.reduce(resources, state, fn resource, acc ->
+      acc = cancel(acc, resource)
+
+      if mode(acc) == :offline and interval(acc, resource) == nil and resource != :online do
+        acc
+      else
+        ref = Process.send_after(self(), {:poll, resource}, delay)
+        %{acc | timers: Map.put(acc.timers, resource, ref)}
+      end
+    end)
+  end
+
+  defp cancel(state, resource) do
+    if ref = state.timers[resource], do: Process.cancel_timer(ref)
+    %{state | timers: Map.delete(state.timers, resource)}
+  end
+
+  defp cancel_all(state), do: Enum.reduce(@resources, state, &cancel(&2, &1))
+
+  defp public(state) do
+    %{
+      id: state.id,
+      name: state.name,
+      status: state.status,
+      scopes: state.scopes,
+      context: state.context,
+      mode: mode(state)
+    }
+  end
+
+  defp broadcast(state, event) do
+    Phoenix.PubSub.broadcast(
+      Eth.PubSub,
+      topic(state.id),
+      {:character, state.id, event, public(state)}
+    )
+
+    state
+  end
+end

@@ -98,6 +98,10 @@ defmodule Eth.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
+      # EVE SSO (RF-5.1): estrategia Ueberauth propia, JWT (RS256/ES256) y tokens cifrados.
+      {:ueberauth, "~> 0.10.8"},
+      {:jose, "~> 1.11"},
+      {:cloak_ecto, "~> 1.3"},
       # Calidad y seguridad (RNF-4.9, RNF-7.1)
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},

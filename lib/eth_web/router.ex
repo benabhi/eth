@@ -21,6 +21,16 @@ defmodule EthWeb.Router do
     live "/control", ControlLive
   end
 
+  # EVE SSO (RF-5.1) y personaje activo (RF-5.10)
+  scope "/auth", EthWeb do
+    pipe_through :browser
+
+    post "/logout", AuthController, :logout
+    post "/characters/:id/activate", AuthController, :activate
+    get "/:provider", AuthController, :request
+    get "/:provider/callback", AuthController, :callback
+  end
+
   # Healthchecks (RNF-9.4)
   scope "/", EthWeb do
     pipe_through :api

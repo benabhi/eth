@@ -22,6 +22,20 @@ end
 
 config :eth, EthWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# EVE SSO (RF-5.1) y bóveda de tokens (RNF-4.2). En test se configuran en test.exs.
+if config_env() != :test do
+  config :eth, Eth.Sso,
+    client_id: System.get_env("EVE_CLIENT_ID"),
+    client_secret: System.get_env("EVE_CLIENT_SECRET"),
+    callback_url: System.get_env("EVE_CALLBACK_URL", "http://localhost:4000/auth/eve/callback"),
+    allowed_character_ids:
+      System.get_env("ETH_ALLOWED_CHARACTER_IDS", "")
+      |> String.split(",", trim: true)
+      |> Enum.map(&String.to_integer(String.trim(&1)))
+
+  config :eth, Eth.Vault, key: System.get_env("ETH_VAULT_KEY")
+end
+
 # ESI: contacto para el User-Agent (RNF-3.1) y fecha de compatibilidad opcional.
 config :eth, Eth.Esi.Client, contact: System.get_env("ESI_CONTACT")
 

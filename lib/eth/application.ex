@@ -15,6 +15,7 @@ defmodule Eth.Application do
         {Phoenix.PubSub, name: Eth.PubSub},
         # Pool HTTP: el tamaño del pool de ESI acota la concurrencia global de requests.
         {Finch, name: Eth.Finch, pools: %{"https://esi.evetech.net" => [size: 16, count: 1]}},
+        Eth.Vault,
         Eth.Esi.Budget
       ] ++ workers() ++ [EthWeb.Endpoint]
 
@@ -32,7 +33,8 @@ defmodule Eth.Application do
         Eth.Esi.ServerStatus,
         Eth.Sde.Store,
         Eth.Market.Supervisor,
-        Eth.Engine.Supervisor
+        Eth.Engine.Supervisor,
+        Eth.Characters.Supervisor
       ]
     else
       []

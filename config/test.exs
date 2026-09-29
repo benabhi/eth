@@ -26,6 +26,16 @@ config :eth, EthWeb.Endpoint,
 config :eth, Eth.Esi.Client, req_options: [plug: {Req.Test, Eth.Esi.Client}]
 config :eth, Eth.Sde.Download, req_options: [plug: {Req.Test, Eth.Sde.Download}]
 
+# SSO y bóveda con valores de prueba (nunca credenciales reales).
+config :eth, Eth.Sso,
+  client_id: "test-client-id",
+  client_secret: "test-client-secret",
+  callback_url: "http://localhost:4000/auth/eve/callback",
+  allowed_character_ids: [],
+  req_options: [plug: {Req.Test, Eth.Sso}]
+
+config :eth, Eth.Vault, key: Base.encode64(:binary.copy(<<7>>, 32))
+
 # Directorio de datos propio: los tests nunca leen ni escriben los snapshots de desarrollo.
 config :eth, :data_dir, Path.expand("../tmp/test_data", __DIR__)
 
