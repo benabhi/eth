@@ -82,6 +82,35 @@ config :eth, Eth.GameRules,
   route_root_system_id: 30_000_142,
   # Umbral de highsec sobre la seguridad real (se muestra ≥ 0.5)
   highsec_min_security: 0.45,
+  # Impuestos (verificados 2026-09-29, Anexo B.1): sales tax = base × (1 − 0,11 × Accounting)
+  sales_tax_base: 0.075,
+  accounting_reduction_per_level: 0.11,
+  broker_fee_base: 0.03,
+  broker_relations_reduction_per_level: 0.003,
+  broker_faction_standing_coef: 0.0003,
+  broker_corp_standing_coef: 0.0002,
+  # Motor (RF-4.x, Anexo B.7)
+  guest_accounting_level: 4,
+  min_profit_isk: 1_000_000,
+  min_unit_margin_isk: 0.01,
+  max_universal_opportunities: 5_000,
+  # Tiempo de viaje (RF-2.7): segundos por salto por clase de nave y por parada.
+  jump_seconds: %{
+    shuttle: 15,
+    blockade_runner: 25,
+    deep_space_transport: 40,
+    industrial: 50,
+    freighter: 90,
+    other: 45
+  },
+  stop_overhead_s: 180,
+  guest_ship_class: :industrial,
+  # TVS y Certeza (ERS §8.9)
+  tvs_weights: %{isk_per_hour: 0.40, profit: 0.25, roi: 0.15, liquidity: 0.20},
+  tvs_refs: %{isk_per_hour: 150_000_000, profit: 100_000_000, roi: 0.25},
+  order_tau_min: 180,
+  # Liquidez neutra hasta tener historial de mercado (F5, RF-4.7).
+  default_liquidity: 0.5,
   # Downtime diario de Tranquility (UTC) (RF-1.8)
   downtime_window_utc: {~T[10:59:00], ~T[11:15:00]},
   status_poll_ms: 60_000
