@@ -1,6 +1,7 @@
 defmodule Eth.NotificationsTest do
   use Eth.DataCase, async: false
 
+  alias Eth.Characters.Session
   alias Eth.Engine.Coordinator
   alias Eth.EngineFixture, as: F
   alias Eth.Market.TableOwner
@@ -85,7 +86,7 @@ defmodule Eth.NotificationsTest do
 
     Phoenix.PubSub.broadcast(
       Eth.PubSub,
-      Eth.Characters.Session.topic(c.id),
+      Session.topic(c.id),
       {:character, c.id, :relogin, %{name: "Hernan Test"}}
     )
 

@@ -9,8 +9,8 @@ defmodule Eth.Tracking do
 
   import Ecto.Query
 
-  alias Eth.{Clock, Events, Repo}
   alias Eth.Characters.Sessions
+  alias Eth.{Clock, Events, Repo}
   alias Eth.Tracking.{Run, RunMonitor, Stages, WalletTransaction}
 
   @doc "Tópico con los cambios de los viajes de un personaje (`{:run, run}`)."
@@ -125,7 +125,7 @@ defmodule Eth.Tracking do
     )
   end
 
-  @doc "Confirmación manual: \"compré\" o \"vendí\" (RF-7.2)."
+  @doc "Confirmación manual de compra o de venta (RF-7.2)."
   @spec confirm(Run.t(), :bought | :sold) :: {:ok, Run.t()} | {:error, :invalid}
   def confirm(%Run{} = run, action) do
     case Stages.confirm(run.status, action) do

@@ -57,7 +57,7 @@ defmodule Eth.Tracking.Stages do
 
   def next(%{status: status}, _signals), do: status
 
-  @doc "Etapa a la que lleva una confirmación manual (\"compré\" / \"vendí\")."
+  @doc "Etapa a la que lleva una confirmación manual de compra o de venta."
   @spec confirm(status(), :bought | :sold) :: {:ok, status()} | :error
   def confirm(status, :bought) when status in ["planned", "to_origin"], do: {:ok, "bought"}
 

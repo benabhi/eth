@@ -56,21 +56,48 @@ defmodule Eth.Tracking.Reconcile do
     }
   end
 
+  # Cada chequeo devuelve el texto de la causa o `nil`.
   defp causes(plan, buys, sells, bought, sold) do
-    [
-      bought == 0 && "No hay compras del tipo en la estación de origen",
-      (bought > 0 and bought < plan["quantity"]) &&
-        "Se compró menos de lo planificado (#{bought} de #{plan["quantity"]})",
-      (bought > 0 and avg(buys) > plan["avg_buy"] * 1.001) &&
-        "Compra promedio más cara que la planificada",
-      (sold > 0 and avg(sells) < plan["avg_sell"] * 0.999) &&
-        "Venta promedio más barata que la planificada",
-      Enum.any?(sells, &(&1.location_id != plan["destination_location_id"])) &&
-        "Parte de la venta fue en otra estación",
-      (bought > 0 and sold < bought) && "Quedan #{bought - sold} unidades sin vender"
-    ]
-    |> Enum.filter(&is_binary/1)
+    ctx = %{plan: plan, buys: buys, sells: sells, bought: bought, sold: sold}
+
+    [&no_buys/1, &short_buy/1, &expensive_buy/1, &cheap_sale/1, &elsewhere/1, &unsold/1]
+    |> Enum.map(& &1.(ctx))
+    |> Enum.reject(&is_nil/1)
   end
+
+  defp no_buys(%{bought: 0}), do: "No hay compras del tipo en la estación de origen"
+  defp no_buys(_ctx), do: nil
+
+  defp short_buy(%{bought: b, plan: plan}) when b > 0,
+    do:
+      if(b < plan["quantity"],
+        do: "Se compró menos de lo planificado (#{b} de #{plan["quantity"]})"
+      )
+
+  defp short_buy(_ctx), do: nil
+
+  defp expensive_buy(%{bought: b, buys: buys, plan: plan}) when b > 0,
+    do: if(avg(buys) > plan["avg_buy"] * 1.001, do: "Compra promedio más cara que la planificada")
+
+  defp expensive_buy(_ctx), do: nil
+
+  defp cheap_sale(%{sold: s, sells: sells, plan: plan}) when s > 0,
+    do:
+      if(avg(sells) < plan["avg_sell"] * 0.999,
+        do: "Venta promedio más barata que la planificada"
+      )
+
+  defp cheap_sale(_ctx), do: nil
+
+  defp elsewhere(%{sells: sells, plan: plan}) do
+    if Enum.any?(sells, &(&1.location_id != plan["destination_location_id"])),
+      do: "Parte de la venta fue en otra estación"
+  end
+
+  defp unsold(%{bought: b, sold: s}) when b > 0 and s < b,
+    do: "Quedan #{b - s} unidades sin vender"
+
+  defp unsold(_ctx), do: nil
 
   defp avg([]), do: 0.0
   defp avg(ts), do: sum(ts, &(&1.quantity * &1.unit_price)) / sum(ts, & &1.quantity)
