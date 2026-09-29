@@ -25,8 +25,9 @@ config :eth, EthWeb.Endpoint,
 # sin stub hace fallar el test.
 config :eth, Eth.Esi.Client, req_options: [plug: {Req.Test, Eth.Esi.Client}]
 
-# En tests el mercado no arranca solo: cada test levanta lo que necesita.
-config :eth, :start_market, false
+# En tests los procesos de fondo (mercado, estado de TQ, limpieza) no arrancan solos:
+# cada test levanta lo que necesita.
+config :eth, :start_workers, false
 
 # In test we don't send emails
 config :eth, Eth.Mailer, adapter: Swoosh.Adapters.Test

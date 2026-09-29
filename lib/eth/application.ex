@@ -7,21 +7,30 @@ defmodule Eth.Application do
 
   @impl true
   def start(_type, _args) do
-    children = [
-      EthWeb.Telemetry,
-      Eth.Repo,
-      {DNSCluster, query: Application.get_env(:eth, :dns_cluster_query) || :ignore},
-      {Phoenix.PubSub, name: Eth.PubSub},
-      # Pool HTTP: el tamaño del pool de ESI acota la concurrencia global de requests.
-      {Finch, name: Eth.Finch, pools: %{"https://esi.evetech.net" => [size: 16, count: 1]}},
-      Eth.Esi.Budget,
-      EthWeb.Endpoint
-    ]
+    children =
+      [
+        EthWeb.Telemetry,
+        Eth.Repo,
+        {DNSCluster, query: Application.get_env(:eth, :dns_cluster_query) || :ignore},
+        {Phoenix.PubSub, name: Eth.PubSub},
+        # Pool HTTP: el tamaño del pool de ESI acota la concurrencia global de requests.
+        {Finch, name: Eth.Finch, pools: %{"https://esi.evetech.net" => [size: 16, count: 1]}},
+        Eth.Esi.Budget
+      ] ++ workers() ++ [EthWeb.Endpoint]
 
     # See https://elixir.hexdocs.pm/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Eth.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  # Procesos de fondo; en tests se desactivan (config :eth, :start_workers).
+  defp workers do
+    if Application.get_env(:eth, :start_workers, true) do
+      [Eth.Events.Pruner]
+    else
+      []
+    end
   end
 
   # Tell Phoenix to update the endpoint configuration
