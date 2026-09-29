@@ -6,7 +6,16 @@ defmodule Eth.Market do
   Implementa: RF-1.6, RF-8.2, RF-8.3, RF-8.8, RF-9.6.
   """
 
-  alias Eth.Market.{History, RegionManager, RegionPoller, Structure, StructureManager, Structures}
+  alias Eth.Market.{
+    History,
+    OrderBook,
+    RegionManager,
+    RegionPoller,
+    Structure,
+    StructureManager,
+    Structures,
+    TableOwner
+  }
 
   # Margen tras Expires para que la descarga del ciclo siguiente termine (The Forge ≈ 25 s).
   @refresh_margin_s 120
@@ -75,6 +84,21 @@ defmodule Eth.Market do
       true ->
         :excluded
     end
+  end
+
+  @doc """
+  Libro de una ubicación en el snapshot vigente de su región: hasta `limit` órdenes de un
+  lado, del mejor al peor precio (RF-4.17).
+  """
+  @spec location_book(pos_integer(), pos_integer(), :buy | :sell, pos_integer(), pos_integer()) ::
+          [OrderBook.entry()]
+  def location_book(region_id, type_id, side, location_id, limit) do
+    case TableOwner.current({:region, region_id}) do
+      %{tid: tid} -> OrderBook.at_location(tid, type_id, side, location_id, limit)
+      nil -> []
+    end
+  rescue
+    ArgumentError -> []
   end
 
   ## Estructuras (RF-1.6, RF-9.6)

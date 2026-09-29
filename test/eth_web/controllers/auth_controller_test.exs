@@ -22,7 +22,7 @@ defmodule EthWeb.AuthControllerTest do
     :ok
   end
 
-  test "la solicitud redirige al SSO con los 12 scopes y un state", %{conn: conn} do
+  test "la solicitud redirige al SSO con los 13 scopes y un state", %{conn: conn} do
     conn = get(conn, ~p"/auth/eve")
     location = redirected_to(conn, 302)
     uri = URI.parse(location)
@@ -34,7 +34,7 @@ defmodule EthWeb.AuthControllerTest do
     assert query["client_id"] == "test-client-id"
     assert query["redirect_uri"] == "http://localhost:4000/auth/eve/callback"
     assert query["response_type"] == "code"
-    assert length(String.split(query["scope"], " ")) == 12
+    assert length(String.split(query["scope"], " ")) == 13
     assert query["state"] != nil
   end
 

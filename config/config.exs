@@ -67,6 +67,7 @@ config :eth, Eth.Sso,
     esi-location.read_online.v1
     esi-ui.open_window.v1
     esi-assets.read_assets.v1
+    esi-markets.read_character_orders.v1
   )
 
 config :ueberauth, Ueberauth, providers: [eve: {Eth.Sso.Strategy, []}]

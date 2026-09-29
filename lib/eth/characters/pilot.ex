@@ -38,7 +38,10 @@ defmodule Eth.Characters.Pilot do
           accounting: 0..5 | nil,
           sales_tax: float() | nil,
           broker_relations: 0..5 | nil,
+          advanced_broker_relations: 0..5 | nil,
+          skills: %{pos_integer() => 0..5} | nil,
           standings: %{pos_integer() => float()} | nil,
+          orders: [map()] | nil,
           location: map() | nil,
           ship: map() | nil,
           scopes: [String.t()]
@@ -64,7 +67,11 @@ defmodule Eth.Characters.Pilot do
       accounting: accounting,
       sales_tax: accounting && Fees.sales_tax(accounting),
       broker_relations: skill_level(context[:skills], :broker_relations_skill_id),
+      advanced_broker_relations:
+        skill_level(context[:skills], :advanced_broker_relations_skill_id),
+      skills: context[:skills],
       standings: context[:standings],
+      orders: context[:orders],
       location: location(context[:location]),
       ship: ship(context[:ship], context),
       scopes: (session && session.scopes) || character.scopes
@@ -132,8 +139,11 @@ defmodule Eth.Characters.Pilot do
     %{
       accounting: pilot.accounting,
       broker_relations: pilot.broker_relations,
+      advanced_broker_relations: pilot.advanced_broker_relations,
       standings: pilot.standings,
-      capital: pilot.capital
+      capital: pilot.capital,
+      # Sus órdenes no compiten con él (RF-4.17).
+      own_order_ids: pilot.orders && MapSet.new(pilot.orders, & &1.order_id)
     }
     |> Enum.reject(fn {_key, value} -> is_nil(value) end)
     |> Map.new()

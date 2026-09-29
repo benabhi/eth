@@ -24,6 +24,89 @@
     </p>
   </div>
 
+  <%!-- Mis órdenes (RF-4.17) --%>
+  <section
+    :if={@pilot}
+    id="my-orders"
+    aria-labelledby="my-orders-title"
+    class="card border border-base-300 p-4"
+  >
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <h2 id="my-orders-title" class="font-semibold">{gettext("Mis órdenes")}</h2>
+      <p
+        :if={@my_orders_summary}
+        id="my-orders-summary"
+        class="text-sm text-base-content/70 tabular-nums"
+      >
+        {gettext("%{count} de %{limit} órdenes",
+          count: @my_orders_summary.count,
+          limit: @my_orders_summary.limit
+        )} · {gettext(
+          "escrow %{escrow}",
+          escrow: Format.compact(@my_orders_summary.escrow)
+        )} · {gettext("en venta %{value}", value: Format.compact(@my_orders_summary.sell_value))}
+      </p>
+    </div>
+
+    <p :if={is_nil(@my_orders)} id="my-orders-missing" class="mt-1 text-sm text-base-content/70">
+      {gettext(
+        "Para seguir tus órdenes, agregá el permiso esi-markets.read_character_orders.v1 a tu aplicación de EVE y volvé a iniciar sesión."
+      )}
+    </p>
+    <p :if={@my_orders == []} class="mt-1 text-sm text-base-content/70">
+      {gettext("No tenés órdenes abiertas.")}
+    </p>
+
+    <div :if={@my_orders not in [nil, []]} class="mt-2 overflow-x-auto">
+      <table class="table table-xs">
+        <thead>
+          <tr>
+            <th>{gettext("Objeto")}</th>
+            <th>{gettext("Lado")}</th>
+            <th class="text-right">{gettext("Precio")}</th>
+            <th class="text-right">{gettext("Restan")}</th>
+            <th>{gettext("Estado")}</th>
+            <th class="text-right">{gettext("Precio sugerido")}</th>
+            <th class="text-right">{gettext("Costo de modificar")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr :for={o <- @my_orders} id={"my-order-#{o.order_id}"}>
+            <td>{o.type_name}</td>
+            <td>{if o.buy, do: gettext("compra"), else: gettext("venta")}</td>
+            <td class="text-right tabular-nums">{Format.compact(o.price)}</td>
+            <td class="text-right tabular-nums">{Format.integer(o.volume_remain)}</td>
+            <td>
+              <span class={[
+                "badge badge-xs",
+                if(o.status == :outbid, do: "badge-warning", else: "badge-success")
+              ]}>
+                {if o.status == :outbid, do: gettext("superada"), else: gettext("primera")}
+              </span>
+            </td>
+            <td class="text-right">
+              <button
+                :if={o.suggested_price}
+                id={"copy-order-#{o.order_id}"}
+                type="button"
+                phx-hook=".CopyPrice"
+                data-text={price_text(o.suggested_price)}
+                class="btn btn-ghost btn-xs font-mono"
+                title={gettext("Copiar precio")}
+              >
+                {price_text(o.suggested_price)}
+                <.icon name="hero-clipboard-document" class="size-3" />
+              </button>
+            </td>
+            <td class="text-right tabular-nums">
+              {o.relist_fee && Format.compact(o.relist_fee)}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <%!-- Filtros (RF-6.4) --%>
   <.form
     for={@form}

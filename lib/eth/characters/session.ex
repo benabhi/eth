@@ -16,6 +16,7 @@ defmodule Eth.Characters.Session do
   | habilidades | 30 min | 60 min | 6 h |
   | standings | 60 min | 6 h | 24 h |
   | assets (módulos montados) | 60 min | 60 min | 6 h |
+  | órdenes propias | 5 min | 20 min | 60 min |
 
   De los assets solo se guardan los módulos montados en cada nave
   (`%{ship_item_id => [type_id]}`), para calcular la bodega (RF-5.8).
@@ -34,7 +35,7 @@ defmodule Eth.Characters.Session do
   alias Eth.Esi.Response
   alias Eth.Sso.Token
 
-  @resources [:online, :location, :ship, :wallet, :skills, :standings, :assets]
+  @resources [:online, :location, :ship, :wallet, :skills, :standings, :assets, :orders]
   @scopes %{
     online: "esi-location.read_online.v1",
     location: "esi-location.read_location.v1",
@@ -42,7 +43,8 @@ defmodule Eth.Characters.Session do
     wallet: "esi-wallet.read_character_wallet.v1",
     skills: "esi-skills.read_skills.v1",
     standings: "esi-characters.read_standings.v1",
-    assets: "esi-assets.read_assets.v1"
+    assets: "esi-assets.read_assets.v1",
+    orders: "esi-markets.read_character_orders.v1"
   }
   @intervals %{
     location: %{active: 10_000, idle: 60_000, offline: nil},
@@ -51,7 +53,8 @@ defmodule Eth.Characters.Session do
     wallet: %{active: 120_000, idle: 600_000, offline: 1_800_000},
     skills: %{active: 1_800_000, idle: 3_600_000, offline: 21_600_000},
     standings: %{active: 3_600_000, idle: 21_600_000, offline: 86_400_000},
-    assets: %{active: 3_600_000, idle: 3_600_000, offline: 21_600_000}
+    assets: %{active: 3_600_000, idle: 3_600_000, offline: 21_600_000},
+    orders: %{active: 300_000, idle: 1_200_000, offline: 3_600_000}
   }
   @error_retry_ms 60_000
   @refresh_margin_s 60
@@ -249,6 +252,7 @@ defmodule Eth.Characters.Session do
         :wallet -> &Esi.character_wallet/3
         :skills -> &Esi.character_skills/3
         :standings -> &Esi.character_standings/3
+        :orders -> &Esi.character_orders/3
       end
 
     fun.(state.id, state.access_token, Map.get(state.etags, resource))
@@ -353,8 +357,38 @@ defmodule Eth.Characters.Session do
     |> Enum.group_by(& &1["location_id"], & &1["type_id"])
   end
 
+  # Órdenes personales abiertas (las de corporación no se usan, §1.5).
+  defp parse(:orders, body) do
+    for %{"order_id" => id} = o <- body, o["is_corporation"] != true do
+      %{
+        order_id: id,
+        type_id: o["type_id"],
+        region_id: o["region_id"],
+        location_id: o["location_id"],
+        buy: o["is_buy_order"] == true,
+        price: o["price"] / 1,
+        volume_remain: o["volume_remain"],
+        volume_total: o["volume_total"],
+        min_volume: o["min_volume"] || 1,
+        range: o["range"],
+        escrow: (o["escrow"] || 0) / 1,
+        duration: o["duration"],
+        issued: parse_datetime(o["issued"])
+      }
+    end
+  end
+
   defp parse(:standings, body) do
     for %{"from_id" => id, "standing" => standing} <- body, into: %{}, do: {id, standing}
+  end
+
+  defp parse_datetime(nil), do: nil
+
+  defp parse_datetime(text) do
+    case DateTime.from_iso8601(text) do
+      {:ok, dt, _offset} -> dt
+      _ -> nil
+    end
   end
 
   defp fitted?(flag, prefixes) when is_binary(flag),

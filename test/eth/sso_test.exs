@@ -81,6 +81,6 @@ defmodule Eth.SsoTest do
   test "configuración y lista blanca" do
     assert Sso.configured?()
     assert Sso.allowed?(F.character_id())
-    assert Sso.missing_scopes(["publicData"]) |> length() == 11
+    assert Sso.missing_scopes(["publicData"]) |> length() == 12
   end
 end

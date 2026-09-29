@@ -164,6 +164,53 @@ defmodule Eth.CharactersTest do
 
           "standings" ->
             [%{"from_id" => 1_000_035, "from_type" => "npc_corp", "standing" => 2.5}]
+
+          "orders" ->
+            [
+              %{
+                "order_id" => 6_001,
+                "type_id" => 34,
+                "region_id" => 10_000_002,
+                "location_id" => 60_003_760,
+                "is_buy_order" => false,
+                "price" => 5.0,
+                "volume_total" => 1_000,
+                "volume_remain" => 800,
+                "range" => "region",
+                "issued" => "2026-09-28T12:00:00Z",
+                "duration" => 90,
+                "is_corporation" => false
+              },
+              %{
+                "order_id" => 6_002,
+                "type_id" => 34,
+                "region_id" => 10_000_002,
+                "location_id" => 60_003_760,
+                "is_buy_order" => true,
+                "price" => 4.0,
+                "escrow" => 4_000.0,
+                "min_volume" => 1,
+                "volume_total" => 1_000,
+                "volume_remain" => 1_000,
+                "range" => "station",
+                "issued" => "2026-09-28T12:00:00Z",
+                "duration" => 90,
+                "is_corporation" => false
+              },
+              %{
+                "order_id" => 6_003,
+                "type_id" => 34,
+                "region_id" => 10_000_002,
+                "location_id" => 60_003_760,
+                "price" => 9.0,
+                "volume_total" => 1,
+                "volume_remain" => 1,
+                "range" => "region",
+                "duration" => 90,
+                "issued" => "2026-09-28T12:00:00Z",
+                "is_corporation" => true
+              }
+            ]
         end
 
       EsiStub.respond(conn, 200, body, expires: DateTime.add(DateTime.utc_now(), 5, :second))
@@ -189,7 +236,7 @@ defmodule Eth.CharactersTest do
       stub_esi()
       :ok = Sessions.start(@id, login())
 
-      context = await_context(&(map_size(&1.context) == 7))
+      context = await_context(&(map_size(&1.context) == 8))
       assert context.status == :ok
       assert context.context.location.station_id == 60_003_760
       assert context.context.ship.ship_name == "Carguero"
@@ -198,6 +245,10 @@ defmodule Eth.CharactersTest do
       assert context.context.standings[1_000_035] == 2.5
       # De los assets (dos páginas) quedan solo los módulos montados, por nave.
       assert context.context.assets == %{1_001 => [1_319, 1_319, 31_119]}
+      # Órdenes personales (la de corporación se descarta), con su lado y escrow.
+      assert [%{order_id: 6_001, buy: false}, %{order_id: 6_002, buy: true, escrow: 4_000.0}] =
+               context.context.orders
+
       assert {:ok, "access-1"} = Sessions.token(@id)
     end
 

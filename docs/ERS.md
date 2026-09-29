@@ -746,6 +746,8 @@ Con `esi-markets.read_character_orders.v1` (scope 13, §4 M5) se leen las órden
 
 **CA:** una orden propia no aparece como contraparte en ninguna oportunidad; al publicar una orden mejor en un fixture, la propia pasa a "superada" con el precio sugerido.
 
+- Implementación (F9): la sesión del personaje lee `/characters/{id}/orders` (sin grupo de rate limit en la OpenAPI: rige el error limit) cada 5 min con la UI abierta, 20 sin UI y 60 offline, siempre respetando `Expires`; descarta las órdenes de corporación. `Eth.Engine.OwnOrders` decide si cada orden va **primera** o está **superada** frente a las órdenes ajenas de su lado en su estación (a igual precio gana la más antigua, como en el juego) y sugiere el precio legal y el costo de modificarla. Las órdenes de compra se comparan en su estación, aunque tengan rango (simplificación). El panel **Mis órdenes** de la vista Estación muestra órdenes frente al límite, escrow y valor en venta. Las órdenes propias se excluyen del station trading (`own_order_ids`); la exclusión en la familia directo queda pendiente (el libro universal no guarda los IDs de las órdenes consumidas). El capital no descuenta el escrow: el saldo de la billetera ya lo excluye.
+
 ### M5 · Identidad y contexto del piloto (EVE SSO)
 
 #### RF-5.1 · Autenticación EVE SSO — M · F4
@@ -770,10 +772,10 @@ Con `esi-markets.read_character_orders.v1` (scope 13, §4 M5) se leen las órden
 | 10 | `esi-location.read_online.v1` | Polling según actividad (ahorra presupuesto) y estado en línea | RF-5.4 | **Nuevo** |
 | 11 | `esi-ui.open_window.v1` | Abrir en el juego la ventana de mercado del ítem | RF-5.9 | **Nuevo** |
 | 12 | `esi-assets.read_assets.v1` | Módulos montados en las naves para calcular la bodega real | RF-5.8 | **Nuevo** (F4, pedido del operador) |
-| 13 | `esi-markets.read_character_orders.v1` | Órdenes propias: exclusión, seguimiento y alertas del trading por órdenes | RF-4.17, RF-10.5 | **Planificado** (se pide desde F9; obliga a volver a loguear) |
+| 13 | `esi-markets.read_character_orders.v1` | Órdenes propias: exclusión, seguimiento y alertas del trading por órdenes | RF-4.17, RF-10.5 | **Nuevo** (F9) |
 
 - Pedir un scope nuevo más adelante obliga a volver a loguear todos los personajes; por eso v1 pide exactamente estos 12 y ninguno más (mínimo privilegio). Un personaje logueado con los 11 anteriores sigue funcionando: la bodega se estima solo con habilidades hasta que vuelva a loguear.
-- El scope 13 se agrega al llegar F9 (trading por órdenes); hasta entonces la aplicación pide 12.
+- El scope 13 se agregó en F9 (trading por órdenes). Un personaje logueado antes no lo tiene: la vista Estación explica cómo concederlo y el resto de la aplicación funciona igual.
 
 **CA:** si un personaje concedió menos scopes, la UI indica qué funciones quedan deshabilitadas y ofrece volver a loguear.
 
@@ -1141,6 +1143,8 @@ Envío opcional de alertas a un webhook configurado por el usuario.
 #### RF-10.5 · Alertas de órdenes superadas — S · F9
 
 Aviso (en la app y, si está activo, del navegador) cuando una orden propia deja de ser la mejor, con el precio sugerido y un acceso a "Abrir mercado". Anti-spam por orden (`notify.cooldown_min`).
+
+- Implementación (F9): `Eth.Characters.OrderWatch` recalcula el estado con cada evaluación del motor y con cada lectura nueva de órdenes, y avisa solo las transiciones de primera a superada (la primera lectura siembra el estado sin avisar); la alerta lleva a `/station`.
 
 ---
 
@@ -1934,7 +1938,7 @@ EXPOSE 4000
 
 **Opción B — elegida (P-06, 2026-09-28):** repo en `C:\...`. Con `ETH_FS_POLL=true`, el live reload usa `:fs_poll` (solo en `lib/`, `priv/static` y `priv/gettext`) y Tailwind se recompila con `Eth.Dev.TailwindPoller`. esbuild `--watch` y el code reloader ya funcionan sin inotify. Verificado: la edición de una plantilla desde Windows recarga el navegador y recompila el CSS en ~5 s.
 
-Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una aplicación con el callback `http://localhost:4000/auth/eve/callback` y los 12 scopes de RF-5.2.
+Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una aplicación con el callback `http://localhost:4000/auth/eve/callback` y los 13 scopes de RF-5.2.
 
 ### 10.5 Producción
 
@@ -1976,7 +1980,7 @@ Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una
 
 ### 11.4 Checklist manual con el cliente del juego (por release)
 
-1. Login con SSO y aceptación de los 12 scopes.
+1. Login con SSO y aceptación de los 13 scopes.
 2. "Fijar ruta" (origen + destino) y "Ruta evasiva" con anclas.
 3. "Abrir mercado" sobre un ítem.
 4. Pegar un Multibuy con un nombre terminado en número.
@@ -2049,7 +2053,7 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | RF 2.5 Optimización de retorno | RF-4.11, §8.6 | Descartado (D-18) |
 | RF 2.6 Escudo anti-scam | RF-4.8, §8.7 | Umbral único de 1000 % → reglas AS-1…AS-8 explicables |
 | RF 2.7 TVS y Certeza adaptativos | RF-4.12, §8.9 | Fórmulas definidas + valor de la carga + ejemplo trabajado |
-| RF 3.1 Perfil de permisos (9 scopes) | RF-5.2 | 12 scopes (+ `read_online`, + `open_window`, + `read_assets`) |
+| RF 3.1 Perfil de permisos (9 scopes) | RF-5.2 | 13 scopes (+ `read_online`, + `open_window`, + `read_assets`, + `read_character_orders`) |
 | RF 3.2 Impuestos y billetera | RF-4.5, 4.6, 5.5, 5.6 | El modo Instantáneo solo paga *sales tax*; fórmulas vigentes |
 | RF 3.3 Capacidad de carga | RF-5.8 | Por `ship_item_id`; sugerencia del SDE; bodegas especializadas |
 | RF 4.1 Diseño táctico interactivo | RF-6.2 | + ISK/h y orden estable |
@@ -2081,7 +2085,7 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | D-02 | PostgreSQL 18 en Docker con volumen nombrado | Default de Phoenix, robusto y sin los problemas de SQLite sobre bind mounts de Windows | SQLite |
 | D-03 | Estrategia Ueberauth propia para EVE SSO | `ueberauth_eve_sso` no se mantiene desde 2019 | Depender de ese paquete |
 | D-04 | Kills en vivo desde zKillboard R2Z2 (+ killmail.stream como alternativa); línea base con ESI | ESI no ofrece un stream en vivo; RedisQ fue discontinuado | ESI `system_kills` solo (resolución de 1 h) |
-| D-05 | 12 scopes (13 desde F9, con `read_character_orders`) | Valor alto por scope y costo de re-login si se agregan después | 9 scopes |
+| D-05 | 13 scopes (el 13.º, `read_character_orders`, desde F9) | Valor alto por scope y costo de re-login si se agregan después | 9 scopes |
 | D-06 | Req/Finch para HTTP; Oban para jobs periódicos y durables; GenServers para los ciclos de alta frecuencia | Estándar del ecosistema; `Req.Test`; Oban Web | HTTPoison, jobs a mano |
 | D-07 | Familia directo en el MVP; familia por órdenes (Listado, compra por orden, station trading) en F9 | Menor riesgo y cálculo exacto; el trading por órdenes requiere historial (F5) y modelar la velocidad de ejecución y la competencia | Todo en el MVP |
 | D-08 | Floats para ISK en el motor; redondeo solo al mostrar | Rendimiento; la precisión es suficiente para estimaciones | Decimal |

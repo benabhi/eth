@@ -5,11 +5,12 @@ defmodule Eth.Engine do
   Implementa: RF-4.8, RF-4.12, RF-4.13, RF-4.14, RF-6.5.
   """
 
-  alias Eth.{Clock, Events, Repo}
+  alias Eth.{Clock, Events, Market, Repo}
 
   alias Eth.Engine.{
     Coordinator,
     Opportunity,
+    OwnOrders,
     Query,
     RouteRisk,
     SaleQuote,
@@ -213,5 +214,49 @@ defmodule Eth.Engine do
         [] -> []
       end
     end)
+  end
+
+  ## Órdenes propias (RF-4.17)
+
+  @own_book_depth 20
+
+  @doc """
+  Estado de las órdenes propias frente al libro vigente de su ubicación: primera o
+  superada, precio sugerido y costo de modificarla. `params` como en
+  `Eth.Engine.StationQuery` (Accounting, Broker Relations y standings para el broker) más
+  `:advanced_broker_relations` (relist) y `:own_order_ids` (todas las órdenes propias, que
+  no compiten entre sí).
+  """
+  @spec own_orders([OwnOrders.order()], map()) :: [map()]
+  def own_orders(orders, params) do
+    p = Map.merge(StationQuery.defaults(), params)
+    own_ids = Map.get(params, :own_order_ids) || MapSet.new(orders, & &1.order_id)
+    abr = Map.get(params, :advanced_broker_relations, 0)
+
+    for order <- orders do
+      side = if order.buy, do: :buy, else: :sell
+
+      book =
+        Market.location_book(
+          order.region_id,
+          order.type_id,
+          side,
+          order.location_id,
+          @own_book_depth
+        )
+
+      broker = StationQuery.fees(order.location_id, p).broker
+
+      order
+      |> Map.merge(OwnOrders.evaluate(order, book, own_ids, broker, abr))
+      |> Map.put(:type_name, type_name(order.type_id))
+    end
+  end
+
+  defp type_name(type_id) do
+    case Eth.Sde.type(type_id) do
+      %{name: name} -> name
+      nil -> "##{type_id}"
+    end
   end
 end

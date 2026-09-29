@@ -7,11 +7,14 @@ defmodule EthWeb.StationLive do
     salen de su contexto en vivo.
   - Grilla con stream (máx. 200 filas): precios sugeridos legales, margen neto, volumen
     diario, beneficio estimado por día, competencia y Certeza.
+  - Panel **Mis órdenes** (RF-4.17): las órdenes abiertas del piloto con su estado
+    (primera o superada), el precio sugerido para volver a quedar primera y el costo de
+    modificarla; sus órdenes no cuentan como competencia.
   - Detalle con el desglose de comisiones, el plan diario, la competencia y el anti-scam,
     "Copiar precio" y "Abrir mercado" (la orden se publica en el cliente: ESI no permite
     crearla, D-12).
 
-  Implementa: RF-4.16, RF-6.4, RF-6.12.
+  Implementa: RF-4.16, RF-4.17, RF-6.4, RF-6.12.
   """
   use EthWeb, :live_view
 
@@ -19,7 +22,7 @@ defmodule EthWeb.StationLive do
 
   alias Eth.{Characters, Clock, Engine, GameRules, Market, Sde}
   alias Eth.Characters.Pilot
-  alias Eth.Engine.StationQuery
+  alias Eth.Engine.{OwnOrders, StationQuery}
   alias EthWeb.{Format, StationParams}
 
   @impl true
@@ -38,6 +41,7 @@ defmodule EthWeb.StationLive do
      |> assign(:url_params, %{})
      |> assign(:hubs, hubs())
      |> assign(:pilot_overrides, overrides(socket.assigns.pilot))
+     |> assign_my_orders()
      |> stream_configure(:rows, dom_id: &"st-#{&1.id}")
      |> stream(:rows, [])}
   end
@@ -99,6 +103,7 @@ defmodule EthWeb.StationLive do
   # `EthWeb.PilotHook` ya actualizó @pilot; solo se recalcula si cambió lo que usa la consulta.
   def handle_info({:character, _id, _event, _public}, socket) do
     new = overrides(socket.assigns.pilot)
+    socket = assign_my_orders(socket)
 
     if new == socket.assigns.pilot_overrides,
       do: {:noreply, socket},
@@ -120,7 +125,7 @@ defmodule EthWeb.StationLive do
     query =
       form
       |> StationParams.to_query()
-      |> Map.merge(Map.take(overrides, [:standings]))
+      |> Map.merge(Map.take(overrides, [:standings, :own_order_ids]))
 
     socket
     |> assign(:form_defaults, defaults)
@@ -132,10 +137,27 @@ defmodule EthWeb.StationLive do
     {rows, total} = Engine.station_query(socket.assigns.query)
 
     socket
+    |> assign_my_orders()
     |> assign(total: total, meta: Engine.meta(), now: Clock.utc_now())
     |> assign(:selected_row, selected_row(socket.assigns.selected, socket.assigns.query))
     |> stream(:rows, rows, reset: true)
   end
+
+  # Órdenes propias del piloto activo con su estado frente al libro vigente (RF-4.17).
+  # `nil` si no hay piloto o no concedió el permiso de órdenes.
+  defp assign_my_orders(%{assigns: %{pilot: %{orders: orders} = pilot}} = socket)
+       when is_list(orders) do
+    rows =
+      orders
+      |> Engine.own_orders(overrides(pilot))
+      |> Enum.sort_by(&{&1.status != :outbid, &1.type_name})
+
+    socket
+    |> assign(:my_orders, rows)
+    |> assign(:my_orders_summary, OwnOrders.summary(orders, pilot.skills || %{}))
+  end
+
+  defp assign_my_orders(socket), do: assign(socket, my_orders: nil, my_orders_summary: nil)
 
   defp selected_row(nil, _query), do: nil
 

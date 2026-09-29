@@ -20,6 +20,7 @@ defmodule Eth.Engine.StationEvaluator do
 
   alias Eth.Engine.{Locations, StationOpportunity, StationTrading, Summary}
   alias Eth.{GameRules, Sde}
+  alias Eth.Market.OrderBook
 
   @doc """
   Evalúa las estaciones de station trading. `entries` son las fuentes de
@@ -87,17 +88,6 @@ defmodule Eth.Engine.StationEvaluator do
     end
   end
 
-  # Órdenes de la estación en un lado, del mejor al peor precio:
-  # `{precio, volumen, order_id, emitida, min_volume}`.
-  defp book(ctx, type_id, side) do
-    spec = [
-      {{{type_id, side, :_, :"$1"}, ctx.location_id, :_, :"$2", :"$3", :_, :"$4", :"$5", :_}, [],
-       [{{:"$5", :"$2", :"$1", :"$4", :"$3"}}]}
-    ]
-
-    case :ets.select(ctx.tid, spec, ctx.depth) do
-      {rows, _continuation} -> rows
-      :"$end_of_table" -> []
-    end
-  end
+  defp book(ctx, type_id, side),
+    do: OrderBook.at_location(ctx.tid, type_id, side, ctx.location_id, ctx.depth)
 end
