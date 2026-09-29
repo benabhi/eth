@@ -37,6 +37,11 @@ defmodule Eth.Characters.Pilot do
           capital: float() | nil,
           accounting: 0..5 | nil,
           sales_tax: float() | nil,
+          broker_relations: 0..5 | nil,
+          advanced_broker_relations: 0..5 | nil,
+          skills: %{pos_integer() => 0..5} | nil,
+          standings: %{pos_integer() => float()} | nil,
+          orders: [map()] | nil,
           location: map() | nil,
           ship: map() | nil,
           scopes: [String.t()]
@@ -61,6 +66,12 @@ defmodule Eth.Characters.Pilot do
       capital: capital(context[:wallet]),
       accounting: accounting,
       sales_tax: accounting && Fees.sales_tax(accounting),
+      broker_relations: skill_level(context[:skills], :broker_relations_skill_id),
+      advanced_broker_relations:
+        skill_level(context[:skills], :advanced_broker_relations_skill_id),
+      skills: context[:skills],
+      standings: context[:standings],
+      orders: context[:orders],
       location: location(context[:location]),
       ship: ship(context[:ship], context),
       scopes: (session && session.scopes) || character.scopes
@@ -83,6 +94,10 @@ defmodule Eth.Characters.Pilot do
   def capital(wallet) do
     max(wallet * GameRules.get(:capital_wallet_share) - GameRules.get(:capital_reserve_isk), 0.0)
   end
+
+  # Nivel activo de una habilidad cuyo ID está en GameRules (`nil` sin habilidades).
+  defp skill_level(nil, _key), do: nil
+  defp skill_level(skills, key), do: Map.get(skills, GameRules.get(key), 0)
 
   @doc "Nivel activo de Accounting (`nil` si las habilidades todavía no se leyeron)."
   @spec accounting_level(map() | nil) :: 0..5 | nil
@@ -110,6 +125,25 @@ defmodule Eth.Characters.Pilot do
       base_system_id: pilot.location && pilot.location.system_id,
       # Acceso a estructuras del personaje (Certeza de acceso, AS-8).
       character_id: pilot.id
+    }
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
+  end
+
+  @doc """
+  Parámetros de `Eth.Engine.StationQuery` que aporta el piloto (RF-4.16): Accounting,
+  Broker Relations, standings y capital. Solo lo que ya llegó de ESI.
+  """
+  @spec station_overrides(t()) :: map()
+  def station_overrides(pilot) do
+    %{
+      accounting: pilot.accounting,
+      broker_relations: pilot.broker_relations,
+      advanced_broker_relations: pilot.advanced_broker_relations,
+      standings: pilot.standings,
+      capital: pilot.capital,
+      # Sus órdenes no compiten con él (RF-4.17).
+      own_order_ids: pilot.orders && MapSet.new(pilot.orders, & &1.order_id)
     }
     |> Enum.reject(fn {_key, value} -> is_nil(value) end)
     |> Map.new()

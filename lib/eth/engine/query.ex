@@ -297,10 +297,12 @@ defmodule Eth.Engine.Query do
       shield_visible?(row.shield.status, p.shield) and not (p.liquid_only and row.illiquid)
   end
 
+  @doc false
   # Filtro anti-scam (RF-6.4): todo, sin SCAM (por defecto) o solo sin alertas.
-  defp shield_visible?(_status, :all), do: true
-  defp shield_visible?(status, :hide_scam), do: status != :scam
-  defp shield_visible?(status, :safe), do: status in [:ok, :no_history]
+  @spec shield_visible?(Shield.status(), :all | :hide_scam | :safe) :: boolean()
+  def shield_visible?(_status, :all), do: true
+  def shield_visible?(status, :hide_scam), do: status != :scam
+  def shield_visible?(status, :safe), do: status in [:ok, :no_history]
 
   defp matches?(_opp, ""), do: true
 
@@ -317,8 +319,10 @@ defmodule Eth.Engine.Query do
     |> Enum.any?(&(&1 && String.contains?(normalize(&1), search)))
   end
 
+  @doc false
   # Sin mayúsculas ni acentos (RF-6.4).
-  defp normalize(text) do
+  @spec normalize(String.t()) :: String.t()
+  def normalize(text) do
     text
     |> String.downcase()
     |> :unicode.characters_to_nfd_binary()

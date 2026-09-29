@@ -67,6 +67,7 @@ config :eth, Eth.Sso,
     esi-location.read_online.v1
     esi-ui.open_window.v1
     esi-assets.read_assets.v1
+    esi-markets.read_character_orders.v1
   )
 
 config :ueberauth, Ueberauth, providers: [eve: {Eth.Sso.Strategy, []}]
@@ -118,6 +119,8 @@ config :eth, Eth.GameRules,
   broker_corp_standing_coef: 0.0002,
   # Motor (RF-4.x, Anexo B.7)
   guest_accounting_level: 4,
+  # Broker Relations del modo invitado (station trading, RF-4.16), con standings neutros.
+  guest_broker_relations_level: 4,
   min_profit_isk: 1_000_000,
   min_unit_margin_isk: 0.01,
   max_universal_opportunities: 5_000,
@@ -137,6 +140,60 @@ config :eth, Eth.GameRules,
   guest_cargo_m3: 38_500,
   # Contexto del piloto (RF-5.5, RF-5.6, RF-5.8). Accounting: type_id 16622 del SDE.
   accounting_skill_id: 16_622,
+  # Órdenes de mercado (F9, P-12 verificada el 2026-09-29):
+  # - precios con 4 cifras significativas como máximo (blog de CCP "Broker Relations",
+  #   2020-02-24) y 0,01 ISK de precisión;
+  # - relist = BR × max(0, V2 − V1) + (1 − RD) × BR × V2, RD = 50 % + 6 % × Advanced
+  #   Broker Relations (descripción de la habilidad 16597 en el SDE 3552227);
+  # - límite de órdenes = 5 + 4·Trade + 8·Retail + 16·Wholesale + 32·Tycoon (SDE);
+  # - el SDE vigente no tiene Margin Trading: el escrow de una compra es el 100 %.
+  order_price_significant_digits: 4,
+  broker_relations_skill_id: 3_446,
+  advanced_broker_relations_skill_id: 16_597,
+  relist_discount_base: 0.5,
+  relist_discount_per_level: 0.06,
+  order_limit_base: 5,
+  order_limit_per_level: %{3_443 => 4, 3_444 => 8, 16_596 => 16, 18_580 => 32},
+  buy_order_escrow_ratio: 1.0,
+  # Station trading (RF-4.16): estaciones de los 5 hubs (verificadas en el SDE).
+  station_trading_location_ids: [60_003_760, 60_008_494, 60_011_866, 60_004_588, 60_005_686],
+  # Parámetros calibrables del station trading (Anexo B.7):
+  # - screen_margin: margen neto mínimo con las comisiones más bajas posibles (universal);
+  # - participation: fracción del volumen diario (7 d) que se apunta a mover por día;
+  # - competition_band / competition_half: órdenes dentro de ±banda del precio sugerido;
+  #   con `competition_half` órdenes la Certeza por competencia es 0,5;
+  # - book_depth: órdenes guardadas por lado; history_demand_max: pares por evaluación;
+  # - max_price_to_median: realismo de los precios sugeridos frente a la mediana.
+  station_trading: %{
+    screen_margin: 0.02,
+    min_margin: 0.05,
+    min_daily_volume: 10,
+    participation: 0.1,
+    competition_band: 0.05,
+    competition_half: 10,
+    book_depth: 25,
+    # Precios sugeridos dentro de ×2 / ÷2 de la mediana de 7 días (si no, el margen es
+    # ilusorio: una venta a un precio que nadie paga).
+    max_price_to_median: 2.0,
+    history_demand_max: 2_000
+  },
+  # Trading por órdenes entre estaciones (RF-4.1, Listado y compra por orden), calibrable:
+  # - screen_margin / min_margin: margen neto mínimo universal (comisiones mínimas) y
+  #   personal por defecto;
+  # - max_days: la cantidad se acota para ejecutarse en a lo sumo estos días (con la
+  #   participación de `:station_trading`); max_origins / max_destinations: candidatos
+  #   por tipo y hub; book_depth: órdenes guardadas por lado.
+  order_trading: %{
+    screen_margin: 0.03,
+    min_margin: 0.05,
+    max_days: 7,
+    max_origins: 5,
+    max_destinations: 4,
+    book_depth: 15
+  },
+  # Broker fee mínimo posible en una estación NPC (BR V y standings 10/10): cota del
+  # screening universal.
+  min_broker_fee: 0.01,
   # Capital disponible = saldo × porcentaje − reserva fija (RF-5.5, calibrable).
   capital_wallet_share: 1.0,
   capital_reserve_isk: 0,

@@ -40,7 +40,9 @@ defmodule Eth.Application do
         Eth.Characters.Supervisor,
         # Después de las sesiones: los viajes se registran como observadores.
         Eth.Tracking.Supervisor,
-        Eth.Notifications.Dispatcher
+        Eth.Notifications.Dispatcher,
+        # Órdenes propias superadas (RF-10.5): avisa por el despachador.
+        Eth.Characters.OrderWatch
       ]
     else
       []

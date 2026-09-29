@@ -1,0 +1,439 @@
+<Layouts.app
+  flash={@flash}
+  radar_degraded={@radar_degraded}
+  active={:hunter}
+  wide
+  pilot={@pilot}
+  characters={@characters}
+  ship_form={@ship_form}
+>
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex flex-wrap items-center gap-3">
+      <h1 class="text-2xl font-bold">{gettext("Cazador de trades")}</h1>
+      <.family_nav active={:station} search={@form[:search].value} />
+    </div>
+    <p id="station-status" class="text-sm text-base-content/70 tabular-nums">
+      <%= if @meta do %>
+        {gettext("%{total} oportunidades de station trading", total: Format.integer(@total))} · {gettext(
+          "evaluado %{ago}",
+          ago: Format.ago(@meta.evaluated_at, @now)
+        )}
+      <% else %>
+        {gettext("El motor todavía no evaluó el mercado: espera el primer ciclo de descarga.")}
+      <% end %>
+    </p>
+  </div>
+
+  <%!-- Mis órdenes (RF-4.17) --%>
+  <section
+    :if={@pilot}
+    id="my-orders"
+    aria-labelledby="my-orders-title"
+    class="card border border-base-300 p-4"
+  >
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <h2 id="my-orders-title" class="font-semibold">{gettext("Mis órdenes")}</h2>
+      <p
+        :if={@my_orders_summary}
+        id="my-orders-summary"
+        class="text-sm text-base-content/70 tabular-nums"
+      >
+        {gettext("%{count} de %{limit} órdenes",
+          count: @my_orders_summary.count,
+          limit: @my_orders_summary.limit
+        )} · {gettext(
+          "escrow %{escrow}",
+          escrow: Format.compact(@my_orders_summary.escrow)
+        )} · {gettext("en venta %{value}", value: Format.compact(@my_orders_summary.sell_value))}
+      </p>
+    </div>
+
+    <p :if={is_nil(@my_orders)} id="my-orders-missing" class="mt-1 text-sm text-base-content/70">
+      {gettext(
+        "Para seguir tus órdenes, agregá el permiso esi-markets.read_character_orders.v1 a tu aplicación de EVE y volvé a iniciar sesión."
+      )}
+    </p>
+    <p :if={@my_orders == []} class="mt-1 text-sm text-base-content/70">
+      {gettext("No tenés órdenes abiertas.")}
+    </p>
+
+    <div :if={@my_orders not in [nil, []]} class="mt-2 overflow-x-auto">
+      <table class="table table-xs">
+        <thead>
+          <tr>
+            <th>{gettext("Objeto")}</th>
+            <th>{gettext("Lado")}</th>
+            <th class="text-right">{gettext("Precio")}</th>
+            <th class="text-right">{gettext("Restan")}</th>
+            <th>{gettext("Estado")}</th>
+            <th class="text-right">{gettext("Precio sugerido")}</th>
+            <th class="text-right">{gettext("Costo de modificar")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr :for={o <- @my_orders} id={"my-order-#{o.order_id}"}>
+            <td>{o.type_name}</td>
+            <td>{if o.buy, do: gettext("compra"), else: gettext("venta")}</td>
+            <td class="text-right tabular-nums">{Format.compact(o.price)}</td>
+            <td class="text-right tabular-nums">{Format.integer(o.volume_remain)}</td>
+            <td>
+              <span class={[
+                "badge badge-xs",
+                if(o.status == :outbid, do: "badge-warning", else: "badge-success")
+              ]}>
+                {if o.status == :outbid, do: gettext("superada"), else: gettext("primera")}
+              </span>
+            </td>
+            <td class="text-right">
+              <button
+                :if={o.suggested_price}
+                id={"copy-order-#{o.order_id}"}
+                type="button"
+                phx-hook=".CopyPrice"
+                data-text={price_text(o.suggested_price)}
+                class="btn btn-ghost btn-xs font-mono"
+                title={gettext("Copiar precio")}
+              >
+                {price_text(o.suggested_price)}
+                <.icon name="hero-clipboard-document" class="size-3" />
+              </button>
+            </td>
+            <td class="text-right tabular-nums">
+              {o.relist_fee && Format.compact(o.relist_fee)}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <%!-- Filtros (RF-6.4) --%>
+  <.form
+    for={@form}
+    id="station-filters"
+    phx-change="filter"
+    phx-submit="filter"
+    class="card border border-base-300 p-4"
+  >
+    <div class="grid grid-cols-2 gap-x-3 md:grid-cols-4 xl:grid-cols-8">
+      <div class="col-span-2">
+        <.input
+          field={@form[:search]}
+          label={gettext("Buscar")}
+          placeholder={gettext("Objeto o estación")}
+          phx-debounce="300"
+        />
+      </div>
+      <.input
+        field={@form[:location_id]}
+        type="select"
+        label={gettext("Hub")}
+        options={[{gettext("Todos los hubs"), ""} | @hubs]}
+      />
+      <.input
+        field={@form[:min_margin]}
+        type="number"
+        min="0"
+        step="0.5"
+        label={gettext("Margen ≥ (%)")}
+        phx-debounce="400"
+      />
+      <.input
+        field={@form[:min_daily_volume]}
+        type="number"
+        min="0"
+        label={gettext("Volumen/día ≥")}
+        phx-debounce="400"
+      />
+      <.input
+        field={@form[:capital]}
+        label={gettext("Capital")}
+        placeholder={gettext("sin límite")}
+        phx-debounce="400"
+      />
+      <.input
+        field={@form[:accounting]}
+        type="select"
+        label={gettext("Accounting")}
+        options={for level <- 0..5, do: {"#{level}", "#{level}"}}
+      />
+      <.input
+        field={@form[:broker_relations]}
+        type="select"
+        label={gettext("Broker Relations")}
+        options={for level <- 0..5, do: {"#{level}", "#{level}"}}
+      />
+    </div>
+    <div class="mt-2 flex flex-wrap items-center gap-3">
+      <div class="w-56">
+        <.input
+          field={@form[:sort]}
+          type="select"
+          label={gettext("Ordenar por")}
+          options={[
+            {gettext("Beneficio × Certeza"), "score"},
+            {gettext("Beneficio por día"), "profit_day"},
+            {gettext("Margen"), "margin"},
+            {gettext("Volumen diario"), "volume"},
+            {gettext("Frescura"), "age"}
+          ]}
+        />
+      </div>
+      <div class="w-56">
+        <.input
+          field={@form[:shield]}
+          type="select"
+          label={gettext("Anti-scam")}
+          options={[
+            {gettext("Ocultar SCAM"), "hide_scam"},
+            {gettext("Ocultar SCAM y sospechosas"), "safe"},
+            {gettext("Mostrar todo"), "all"}
+          ]}
+        />
+      </div>
+      <button type="button" phx-click="reset_filters" class="btn btn-ghost btn-sm">
+        {gettext("Restablecer")}
+      </button>
+      <span id="station-hint" class="text-xs text-base-content/60">
+        {gettext(
+          "Comprás con una orden de compra y vendés con una de venta en la misma estación. El beneficio por día es una estimación: depende de la competencia."
+        )}
+      </span>
+    </div>
+  </.form>
+
+  <div class="grid gap-6 2xl:grid-cols-[1fr_28rem]">
+    <section aria-labelledby="station-title" class="card border border-base-300">
+      <div class="border-b border-base-300 p-3">
+        <h2 id="station-title" class="font-semibold">
+          {gettext("Oportunidades en estación")}
+          <span class="text-sm font-normal text-base-content/60">
+            · {gettext("máx. 200 filas")}
+          </span>
+        </h2>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>{gettext("Objeto")}</th>
+              <th>{gettext("Estación")}</th>
+              <th class="text-right">{gettext("Compra → Venta")}</th>
+              <th class="text-right">{gettext("Margen")}</th>
+              <th class="text-right">{gettext("Volumen/día")}</th>
+              <th class="text-right">{gettext("Beneficio/día")}</th>
+              <th class="text-right">{gettext("Certeza")}</th>
+            </tr>
+          </thead>
+          <tbody id="station-rows" phx-update="stream">
+            <tr id="station-empty" class="hidden only:table-row">
+              <td colspan="7" class="py-8 text-center text-base-content/60">
+                {gettext(
+                  "Sin oportunidades con estos filtros. El historial de los hubs se descarga de a poco: puede tardar unos minutos en aparecer."
+                )}
+              </td>
+            </tr>
+            <tr
+              :for={{dom_id, row} <- @streams.rows}
+              id={dom_id}
+              phx-click="select"
+              phx-value-id={row.id}
+              class={[
+                "cursor-pointer align-top hover:bg-base-200",
+                @selected == row.id && "bg-base-200"
+              ]}
+            >
+              <td class="max-w-64">
+                <div class="flex items-center gap-2">
+                  <img
+                    src={"https://images.evetech.net/types/#{row.opportunity.type_id}/icon?size=32"}
+                    alt=""
+                    width="24"
+                    height="24"
+                    loading="lazy"
+                  />
+                  <span class="truncate font-semibold">{row.opportunity.type_name}</span>
+                </div>
+                <div class="flex flex-wrap gap-1">
+                  <span class="badge badge-secondary badge-xs">{gettext("ORDEN")}</span>
+                  <span
+                    :if={row.shield.status != :ok}
+                    class={["badge badge-xs", shield_class(row.shield.status)]}
+                    title={Enum.join(row.shield.reasons, " · ")}
+                  >
+                    {shield_label(row.shield.status)}
+                  </span>
+                </div>
+              </td>
+              <td class="text-sm" title={row.opportunity.location.name}>
+                {short_name(row.opportunity.location.name)}
+              </td>
+              <td class="text-right tabular-nums">
+                <div>
+                  {Format.compact(row.quote.buy_price)} → {Format.compact(row.quote.sell_price)}
+                </div>
+                <div class="text-xs text-base-content/60">
+                  {gettext("competencia %{bids}/%{asks}",
+                    bids: row.quote.competition.bids,
+                    asks: row.quote.competition.asks
+                  )}
+                </div>
+              </td>
+              <td class="text-right tabular-nums font-semibold">{pct(row.margin_pct)}</td>
+              <td class="text-right tabular-nums">{Format.compact(row.daily_volume)}</td>
+              <td class="text-right tabular-nums">
+                <div class="font-semibold">{Format.compact(row.profit_day)}</div>
+                <div class="text-xs text-base-content/60">
+                  {gettext("inv.")} {Format.compact(row.cost)}
+                </div>
+              </td>
+              <td class="text-right">
+                <span class={["badge badge-sm", certainty_class(row.certainty)]}>
+                  {pct(row.certainty)}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <%!-- Detalle (RF-6.5, RF-6.12) --%>
+    <aside
+      id="station-detail"
+      aria-labelledby="station-detail-title"
+      class="card h-fit border border-base-300 p-4"
+    >
+      <%= if r = @selected_row do %>
+        <h2 id="station-detail-title" class="text-lg font-semibold">
+          {r.opportunity.type_name}
+        </h2>
+        <p class="text-sm">{r.opportunity.location.name}</p>
+
+        <div
+          :if={r.shield.status != :ok}
+          id="station-shield-alert"
+          class={[
+            "alert mt-3 py-2 text-sm",
+            if(r.shield.status == :scam, do: "alert-error", else: "alert-warning")
+          ]}
+        >
+          <span>{shield_label(r.shield.status)} · {Enum.join(r.shield.reasons, " · ")}</span>
+        </div>
+
+        <h3 class="mt-3 text-sm font-semibold">{gettext("Precios sugeridos")}</h3>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="rounded border border-base-300 p-2">
+            <div class="text-xs text-base-content/60">{gettext("Orden de compra")}</div>
+            <div class="font-mono text-lg">{price_text(r.quote.buy_price)}</div>
+            <button
+              id="copy-buy-price"
+              type="button"
+              phx-hook=".CopyPrice"
+              data-text={price_text(r.quote.buy_price)}
+              class="btn btn-ghost btn-xs"
+            >
+              <.icon name="hero-clipboard-document" class="size-4" /> {gettext("Copiar precio")}
+            </button>
+          </div>
+          <div class="rounded border border-base-300 p-2">
+            <div class="text-xs text-base-content/60">{gettext("Orden de venta")}</div>
+            <div class="font-mono text-lg">{price_text(r.quote.sell_price)}</div>
+            <button
+              id="copy-sell-price"
+              type="button"
+              phx-hook=".CopyPrice"
+              data-text={price_text(r.quote.sell_price)}
+              class="btn btn-ghost btn-xs"
+            >
+              <.icon name="hero-clipboard-document" class="size-4" /> {gettext("Copiar precio")}
+            </button>
+          </div>
+        </div>
+        <p class="mt-1 text-xs text-base-content/60">
+          {gettext(
+            "Superan a la mejor compra (%{bid}) y a la mejor venta (%{ask}) con precios legales de 4 cifras significativas.",
+            bid: Format.compact(r.quote.best_bid),
+            ask: Format.compact(r.quote.best_ask)
+          )}
+        </p>
+
+        <h3 class="mt-3 text-sm font-semibold">{gettext("Cálculo por unidad")}</h3>
+        <dl class="grid grid-cols-[auto_1fr] gap-x-3 text-sm tabular-nums">
+          <dt class="text-base-content/60">{gettext("Broker fee")}</dt>
+          <dd>{pct2(r.broker_rate)} {gettext("(en las dos órdenes)")}</dd>
+          <dt class="text-base-content/60">{gettext("Sales tax")}</dt>
+          <dd>{pct2(r.tax_rate)} {gettext("(al vender)")}</dd>
+          <dt class="text-base-content/60">{gettext("Costo")}</dt>
+          <dd>{Format.compact(r.quote.unit_cost)}</dd>
+          <dt class="text-base-content/60">{gettext("Ingreso neto")}</dt>
+          <dd>{Format.compact(r.quote.unit_revenue)}</dd>
+          <dt class="text-base-content/60">{gettext("Margen")}</dt>
+          <dd class="font-semibold">
+            {Format.compact(r.quote.unit_margin)} ({pct(r.margin_pct)})
+          </dd>
+        </dl>
+
+        <h3 class="mt-3 text-sm font-semibold">{gettext("Plan diario (estimación)")}</h3>
+        <dl class="grid grid-cols-[auto_1fr] gap-x-3 text-sm tabular-nums">
+          <dt class="text-base-content/60">{gettext("Volumen diario (7 d)")}</dt>
+          <dd>{Format.integer(round(r.daily_volume))}</dd>
+          <dt class="text-base-content/60">{gettext("Cantidad objetivo")}</dt>
+          <dd>{Format.integer(r.plan.quantity)}</dd>
+          <dt class="text-base-content/60">{gettext("ISK inmovilizado")}</dt>
+          <dd>{Format.compact(r.plan.cost)}</dd>
+          <dt class="text-base-content/60">{gettext("Beneficio por día")}</dt>
+          <dd class="font-semibold">{Format.compact(r.profit_day)}</dd>
+        </dl>
+
+        <h3 class="mt-3 text-sm font-semibold">
+          {gettext("¿Por qué Certeza %{c}?", c: pct(r.certainty))}
+        </h3>
+        <ul class="text-xs text-base-content/80 tabular-nums">
+          <li>
+            {gettext("Competencia (%{bids} compras y %{asks} ventas cerca del precio)",
+              bids: r.quote.competition.bids,
+              asks: r.quote.competition.asks
+            )}: {pct(r.breakdown.competition_certainty)}
+          </li>
+          <li>{gettext("Frescura de datos")}: {pct(r.breakdown.data_certainty)}</li>
+          <li>{gettext("Anti-scam")}: {pct(r.breakdown.scam_certainty)}</li>
+        </ul>
+
+        <button
+          id="station-open-market"
+          type="button"
+          phx-click="open_market"
+          disabled={is_nil(@pilot)}
+          class="btn btn-sm mt-4"
+        >
+          <.icon name="hero-building-storefront" class="size-4" /> {gettext("Abrir mercado")}
+        </button>
+        <p class="mt-1 text-xs text-base-content/60">
+          {gettext(
+            "ESI no permite publicar órdenes: la aplicación sugiere los precios y la orden la publicás vos en el juego."
+          )}
+        </p>
+      <% else %>
+        <h2 id="station-detail-title" class="text-lg font-semibold">{gettext("Detalle")}</h2>
+        <p class="text-sm text-base-content/70">
+          {gettext(
+            "Elegí una oportunidad para ver los precios sugeridos, las comisiones y el plan diario."
+          )}
+        </p>
+      <% end %>
+    </aside>
+  </div>
+
+  <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyPrice">
+    export default {
+      mounted() {
+        this.el.addEventListener("click", (event) => {
+          event.stopPropagation()
+          navigator.clipboard.writeText(this.el.dataset.text).then(() => this.pushEvent("copied", {}))
+        })
+      }
+    }
+  </script>
+</Layouts.app>

@@ -628,6 +628,8 @@ Toda oportunidad pertenece a una de dos **familias**, que la UI distingue siempr
 
 **CA:** cada oportunidad lleva su familia y su modo; los filtros y el orden funcionan dentro de cada familia; el desglose muestra las comisiones de cada tramo.
 
+- Implementación (F9) de Listado y compra por orden (`Eth.Engine.OrderEvaluator` y `Eth.Engine.OrderQuery`, vista `/orders`): la orden propia se publica siempre en un hub de `:station_trading_location_ids`. **Listado:** el precio de lista supera a la mejor venta del hub y se compra en los orígenes más baratos (hasta `max_origins`). **Compra por orden:** el precio supera a la mejor compra del hub y se vende a las compras de los destinos (hasta `max_destinations`) que cubren la estación por rango. La cantidad se acota por capital (el escrow de una compra es el 100 %), bodega y lo que el mercado del hub absorbe en `max_days` días (participación de `:station_trading` sobre el volumen de 7 días); la espera estimada es `cantidad / (participación × volumen diario)`. Certeza = frescura × anti-scam × competencia en el hub; el orden por defecto es el beneficio × Certeza repartido en los días de espera. Por ahora las dos puntas son estaciones NPC: el acceso a estructuras (AS-8) todavía no entra en esta familia. **Rendimiento:** el motor arma los candidatos (leyendo los libros de ETS) solo si el hub tiene historial y guarda los que llegan a `:min_profit_isk` en el mejor caso (comisiones mínimas, sin tope de capital ni de bodega); de los hubs sin historial pide el historial y los candidatos entran en la evaluación siguiente. Medición con los 5 hubs: ~3.500 candidatos guardados (9 MB, contra ~170.000 y 380 MB sin estos cortes), evaluación completa de 1,9 s y consulta p95 de 83 ms.
+
 #### RF-4.2 · Cruce universal (screening) — M · F3
 
 Para cada tipo con órdenes, combinar los resúmenes por ubicación (RF-1.5) de todas las fuentes: mejores precios de venta por ubicación frente a mejores precios de compra alcanzables (RF-4.3). Hay candidato si `bid × (1 − t_min) > ask`, donde `t_min` es el impuesto mínimo posible. Se paraleliza por tipo (`Task.async_stream`, con concurrencia = schedulers).
@@ -732,17 +734,21 @@ Oportunidades de comprar y vender el mismo tipo **en la misma estación** con ó
 
 **CA:** con un fixture de libro e historial, el margen neto coincide con el cálculo manual (broker ×2 + *sales tax*); un tipo con libro cruzado sospechoso queda marcado por el anti-scam; sin historial el tipo no se propone.
 
+- Implementación (F9): `Eth.Engine.StationEvaluator` busca en cada evaluación los candidatos de las estaciones de `:station_trading_location_ids` (los 5 hubs) con margen de al menos `screen_margin` usando las comisiones más bajas posibles, y guarda el libro de la estación (hasta `book_depth` órdenes por lado) en su propia tabla ETS. `Eth.Engine.StationQuery` personaliza en la consulta: descarta primero, sin copiar los candidatos, los que no tienen volumen suficiente en el historial; después cotiza con los precios legales (`Eth.Engine.OrderRules`), las comisiones del piloto (broker por Broker Relations y standings con la corporación dueña de la estación y su facción) y el anti-scam. Certeza = frescura × anti-scam × competencia; el orden por defecto es el beneficio por día ponderado por la Certeza. Los candidatos sin historial se piden a `Eth.Market.History` con prioridad baja (a lo sumo `history_demand_max` por evaluación). Medición con los 5 hubs: ~36.000 candidatos universales, ~350 viables, consulta p95 de 40 ms.
+
 #### RF-4.17 · Órdenes propias y seguimiento — S · F9
 
 Con `esi-markets.read_character_orders.v1` (scope 13, §4 M5) se leen las órdenes abiertas (`/characters/{id}/orders`) y el historial (`/characters/{id}/orders/history`) de cada personaje:
 
 - **Exclusión:** las órdenes propias no cuentan como competencia ni como contraparte en el motor.
-- **Estado por orden:** vigente, **superada** (hay un precio mejor), parcialmente ejecutada, vencida o cancelada; precio sugerido para volver a quedar primero y costo estimado de modificarla (P-05).
+- **Estado por orden:** vigente, **superada** (hay un precio mejor), parcialmente ejecutada, vencida o cancelada; precio sugerido para volver a quedar primero y costo estimado de modificarla (P-12).
 - **Capital comprometido:** el *escrow* de las órdenes de compra y el valor de las órdenes de venta se descuentan del capital disponible (RF-5.5).
-- **Límite de órdenes:** órdenes abiertas frente al máximo según las habilidades del personaje (P-05).
+- **Límite de órdenes:** órdenes abiertas frente al máximo según las habilidades del personaje (P-12).
 - Alertas de orden superada (RF-10.5).
 
 **CA:** una orden propia no aparece como contraparte en ninguna oportunidad; al publicar una orden mejor en un fixture, la propia pasa a "superada" con el precio sugerido.
+
+- Implementación (F9): la sesión del personaje lee `/characters/{id}/orders` (sin grupo de rate limit en la OpenAPI: rige el error limit) cada 5 min con la UI abierta, 20 sin UI y 60 offline, siempre respetando `Expires`; descarta las órdenes de corporación. `Eth.Engine.OwnOrders` decide si cada orden va **primera** o está **superada** frente a las órdenes ajenas de su lado en su estación (a igual precio gana la más antigua, como en el juego) y sugiere el precio legal y el costo de modificarla. Las órdenes de compra se comparan en su estación, aunque tengan rango (simplificación). El panel **Mis órdenes** de la vista Estación muestra órdenes frente al límite, escrow y valor en venta. Las órdenes propias se excluyen del station trading (`own_order_ids`); la exclusión en la familia directo queda pendiente (el libro universal no guarda los IDs de las órdenes consumidas). El capital no descuenta el escrow: el saldo de la billetera ya lo excluye.
 
 ### M5 · Identidad y contexto del piloto (EVE SSO)
 
@@ -768,10 +774,10 @@ Con `esi-markets.read_character_orders.v1` (scope 13, §4 M5) se leen las órden
 | 10 | `esi-location.read_online.v1` | Polling según actividad (ahorra presupuesto) y estado en línea | RF-5.4 | **Nuevo** |
 | 11 | `esi-ui.open_window.v1` | Abrir en el juego la ventana de mercado del ítem | RF-5.9 | **Nuevo** |
 | 12 | `esi-assets.read_assets.v1` | Módulos montados en las naves para calcular la bodega real | RF-5.8 | **Nuevo** (F4, pedido del operador) |
-| 13 | `esi-markets.read_character_orders.v1` | Órdenes propias: exclusión, seguimiento y alertas del trading por órdenes | RF-4.17, RF-10.5 | **Planificado** (se pide desde F9; obliga a volver a loguear) |
+| 13 | `esi-markets.read_character_orders.v1` | Órdenes propias: exclusión, seguimiento y alertas del trading por órdenes | RF-4.17, RF-10.5 | **Nuevo** (F9) |
 
 - Pedir un scope nuevo más adelante obliga a volver a loguear todos los personajes; por eso v1 pide exactamente estos 12 y ninguno más (mínimo privilegio). Un personaje logueado con los 11 anteriores sigue funcionando: la bodega se estima solo con habilidades hasta que vuelva a loguear.
-- El scope 13 se agrega al llegar F9 (trading por órdenes); hasta entonces la aplicación pide 12.
+- El scope 13 se agregó en F9 (trading por órdenes). Un personaje logueado antes no lo tiene: la vista Estación explica cómo concederlo y el resto de la aplicación funciona igual.
 
 **CA:** si un personaje concedió menos scopes, la UI indica qué funciones quedan deshabilitadas y ofrece volver a loguear.
 
@@ -935,6 +941,8 @@ Temas de daisyUI, persistidos por navegador y sin parpadeo al cargar.
 - Panel "Mis órdenes" con las órdenes abiertas de todos los personajes, filtrable por estado (superadas primero).
 
 **CA:** cambiar de familia conserva los demás filtros; la URL restaura la familia; las tres vistas respetan el máximo de 200 filas.
+
+- Implementación (F9): cada familia es una ruta propia, que conserva la familia en la URL: `/` (Directo, `HunterLive`), `/station` (Estación, `StationLive`) y, más adelante, la de Por órdenes. El selector (`EthWeb.TradingComponents.family_nav/1`) mantiene la búsqueda al cambiar de familia; los filtros propios de cada familia viven en su URL. En Estación los precios sugeridos se copian sin separadores de miles para pegarlos en la ventana de orden del cliente. Además del anti-scam, se descartan las cotizaciones irreales: ambos precios sugeridos deben caer dentro de ×2 / ÷2 de la mediana de 7 días (`max_price_to_median`), para que una venta publicada a un precio absurdo no infle el margen.
 
 ### M7 · Viaje activo y resultados
 
@@ -1137,6 +1145,8 @@ Envío opcional de alertas a un webhook configurado por el usuario.
 #### RF-10.5 · Alertas de órdenes superadas — S · F9
 
 Aviso (en la app y, si está activo, del navegador) cuando una orden propia deja de ser la mejor, con el precio sugerido y un acceso a "Abrir mercado". Anti-spam por orden (`notify.cooldown_min`).
+
+- Implementación (F9): `Eth.Characters.OrderWatch` recalcula el estado con cada evaluación del motor y con cada lectura nueva de órdenes, y avisa solo las transiciones de primera a superada (la primera lectura siembra el estado sin avisar); la alerta lleva a `/station`.
 
 ---
 
@@ -1480,7 +1490,7 @@ Station trading (misma estación):
               beneficio_día ≈ margen_u × q_objetivo × P(ejecución)    # estimación: se muestra como tal
 ```
 
-El `tick` (paso mínimo de precio), el costo de **modificar** una orden (relist) y el límite de órdenes por habilidades deben verificarse contra las fuentes del Anexo C antes de implementar F9 (P-05); las habilidades se leen del SDE (dogma), como la bodega (RF-5.8).
+Reglas de las órdenes verificadas el 2026-09-29 (P-12): los precios admiten **como máximo 4 cifras significativas** y 0,01 ISK de precisión (blog de CCP *Broker Relations*, 2020-02-24); modificar una orden cuesta `broker × max(0, V2 − V1) + (1 − RD) × broker × V2` con `RD = 50 % + 6 % × Advanced Broker Relations` (descripción vigente de la habilidad en el SDE, que corrige el 5 % del blog de 2020); el límite de órdenes es `5 + 4·Trade + 8·Retail + 16·Wholesale + 32·Tycoon` (máx. 305); y el SDE vigente ya no tiene la habilidad Margin Trading, así que una orden de compra inmoviliza el 100 % de su valor (escrow). El `tick` de superar una orden es el siguiente precio legal (`Eth.Engine.OrderRules`).
 
 Los importes se calculan con float; se redondean a 2 decimales solo para mostrarlos, y nunca se comparan floats por igualdad.
 
@@ -1930,7 +1940,7 @@ EXPOSE 4000
 
 **Opción B — elegida (P-06, 2026-09-28):** repo en `C:\...`. Con `ETH_FS_POLL=true`, el live reload usa `:fs_poll` (solo en `lib/`, `priv/static` y `priv/gettext`) y Tailwind se recompila con `Eth.Dev.TailwindPoller`. esbuild `--watch` y el code reloader ya funcionan sin inotify. Verificado: la edición de una plantilla desde Windows recarga el navegador y recompila el CSS en ~5 s.
 
-Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una aplicación con el callback `http://localhost:4000/auth/eve/callback` y los 12 scopes de RF-5.2.
+Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una aplicación con el callback `http://localhost:4000/auth/eve/callback` y los 13 scopes de RF-5.2.
 
 ### 10.5 Producción
 
@@ -1972,7 +1982,7 @@ Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una
 
 ### 11.4 Checklist manual con el cliente del juego (por release)
 
-1. Login con SSO y aceptación de los 12 scopes.
+1. Login con SSO y aceptación de los 13 scopes.
 2. "Fijar ruta" (origen + destino) y "Ruta evasiva" con anclas.
 3. "Abrir mercado" sobre un ítem.
 4. Pegar un Multibuy con un nombre terminado en número.
@@ -2045,7 +2055,7 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | RF 2.5 Optimización de retorno | RF-4.11, §8.6 | Descartado (D-18) |
 | RF 2.6 Escudo anti-scam | RF-4.8, §8.7 | Umbral único de 1000 % → reglas AS-1…AS-8 explicables |
 | RF 2.7 TVS y Certeza adaptativos | RF-4.12, §8.9 | Fórmulas definidas + valor de la carga + ejemplo trabajado |
-| RF 3.1 Perfil de permisos (9 scopes) | RF-5.2 | 12 scopes (+ `read_online`, + `open_window`, + `read_assets`) |
+| RF 3.1 Perfil de permisos (9 scopes) | RF-5.2 | 13 scopes (+ `read_online`, + `open_window`, + `read_assets`, + `read_character_orders`) |
 | RF 3.2 Impuestos y billetera | RF-4.5, 4.6, 5.5, 5.6 | El modo Instantáneo solo paga *sales tax*; fórmulas vigentes |
 | RF 3.3 Capacidad de carga | RF-5.8 | Por `ship_item_id`; sugerencia del SDE; bodegas especializadas |
 | RF 4.1 Diseño táctico interactivo | RF-6.2 | + ISK/h y orden estable |
@@ -2077,7 +2087,7 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | D-02 | PostgreSQL 18 en Docker con volumen nombrado | Default de Phoenix, robusto y sin los problemas de SQLite sobre bind mounts de Windows | SQLite |
 | D-03 | Estrategia Ueberauth propia para EVE SSO | `ueberauth_eve_sso` no se mantiene desde 2019 | Depender de ese paquete |
 | D-04 | Kills en vivo desde zKillboard R2Z2 (+ killmail.stream como alternativa); línea base con ESI | ESI no ofrece un stream en vivo; RedisQ fue discontinuado | ESI `system_kills` solo (resolución de 1 h) |
-| D-05 | 12 scopes (13 desde F9, con `read_character_orders`) | Valor alto por scope y costo de re-login si se agregan después | 9 scopes |
+| D-05 | 13 scopes (el 13.º, `read_character_orders`, desde F9) | Valor alto por scope y costo de re-login si se agregan después | 9 scopes |
 | D-06 | Req/Finch para HTTP; Oban para jobs periódicos y durables; GenServers para los ciclos de alta frecuencia | Estándar del ecosistema; `Req.Test`; Oban Web | HTTPoison, jobs a mano |
 | D-07 | Familia directo en el MVP; familia por órdenes (Listado, compra por orden, station trading) en F9 | Menor riesgo y cálculo exacto; el trading por órdenes requiere historial (F5) y modelar la velocidad de ejecución y la competencia | Todo en el MVP |
 | D-08 | Floats para ISK en el motor; redondeo solo al mostrar | Rendimiento; la precisión es suficiente para estimaciones | Decimal |
@@ -2102,7 +2112,7 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | P-02 | ¿Umbrales anti-scam por defecto (sospechoso 1,5× / scam 3× la mediana de 7 días)? | Sí; en F5 se implementaron así. Calibrar con los reportes de falso positivo (`scam_reports`) |
 | P-03 | ¿Se piensa exponer la app fuera de localhost (LAN o Internet)? | No: uso local (solo loopback). Quien quiera usarla en su LAN puede, con HTTPS y lista blanca (RNF-4.5) |
 | P-04 | ¿Formato numérico por defecto? | Estilo EVE (`1,234,567.89`), con opción en español |
-| P-05 | Reglas vigentes de las órdenes: paso mínimo de precio (tick), costo de modificar una orden (relist) y límite de órdenes por habilidades | Verificar contra el Anexo C y el SDE antes de F9; hasta entonces, sin implementar |
+| P-12 | Reglas vigentes de las órdenes: paso mínimo de precio (tick), costo de modificar una orden (relist) y límite de órdenes por habilidades | **Resuelta (2026-09-29):** ver §8.4 (4 cifras significativas; RD = 50 % + 6 % × ABR; 5 + 4/8/16/32 por nivel; escrow 100 %) |
 | P-05 | ¿Nombres de ítems para Multibuy en inglés o según el idioma del cliente del juego? | Inglés por defecto, configurable |
 | P-06 | ~~¿Mover el repo a WSL2 o seguir en `C:\` con polling?~~ | **Resuelta (2026-09-28):** se queda en `C:\` con polling (§10.4, opción B) |
 
@@ -2258,7 +2268,7 @@ Aproximación de la escala del cliente. En el tema claro se usan como fondo de i
 | `liquidity.min_days_traded` | 5 | RF-4.7 |
 | `liquidity.full_at_days` | 1 | Índice de liquidez = 1 si la cantidad ≤ volumen de N días |
 | `default_liquidity` | 0.5 | Índice sin historial |
-| `listing.max_days_to_sell` | 7 | Modo Listado |
+| `order_trading` | screen 3 % · margen mín. 5 % · espera máx. 7 días · 5 orígenes · 4 destinos · profundidad 15 | Familia por órdenes: Listado y compra por orden (RF-4.1) |
 | `radar.window_min` / `radar.half_life_min` | 15 / 10 | Mapa de calor |
 | `radar.hauler_weight` / `radar.gate_weight` | 1.5 / 1.5 | Multiplicadores de intensidad (§8.8) |
 | `radar.min_kills` / `radar.p_value` | 3 / 0.01 | Alertas |
@@ -2283,6 +2293,10 @@ Aproximación de la escala del cliente. En el tema claro se usan como fondo de i
 | `notify.cooldown_min` | 10 | Anti-spam de alertas |
 | `downtime_window_utc` | 10:59–11:15 | Pausa de pollers |
 | `guest.accounting_level` | 4 | Modo invitado |
+| `guest_broker_relations_level` | 4 | Broker del modo invitado en station trading (RF-4.16) |
+| `station_trading` | screen 2 % · margen mín. 5 % · volumen mín. 10/día · participación 10 % · banda ±5 % · media competencia 10 · profundidad 25 · historial 2.000 pares | Station trading (RF-4.16) |
+| `min_broker_fee` | 1 % | Cota del screening (BR V y standings 10/10) |
+| `order_price_significant_digits` / `relist_discount_*` / `order_limit_*` / `buy_order_escrow_ratio` | 4 / 50 % + 6 % por nivel / 5 + 4·8·16·32 / 100 % | Reglas de órdenes (P-12) |
 | `route.base_system` | Jita | Triángulo sin ubicación |
 | `guest.cargo_m3` | 38,500 | Bodega del modo invitado (Iteron Mark V con módulos de carga) |
 | `accounting_skill_id` | 16622 | Habilidad Accounting en el SDE (RF-5.6) |

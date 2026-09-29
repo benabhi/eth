@@ -71,6 +71,15 @@ defmodule Eth.Esi do
     do: character_get(id, "standings", token, etag, "char-social")
 
   @doc """
+  Órdenes de mercado abiertas del personaje (`esi-markets.read_character_orders.v1`,
+  RF-4.17). La OpenAPI no le asigna grupo de rate limit: rige el error limit.
+  """
+  @spec character_orders(pos_integer(), String.t(), String.t() | nil) ::
+          {:ok, Response.t()} | {:error, Client.error()}
+  def character_orders(id, token, etag \\ nil),
+    do: character_get(id, "orders", token, etag, nil)
+
+  @doc """
   Una página de los assets del personaje (`esi-assets.read_assets.v1`, paginado con
   `X-Pages`). Se usa para conocer los módulos montados en sus naves (RF-5.8).
   """

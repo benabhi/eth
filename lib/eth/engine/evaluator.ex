@@ -77,8 +77,11 @@ defmodule Eth.Engine.Evaluator do
     end
   end
 
+  @doc false
   # Mejores ventas por ubicación y compras de todas las fuentes, con su región y fuente.
-  defp gather(type_id, ctx) do
+  # `ctx` necesita `:sources` y `:direct`. También lo usa `Eth.Engine.OrderEvaluator`.
+  @spec gather(pos_integer(), map()) :: {[map()], [map()]}
+  def gather(type_id, ctx) do
     Enum.reduce(ctx.sources, {[], []}, fn src, {asks, bids} ->
       {src_asks, src_bids} = src.source |> Summary.get(type_id) |> dedupe_direct(src, ctx.direct)
 

@@ -20,6 +20,8 @@ defmodule EthWeb.Router do
     # El piloto activo se carga en todas las pantallas (RF-5.10, RF-6.1).
     live_session :default, on_mount: [EthWeb.PilotHook, EthWeb.RadarHook, EthWeb.AlertsHook] do
       live "/", HunterLive
+      live "/station", StationLive
+      live "/orders", OrderLive
       live "/run", RunLive
       live "/control", ControlLive
       live "/settings", SettingsLive, :characters

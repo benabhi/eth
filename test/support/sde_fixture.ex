@@ -35,6 +35,16 @@ defmodule Eth.SdeFixture do
           "ownerID" => 1_000_035,
           "solarSystemID" => 30_000_142,
           "useOperationName" => true
+        },
+        # Estación NPC en Perimeter (1 salto de Jita) para la familia por órdenes.
+        %{
+          "_key" => 60_000_004,
+          "celestialIndex" => 8,
+          "orbitIndex" => 1,
+          "operationID" => 14,
+          "ownerID" => 1_000_035,
+          "solarSystemID" => 30_000_144,
+          "useOperationName" => true
         }
       ],
       "npcCorporations" => [

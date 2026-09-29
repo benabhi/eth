@@ -24,6 +24,8 @@ defmodule EthWeb.HunterLive do
   """
   use EthWeb, :live_view
 
+  import EthWeb.TradingComponents
+
   alias Eth.{Characters, Clock, Engine, Market, Sde, Tracking}
   alias Eth.Characters.Pilot
   alias Eth.Engine.Query

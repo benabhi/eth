@@ -102,9 +102,10 @@ defmodule EthWeb.PilotLiveTest do
   end
 
   defp character_body("standings"), do: []
+  defp character_body("orders"), do: []
 
   # Espera a que la sesión tenga todo el contexto y a que la LiveView lo haya procesado.
-  defp await_pilot(view, resources \\ 7, attempts \\ 50) do
+  defp await_pilot(view, resources \\ 8, attempts \\ 50) do
     context = Sessions.context(@id)
 
     cond do
@@ -184,7 +185,7 @@ defmodule EthWeb.PilotLiveTest do
   } do
     conn = logged_in(conn, login(Eth.Sso.scopes() -- [@assets_scope]))
     {:ok, view, _html} = live(conn, ~p"/")
-    await_pilot(view, 6)
+    await_pilot(view, 7)
 
     assert has_element?(view, "#pilot-ship", "7,250")
     assert has_element?(view, "#ship-profile-open", "estimada")
@@ -216,6 +217,24 @@ defmodule EthWeb.PilotLiveTest do
     assert has_element?(control, "#session-#{@id}", "token vigente")
     assert has_element?(control, "#session-#{@id}-wallet", "hace")
     assert has_element?(control, "#session-#{@id}-assets")
+  end
+
+  test "Mis órdenes en la vista Estación (RF-4.17)", %{conn: conn} do
+    conn = logged_in(conn)
+    {:ok, view, _html} = live(conn, ~p"/station")
+    await_pilot(view)
+
+    assert has_element?(view, "#my-orders", "No tenés órdenes abiertas")
+    # Sin Trade/Retail/Wholesale/Tycoon: el límite base de 5.
+    assert has_element?(view, "#my-orders-summary", "0 de 5 órdenes")
+  end
+
+  test "sin el permiso de órdenes, Mis órdenes explica cómo activarlo", %{conn: conn} do
+    conn = logged_in(conn, login(Eth.Sso.scopes() -- ["esi-markets.read_character_orders.v1"]))
+    {:ok, view, _html} = live(conn, ~p"/station")
+    await_pilot(view, 7)
+
+    assert has_element?(view, "#my-orders-missing", "esi-markets.read_character_orders.v1")
   end
 
   test "fijar ruta desde el origen pone solo el destino", %{conn: conn} do

@@ -5,9 +5,24 @@ defmodule Eth.Engine do
   Implementa: RF-4.8, RF-4.12, RF-4.13, RF-4.14, RF-6.5.
   """
 
-  alias Eth.{Clock, Events, Repo}
-  alias Eth.Engine.{Coordinator, Opportunity, Query, RouteRisk, SaleQuote, ScamReport, Summary}
-  alias Eth.Market.TableOwner
+  alias Eth.{Clock, Events, Market, Repo}
+
+  alias Eth.Engine.{
+    Coordinator,
+    Opportunity,
+    OrderOpportunity,
+    OrderQuery,
+    OwnOrders,
+    Query,
+    RouteRisk,
+    SaleQuote,
+    ScamReport,
+    StationOpportunity,
+    StationQuery,
+    Summary
+  }
+
+  alias Eth.Market.{History, TableOwner}
 
   @doc "Tópico con los anuncios de nueva versión de oportunidades."
   @spec topic() :: String.t()
@@ -142,5 +157,148 @@ defmodule Eth.Engine do
     )
 
     result
+  end
+
+  ## Station trading (RF-4.16)
+
+  @doc "Candidatos universales de station trading vigentes."
+  @spec station_all() :: [StationOpportunity.t()]
+  def station_all do
+    case Coordinator.current_station() do
+      nil -> []
+      tid -> tid |> :ets.tab2list() |> Enum.map(&elem(&1, 2))
+    end
+  rescue
+    ArgumentError -> []
+  end
+
+  @doc "Candidato de station trading por ID."
+  @spec station_get(String.t()) :: StationOpportunity.t() | nil
+  def station_get(id) do
+    case Coordinator.current_station() do
+      nil ->
+        nil
+
+      tid ->
+        case :ets.lookup(tid, id) do
+          [{^id, _pair, opp}] -> opp
+          [] -> nil
+        end
+    end
+  rescue
+    ArgumentError -> nil
+  end
+
+  @doc """
+  Consulta personalizada de station trading: `{filas, total}`. Primero descarta, sin
+  copiar los candidatos, los que no tienen historial suficiente (la gran mayoría).
+  """
+  @spec station_query(StationQuery.params()) :: {[map()], non_neg_integer()}
+  def station_query(params \\ %{}) do
+    opportunities =
+      case Coordinator.current_station() do
+        nil -> []
+        tid -> liquid_station_candidates(tid, StationQuery.liquid_pair_fun(params))
+      end
+
+    StationQuery.run(opportunities, params, Clock.utc_now())
+  rescue
+    ArgumentError -> {[], 0}
+  end
+
+  defp liquid_station_candidates(tid, liquid?) do
+    tid
+    |> :ets.select([{{:"$1", :"$2", :_}, [], [{{:"$1", :"$2"}}]}])
+    |> Enum.filter(fn {_id, pair} -> liquid?.(pair) end)
+    |> Enum.flat_map(fn {id, _pair} ->
+      case :ets.lookup(tid, id) do
+        [{^id, _pair, opp}] -> [opp]
+        [] -> []
+      end
+    end)
+  end
+
+  ## Por órdenes entre estaciones (RF-4.1)
+
+  @doc "Candidato de la familia por órdenes por ID."
+  @spec order_get(String.t()) :: OrderOpportunity.t() | nil
+  def order_get(id) do
+    case Coordinator.current_orders() do
+      nil ->
+        nil
+
+      tid ->
+        case :ets.lookup(tid, id) do
+          [{^id, _pair, opp}] -> opp
+          [] -> nil
+        end
+    end
+  rescue
+    ArgumentError -> nil
+  end
+
+  @doc """
+  Consulta personalizada de la familia por órdenes: `{filas, total}`. Descarta primero,
+  sin copiar los candidatos, los que no tienen historial en el hub.
+  """
+  @spec order_query(map()) :: {[map()], non_neg_integer()}
+  def order_query(params \\ %{}) do
+    opportunities =
+      case Coordinator.current_orders() do
+        nil -> []
+        tid -> liquid_station_candidates(tid, fn pair -> order_liquid?(pair) end)
+      end
+
+    OrderQuery.run(opportunities, params, Clock.utc_now())
+  rescue
+    ArgumentError -> {[], 0}
+  end
+
+  defp order_liquid?({region_id, type_id}) do
+    match?(%{volume_avg_7d: v} when v > 0, History.stats(region_id, type_id))
+  end
+
+  ## Órdenes propias (RF-4.17)
+
+  @own_book_depth 20
+
+  @doc """
+  Estado de las órdenes propias frente al libro vigente de su ubicación: primera o
+  superada, precio sugerido y costo de modificarla. `params` como en
+  `Eth.Engine.StationQuery` (Accounting, Broker Relations y standings para el broker) más
+  `:advanced_broker_relations` (relist) y `:own_order_ids` (todas las órdenes propias, que
+  no compiten entre sí).
+  """
+  @spec own_orders([OwnOrders.order()], map()) :: [map()]
+  def own_orders(orders, params) do
+    p = Map.merge(StationQuery.defaults(), params)
+    own_ids = Map.get(params, :own_order_ids) || MapSet.new(orders, & &1.order_id)
+    abr = Map.get(params, :advanced_broker_relations, 0)
+
+    for order <- orders do
+      side = if order.buy, do: :buy, else: :sell
+
+      book =
+        Market.location_book(
+          order.region_id,
+          order.type_id,
+          side,
+          order.location_id,
+          @own_book_depth
+        )
+
+      broker = StationQuery.fees(order.location_id, p).broker
+
+      order
+      |> Map.merge(OwnOrders.evaluate(order, book, own_ids, broker, abr))
+      |> Map.put(:type_name, type_name(order.type_id))
+    end
+  end
+
+  defp type_name(type_id) do
+    case Eth.Sde.type(type_id) do
+      %{name: name} -> name
+      nil -> "##{type_id}"
+    end
   end
 end

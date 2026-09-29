@@ -12,13 +12,25 @@ defmodule Eth.Engine.Coordinator do
     `engine:opportunities`.
   - Declara a `Eth.Market.History` los pares (región, tipo) de las oportunidades, con
     prioridad por TVS preliminar (RF-1.12).
+  - Evalúa también los candidatos de station trading de los hubs (RF-4.16) y los de la
+    familia por órdenes entre estaciones (RF-4.1), y los publica en sus propias tablas
+    (`current_station/0`, `current_orders/0`), con el mismo versionado.
 
-  Implementa: RF-1.12, RF-4.13, RNF-1.2, RNF-9.1.
+  Implementa: RF-1.12, RF-4.13, RF-4.16, RNF-1.2, RNF-9.1.
   """
   use GenServer
 
   alias Eth.{Clock, Events, GameRules, Sde}
-  alias Eth.Engine.{Evaluator, Fees, Query, Summary}
+
+  alias Eth.Engine.{
+    Evaluator,
+    Fees,
+    OrderEvaluator,
+    Query,
+    StationEvaluator,
+    Summary
+  }
+
   alias Eth.Market.{History, TableOwner}
 
   @catalog :eth_opportunities_catalog
@@ -39,6 +51,28 @@ defmodule Eth.Engine.Coordinator do
     if :ets.whereis(@catalog) != :undefined do
       case :ets.lookup(@catalog, :current) do
         [{:current, tid, meta}] -> {tid, meta}
+        [] -> nil
+      end
+    end
+  end
+
+  @doc "Tabla vigente de candidatos de station trading (`nil` si todavía no hubo evaluación)."
+  @spec current_station() :: :ets.tid() | nil
+  def current_station do
+    if :ets.whereis(@catalog) != :undefined do
+      case :ets.lookup(@catalog, :station) do
+        [{:station, tid}] -> tid
+        [] -> nil
+      end
+    end
+  end
+
+  @doc "Tabla vigente de candidatos por órdenes entre estaciones (`nil` sin evaluación)."
+  @spec current_orders() :: :ets.tid() | nil
+  def current_orders do
+    if :ets.whereis(@catalog) != :undefined do
+      case :ets.lookup(@catalog, :orders) do
+        [{:orders, tid}] -> tid
         [] -> nil
       end
     end
@@ -152,17 +186,62 @@ defmodule Eth.Engine.Coordinator do
       |> Enum.sort_by(& &1.profit, :desc)
       |> Enum.take(GameRules.get(:max_universal_opportunities))
 
-    History.demand(history_demand(opportunities))
+    stations = StationEvaluator.run(entries, types)
+
+    # Por órdenes: solo candidatos con historial en el hub y viables en el mejor caso; de
+    # los demás se pide el historial (entran en la evaluación siguiente). Sin esto:
+    # ~170.000 candidatos, ~380 MB y ~0,5 s por consulta (RNF-1.1).
+    %{candidates: order_opps, missing_history: order_missing} =
+      OrderEvaluator.run(sources, all_types)
+
+    History.demand(
+      history_demand(opportunities) ++
+        station_history_demand(stations) ++ order_history_demand(order_missing)
+    )
 
     stats = %{
       duration_ms: System.monotonic_time(:millisecond) - started,
       summaries_ms: summaries_ms,
       types: length(all_types),
       sources: length(sources),
-      opportunities: length(opportunities)
+      opportunities: length(opportunities),
+      station_candidates: length(stations),
+      order_candidates: length(order_opps)
     }
 
-    {summarized, types, opportunities, stats}
+    {summarized, types, opportunities, stations, order_opps, stats}
+  end
+
+  # Historial de los hubs que todavía no lo tienen para candidatos por órdenes (tiempo de
+  # ejecución), con prioridad baja; a lo sumo `:history_demand_max` pares.
+  @doc false
+  @spec order_history_demand([{pos_integer(), pos_integer()}]) :: [
+          {{pos_integer(), pos_integer()}, number()}
+        ]
+  def order_history_demand(pairs) do
+    pairs
+    |> Enum.take(GameRules.get(:station_trading).history_demand_max)
+    |> Enum.map(&{&1, 20.0})
+  end
+
+  # Historial para los candidatos de station trading: sin volumen no se proponen
+  # (RF-4.16). Prioridad baja frente a los trades directos, creciente con el diferencial;
+  # a lo sumo `:history_demand_max` pares por evaluación.
+  @doc false
+  @spec station_history_demand([Eth.Engine.StationOpportunity.t()]) :: [
+          {{pos_integer(), pos_integer()}, number()}
+        ]
+  def station_history_demand(stations) do
+    max = GameRules.get(:station_trading).history_demand_max
+
+    stations
+    |> Enum.map(fn st ->
+      [{bid, _, _, _, _} | _] = st.bids
+      [{ask, _, _, _, _} | _] = st.asks
+      {{st.location.region_id, st.type_id}, min(40.0, (ask - bid) / bid * 100)}
+    end)
+    |> Enum.sort_by(&elem(&1, 1), :desc)
+    |> Enum.take(max)
   end
 
   # Pares (región, tipo) cuyo historial hace falta, priorizados por el TVS preliminar del
@@ -190,6 +269,9 @@ defmodule Eth.Engine.Coordinator do
   defp unverified_suspect?(row),
     do: row.shield.status == :suspicious and row.history.destination == nil
 
+  defp hub_region(%{mode: :listing} = opp), do: opp.destination.region_id
+  defp hub_region(opp), do: opp.origin.region_id
+
   defp source({{:region, id} = source, entry}) do
     %{source: source, tid: entry.tid, region_id: id, last_modified: entry.meta.last_modified}
   end
@@ -204,9 +286,34 @@ defmodule Eth.Engine.Coordinator do
     }
   end
 
-  defp publish({summarized, types, opportunities, stats}, state) do
+  defp publish({summarized, types, opportunities, stations, order_opps, stats}, state) do
     tid = :ets.new(:eth_opportunities, [:set, :public, read_concurrency: true])
     :ets.insert(tid, Enum.map(opportunities, &{&1.id, &1}))
+    station_tid = :ets.new(:eth_station_opportunities, [:set, :public, read_concurrency: true])
+    # Con la clave (región, tipo) aparte: la consulta filtra por historial sin copiar el
+    # candidato completo (RNF-1.1).
+    :ets.insert(
+      station_tid,
+      Enum.map(stations, &{&1.id, {&1.location.region_id, &1.type_id}, &1})
+    )
+
+    case current_station() do
+      nil -> :ok
+      old -> Process.send_after(self(), {:drop, old}, @grace_ms)
+    end
+
+    :ets.insert(@catalog, {:station, station_tid})
+
+    orders_tid = :ets.new(:eth_order_opportunities, [:set, :public, read_concurrency: true])
+    # Con el par (región del hub, tipo) aparte, como en station trading.
+    :ets.insert(orders_tid, Enum.map(order_opps, &{&1.id, {hub_region(&1), &1.type_id}, &1}))
+
+    case current_orders() do
+      nil -> :ok
+      old -> Process.send_after(self(), {:drop, old}, @grace_ms)
+    end
+
+    :ets.insert(@catalog, {:orders, orders_tid})
 
     version = state.version + 1
     meta = Map.merge(stats, %{version: version, evaluated_at: Clock.utc_now()})
