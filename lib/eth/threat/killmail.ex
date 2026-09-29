@@ -108,6 +108,32 @@ defmodule Eth.Threat.Killmail do
     }
   end
 
+  @doc "Mapa JSON de la kill normalizada (para guardarla en disco sin `binary_to_term`)."
+  @spec to_json(t()) :: map()
+  def to_json(%__MODULE__{} = kill) do
+    kill |> Map.from_struct() |> Map.update!(:time, &DateTime.to_iso8601/1)
+  end
+
+  @doc "Kill normalizada a partir de `to_json/1` (`nil` si el mapa no es válido)."
+  @spec from_json(map()) :: t() | nil
+  def from_json(%{"id" => id, "time" => time, "system_id" => system_id} = map) do
+    {:ok, time, _} = DateTime.from_iso8601(time)
+    fields = Map.keys(%__MODULE__{id: 0, time: nil, system_id: 0}) -- [:__struct__]
+
+    attrs =
+      for field <- fields,
+          key = Atom.to_string(field),
+          Map.has_key?(map, key),
+          into: %{},
+          do: {field, map[key]}
+
+    struct!(__MODULE__, %{attrs | id: id, time: time, system_id: system_id})
+  rescue
+    _error -> nil
+  end
+
+  def from_json(_other), do: nil
+
   # El locationID de zKillboard es el celeste más cercano: solo interesa si es un stargate
   # del mismo sistema.
   defp gate(location_id, system_id) do

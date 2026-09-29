@@ -35,6 +35,7 @@ defmodule Eth.Application do
         Eth.Esi.ServerStatus,
         Eth.Sde.Store,
         Eth.Market.Supervisor,
+        Eth.Threat.Supervisor,
         Eth.Engine.Supervisor,
         Eth.Characters.Supervisor
       ]
