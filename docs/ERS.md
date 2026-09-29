@@ -6,8 +6,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.0 |
-| Fecha | 2026-09-28 |
+| Versión | 1.1 |
+| Fecha | 2026-09-29 |
 | Estado | Base para desarrollo — decisiones a confirmar en §15.2 |
 | Autor | Hernan Jalabert |
 | Repositorio | <https://github.com/benabhi/eth> |
@@ -17,6 +17,7 @@
 | Versión | Fecha | Cambios |
 |---|---|---|
 | 0.1 | 2026-09 | Borrador inicial de ideas. |
+| 1.1 | 2026-09-29 | Trading por órdenes: clasificación **directo** frente a **por órdenes** (RF-4.1), station trading en la misma estación (RF-4.16), órdenes propias (RF-4.17), selector de familia en el Cazador (RF-6.12) y alertas de órdenes superadas (RF-10.5). Rediseño visual final con identidad sobria y futurista inspirada en EVE, iconografía, responsividad completa (RNF-5.4, RNF-5.9–5.12, §9.9). Hoja de ruta reordenada: F9 trading por órdenes, F10 rediseño visual, F11 endurecimiento y v1.0, F12 evolución. |
 | 1.0 | 2026-09-28 | Reestructuración completa: verificación técnica contra la documentación vigente de ESI, SSO, SDE y zKillboard; corrección de supuestos (§1.6); requisitos con prioridad, fase y criterios de aceptación; arquitectura OTP; modelo de datos; algoritmos y fórmulas; wireframes; entorno Windows/Docker; estrategia de calidad; hoja de ruta; riesgos y trazabilidad con el borrador. |
 
 ### Índice
@@ -44,7 +45,7 @@
 
 - **Normativo:** *deberá* = obligatorio · *debería* = recomendado · *podrá* = opcional.
 - **Prioridad (MoSCoW):** **M** imprescindible · **S** importante · **C** deseable · **W** no en esta versión.
-- **Fase:** F0–F10 según §12.
+- **Fase:** F0–F12 según §12.
 - **IDs estables:** `RF-x.y` (funcional), `RNF-x.y` (no funcional), `AS-n` (reglas anti-scam), `D-nn` / `P-nn` (decisiones). Se citan en `@moduledoc`, tests y commits (`Refs: RF-1.4`).
 - **CA:** criterios de aceptación verificables.
 - *(calibrable)*: valor inicial configurable en tiempo de ejecución (Anexo B.7).
@@ -85,14 +86,14 @@ El sistema escanea de forma autónoma el mercado de todo New Eden, optimiza el e
 - Datos estáticos (SDE) para mapa, estaciones y objetos; ruteo local con modos de seguridad.
 - Radar de amenazas en vivo (zKillboard R2Z2) con línea base histórica (ESI).
 - Motor de evaluación: arbitraje instantáneo entre ubicaciones con profundidad de libro, impuestos exactos, liquidez, anti-scam, combos, retorno, TVS y Certeza.
+- Dos familias de trading claramente diferenciadas (RF-4.1): **directo** (comprar a órdenes de venta y vender a órdenes de compra, sin esperas) y **por órdenes** (con órdenes propias: Listado, compra por orden y **station trading** en la misma estación, RF-4.16), con seguimiento de las órdenes propias (RF-4.17).
 - Contexto personal vía EVE SSO (billetera, habilidades, standings, ubicación, nave), con multi-personaje y modo invitado.
-- UI web reactiva (Phoenix LiveView): Cazador, Viaje activo, Centro de control y Ajustes.
+- UI web reactiva (Phoenix LiveView): Cazador, Viaje activo, Centro de control y Ajustes, con una identidad visual final sobria, futurista y responsiva inspirada en EVE Online (§9.9).
 - Infraestructura con Docker Compose (desarrollo en Windows + VS Code) y release de producción.
 
 ### 1.5 Fuera de alcance (no-objetivos de v1.0)
 
-- Station trading (comprar y vender con órdenes propias en la misma estación) — candidato futuro.
-- Modo Listado (vender publicando órdenes de venta) — planificado para v1.x (RF-4.1, F10).
+- Publicar, modificar o cancelar órdenes de mercado desde la aplicación: **ESI no lo permite** (solo lectura de órdenes propias). En el trading por órdenes la aplicación calcula y sugiere precios; el operador publica la orden en el cliente del juego (con "Abrir mercado", RF-5.9).
 - Contratos (intercambio de objetos, courier), industria, PI, minería.
 - Billeteras y órdenes corporativas.
 - Jump freighters con cynos, puentes Ansiblex, espacio de agujeros de gusano y Thera (futuro: integración con EVE-Scout).
@@ -570,11 +571,23 @@ Si el feed en vivo no entrega datos durante > 2 min: estado "Radar degradado", u
 
 ### M4 · Motor de evaluación
 
-#### RF-4.1 · Modos de ejecución — M · F3 (Listado: S · F10)
+#### RF-4.1 · Familias y modos de trading — M · F3 (por órdenes: S · F9)
 
-- **Instantáneo** (MVP): comprar a órdenes de venta en el origen y vender a órdenes de compra en el destino. Solo se paga *sales tax*.
-- **Listado** (v1.x): comprar a órdenes de venta y **publicar** una orden de venta en el destino. Se paga broker fee + *sales tax*; se estima el tiempo de venta según la velocidad histórica y la competencia; la Certeza es menor.
-- *(W)* Comprar con órdenes de compra en el origen y station trading.
+Toda oportunidad pertenece a una de dos **familias**, que la UI distingue siempre (RF-6.12):
+
+| Familia | Modo | Compra | Venta | Comisiones | Viaje | Espera |
+|---|---|---|---|---|---|---|
+| **Directo** | Instantáneo (MVP) | A órdenes de venta del origen | A órdenes de compra del destino | *Sales tax* | Sí (0 saltos si es la misma estación) | Ninguna: el beneficio es exacto si las órdenes siguen vigentes |
+| **Por órdenes** | Listado | A órdenes de venta del origen | **Orden de venta propia** en el destino | Broker (venta) + *sales tax* | Sí | Hasta que se venda |
+| **Por órdenes** | Compra por orden | **Orden de compra propia** en el origen | A órdenes de compra del destino | Broker (compra) + *sales tax* | Sí | Hasta que se llene la compra |
+| **Por órdenes** | Station trading (RF-4.16) | **Orden de compra propia** | **Orden de venta propia** en la **misma estación** | Broker ×2 + *sales tax* (+ modificaciones) | No | Ambas esperas |
+
+- En la familia **directo**, el beneficio sale del libro actual (walk-the-book, RF-4.4) y la Certeza depende de que las órdenes sigan vigentes al llegar.
+- En la familia **por órdenes**, el beneficio es una **estimación**: depende del tiempo de ejecución (velocidad histórica de venta o compra, RF-4.7) y de la competencia (órdenes cercanas al precio sugerido). La Certeza es menor y lo explica.
+- El caso directo en la misma estación (orden de compra por encima de una de venta, libro cruzado) es raro y coincide con la firma del *margin trading scam*: siempre pasa por el escudo anti-scam (RF-4.8).
+- ESI no permite publicar órdenes: la aplicación sugiere el precio (con "Copiar precio") y el operador la publica en el cliente (§1.5).
+
+**CA:** cada oportunidad lleva su familia y su modo; los filtros y el orden funcionan dentro de cada familia; el desglose muestra las comisiones de cada tramo.
 
 #### RF-4.2 · Cruce universal (screening) — M · F3
 
@@ -657,7 +670,32 @@ Las oportunidades universales se calculan sin contexto personal. Al consultar se
 
 #### RF-4.15 · Exclusiones y listas negras — M · F3
 
-Siempre excluidos: PLEX (tipo 44992) y la región 19000001. Listas del usuario: tipos, estaciones, sistemas, regiones y rutas (permanente o por 24 h). *(F10)* Excluir las órdenes propias al activar `esi-markets.read_character_orders.v1`.
+Siempre excluidos: PLEX (tipo 44992) y la región 19000001. Listas del usuario: tipos, estaciones, sistemas, regiones y rutas (permanente o por 24 h). *(F9)* Excluir las órdenes propias al activar `esi-markets.read_character_orders.v1` (RF-4.17).
+
+#### RF-4.16 · Station trading (misma estación) — S · F9
+
+Oportunidades de comprar y vender el mismo tipo **en la misma estación** con órdenes propias (compra por encima de la mejor orden de compra, venta por debajo de la mejor orden de venta), sin viaje.
+
+- **Margen neto** por unidad según §8.4 (broker en las dos órdenes y *sales tax* en la venta), con los niveles activos de Accounting, Broker Relations y Advanced Broker Relations del piloto y los standings con el dueño de la estación.
+- **Volumen objetivo:** el menor entre el capital disponible, una fracción *calibrable* del volumen diario medio (historial de 7 días, RF-1.12) y el límite de órdenes del personaje (habilidades de trading).
+- **Competencia:** cantidad de órdenes dentro de un ±x % *calibrable* del precio sugerido y frecuencia de cambio del mejor precio; mucha competencia (guerras de 0,01 ISK) baja la Certeza.
+- **Métricas propias:** margen %, beneficio estimado por día y ISK comprometido; no aplican saltos ni ISK/h de viaje.
+- **Filtros:** estación o hub (por defecto los 5 hubs), margen mínimo, volumen diario mínimo, capital máximo por tipo.
+- Requiere el historial (F5) y el anti-scam: se excluyen tipos con historial escaso o precios anómalos.
+
+**CA:** con un fixture de libro e historial, el margen neto coincide con el cálculo manual (broker ×2 + *sales tax*); un tipo con libro cruzado sospechoso queda marcado por el anti-scam; sin historial el tipo no se propone.
+
+#### RF-4.17 · Órdenes propias y seguimiento — S · F9
+
+Con `esi-markets.read_character_orders.v1` (scope 13, §4 M5) se leen las órdenes abiertas (`/characters/{id}/orders`) y el historial (`/characters/{id}/orders/history`) de cada personaje:
+
+- **Exclusión:** las órdenes propias no cuentan como competencia ni como contraparte en el motor.
+- **Estado por orden:** vigente, **superada** (hay un precio mejor), parcialmente ejecutada, vencida o cancelada; precio sugerido para volver a quedar primero y costo estimado de modificarla (P-05).
+- **Capital comprometido:** el *escrow* de las órdenes de compra y el valor de las órdenes de venta se descuentan del capital disponible (RF-5.5).
+- **Límite de órdenes:** órdenes abiertas frente al máximo según las habilidades del personaje (P-05).
+- Alertas de orden superada (RF-10.5).
+
+**CA:** una orden propia no aparece como contraparte en ninguna oportunidad; al publicar una orden mejor en un fixture, la propia pasa a "superada" con el precio sugerido.
 
 ### M5 · Identidad y contexto del piloto (EVE SSO)
 
@@ -683,9 +721,10 @@ Siempre excluidos: PLEX (tipo 44992) y la región 19000001. Listas del usuario: 
 | 10 | `esi-location.read_online.v1` | Polling según actividad (ahorra presupuesto) y estado en línea | RF-5.4 | **Nuevo** |
 | 11 | `esi-ui.open_window.v1` | Abrir en el juego la ventana de mercado del ítem | RF-5.9 | **Nuevo** |
 | 12 | `esi-assets.read_assets.v1` | Módulos montados en las naves para calcular la bodega real | RF-5.8 | **Nuevo** (F4, pedido del operador) |
+| 13 | `esi-markets.read_character_orders.v1` | Órdenes propias: exclusión, seguimiento y alertas del trading por órdenes | RF-4.17, RF-10.5 | **Planificado** (se pide desde F9; obliga a volver a loguear) |
 
 - Pedir un scope nuevo más adelante obliga a volver a loguear todos los personajes; por eso v1 pide exactamente estos 12 y ninguno más (mínimo privilegio). Un personaje logueado con los 11 anteriores sigue funcionando: la bodega se estima solo con habilidades hasta que vuelva a loguear.
-- Futuros (no se piden en v1): `esi-markets.read_character_orders.v1` (modo Listado avanzado, excluir órdenes propias).
+- El scope 13 se agrega al llegar F9 (trading por órdenes); hasta entonces la aplicación pide 12.
 
 **CA:** si un personaje concedió menos scopes, la UI indica qué funciones quedan deshabilitadas y ofrece volver a loguear.
 
@@ -812,7 +851,7 @@ Fila expandible (*drawer*) con pestañas:
 
 Menú por fila: ocultar objeto, estación o ruta (24 h o permanente) y "no me interesa" (solo la sesión). Reversible desde Ajustes.
 
-#### RF-6.9 · Atajos de teclado — C · F9
+#### RF-6.9 · Atajos de teclado — C · F11
 
 `/` buscar · `j`/`k` navegar · `Enter` expandir · `c` copiar Multibuy · `w` fijar ruta · `f` congelar · `?` ayuda.
 
@@ -823,6 +862,18 @@ Esqueletos de carga; mensajes accionables ("Sin resultados con ROI ≥ 20 % · P
 #### RF-6.11 · Tema claro/oscuro/sistema — M · F0
 
 Temas de daisyUI, persistidos por navegador y sin parpadeo al cargar.
+
+#### RF-6.12 · Familias de trading en el Cazador — S · F9
+
+- Selector principal (control segmentado) **Directo · Por órdenes · Estación**, persistido en la URL (RF-6.4); cada familia tiene sus columnas:
+  - **Directo:** las actuales (beneficio, inversión, ROI, ruta y saltos, ISK/h, TVS, Certeza).
+  - **Por órdenes:** precio sugerido de compra o de venta, tiempo estimado de ejecución, competencia, beneficio estimado y Certeza.
+  - **Estación:** margen %, volumen diario, beneficio estimado por día, competencia y capital comprometido.
+- Insignia de familia en cada fila y en el detalle, con ícono + texto (nunca solo color).
+- El detalle muestra las comisiones por tramo, los precios sugeridos con "Copiar precio" y, si hay órdenes propias del tipo, su estado (RF-4.17).
+- Panel "Mis órdenes" con las órdenes abiertas de todos los personajes, filtrable por estado (superadas primero).
+
+**CA:** cambiar de familia conserva los demás filtros; la URL restaura la familia; las tres vistas respetan el máximo de 200 filas.
 
 ### M7 · Viaje activo y resultados
 
@@ -960,7 +1011,7 @@ Umbrales anti-scam, de liquidez y de frescura; pesos y referencias del TVS; matr
 
 Regiones habilitadas y su nivel; estructuras seguidas y acceso por personaje.
 
-#### RF-9.7 · Exportar/importar configuración — C · F9
+#### RF-9.7 · Exportar/importar configuración — C · F11
 
 Archivo JSON sin secretos ni tokens.
 
@@ -983,9 +1034,13 @@ Opt-in (API de notificaciones del navegador mediante un colocated hook), útiles
   - un token que requiere re-login.
 - **Anti-spam:** deduplicación y enfriamiento por regla (*calibrable*: 10 min).
 
-#### RF-10.4 · Webhook de Discord — C · F10
+#### RF-10.4 · Webhook de Discord — C · F12
 
 Envío opcional de alertas a un webhook configurado por el usuario.
+
+#### RF-10.5 · Alertas de órdenes superadas — S · F9
+
+Aviso (en la app y, si está activo, del navegador) cuando una orden propia deja de ser la mejor, con el precio sugerido y un acceso a "Abrir mercado". Anti-spam por orden (`notify.cooldown_min`).
 
 ---
 
@@ -1044,11 +1099,15 @@ Envío opcional de alertas a un webhook configurado por el usuario.
 - **RNF-5.1** Tema claro/oscuro/sistema (daisyUI), persistido y sin parpadeo al cargar.
 - **RNF-5.2** Contraste WCAG 2.1 AA. El color nunca es el único canal: siempre va con ícono, texto y tooltip (daltonismo).
 - **RNF-5.3** Navegación completa por teclado y foco visible.
-- **RNF-5.4** Diseño para escritorio ≥ 1280 px (segundo monitor mientras se juega); usable a 1024 px. *(C)* Vista móvil de solo lectura (alertas y viaje activo).
+- **RNF-5.4** Responsivo en todas las vistas: escritorio ≥ 1280 px con la máxima densidad (uso principal, segundo monitor mientras se juega); tablet 768–1279 px con paneles colapsables; móvil < 768 px completo y operable (tablas convertidas en tarjetas, navegación compacta). Sin scroll horizontal de la página en ningún tamaño (una tabla densa puede desplazarse dentro de su contenedor).
 - **RNF-5.5** Formato numérico: estilo EVE por defecto (`1,234,567.89`), con abreviaturas K/M/B/T y el valor exacto en el tooltip. Formato español como alternativa configurable (P-04).
 - **RNF-5.6** Hora EVE (UTC) en la cabecera; tiempos relativos ("hace 4 s") con tooltip absoluto.
 - **RNF-5.7** Toda acción responde en < 150 ms (feedback optimista) y confirma su resultado.
 - **RNF-5.8** Densidad: filas compactas y cifras con `font-variant-numeric: tabular-nums`.
+- **RNF-5.9** Identidad visual sobria, futurista y elegante inspirada en la interfaz de EVE Online, coherente en todas las vistas (lenguaje visual de §9.9).
+- **RNF-5.10** Iconografía: un único set de íconos lineales SVG, con trazo y tamaños uniformes; sin emojis en la interfaz; un ícono solo donde aporta significado (sin saturar).
+- **RNF-5.11** Movimiento sutil: transiciones de ≤ 200 ms que no distraen de los datos en vivo; se respeta `prefers-reduced-motion`.
+- **RNF-5.12** Propiedad intelectual: inspiración, no copia. Sin logos, capturas, fuentes ni recursos gráficos propietarios de CCP; solo las imágenes del servidor oficial (retratos, renders e íconos de tipos) según la licencia (RNF-14.1). Fuentes con licencia libre (OFL), servidas por la propia aplicación (CSP, RNF-4.8).
 
 ### RNF-6 · Idioma y estándares de código
 
@@ -1155,6 +1214,8 @@ Los tiempos de caché y los grupos son **de referencia** (verificados a sep-2026
 | `POST /ui/autopilot/waypoint` | `esi-ui.write_waypoint.v1` | — | `ui` 900 / 15 min | RF-5.9 |
 | `POST /ui/openwindow/marketdetails` | `esi-ui.open_window.v1` | — | `ui` | RF-5.9 |
 | `GET /characters/{id}/assets` | `esi-assets.read_assets.v1` | 3600 s | `char-asset` 1.800 / 15 min (paginado, `X-Pages`) | RF-5.8 |
+| `GET /characters/{id}/orders` | `esi-markets.read_character_orders.v1` | Ver cabeceras | Error limit (sin grupo en la OpenAPI) | RF-4.17 (F9) |
+| `GET /characters/{id}/orders/history` | `esi-markets.read_character_orders.v1` | Ver cabeceras | Error limit (paginado) | RF-4.17 (F9) |
 | `POST /universe/names` | — | — | — | *(C)* Nombres en el feed del radar |
 
 **Costo en tokens:** 2XX = 2 · 3XX = 1 · 4XX = 5 (salvo 429) · 5XX = 0. Las rutas sin grupo siguen bajo el *error limit* legado: 100 respuestas que no sean 2XX/3XX por minuto ⇒ 420.
@@ -1304,7 +1365,22 @@ broker_estructura              = override de la estructura (por defecto configur
 Instantáneo:  costo        = Σ q_i × ask_i                       # comprar a órdenes de venta no paga comisión
               ingreso_neto = Σ q_j × bid_j × (1 − sales_tax)
 Listado:      ingreso_neto = q × precio_lista × (1 − sales_tax − broker_destino)
+
+Compra por orden:
+              costo        = q × precio_compra × (1 + broker_origen)   # la orden de compra paga broker al publicarse
+              ingreso_neto = Σ q_j × bid_j × (1 − sales_tax)         # venta directa en el destino
+
+Station trading (misma estación):
+              precio_compra = mejor_bid + tick                        # superar la mejor orden de compra
+              precio_venta  = mejor_ask − tick                        # superar la mejor orden de venta
+              costo_u       = precio_compra × (1 + broker)
+              ingreso_u     = precio_venta × (1 − sales_tax − broker)
+              margen_u      = ingreso_u − costo_u                     # margen % = margen_u / costo_u
+              q_objetivo    = min(capital / costo_u, participación × volumen_diario_7d, límite_de_órdenes)
+              beneficio_día ≈ margen_u × q_objetivo × P(ejecución)    # estimación: se muestra como tal
 ```
+
+El `tick` (paso mínimo de precio), el costo de **modificar** una orden (relist) y el límite de órdenes por habilidades deben verificarse contra las fuentes del Anexo C antes de implementar F9 (P-05); las habilidades se leen del SDE (dogma), como la bodega (RF-5.8).
 
 Los importes se calculan con float; se redondean a 2 decimales solo para mostrarlos, y nunca se comparan floats por igualdad.
 
@@ -1608,6 +1684,25 @@ Estados de los mosaicos de región:
 | Estructura | 🏗️ | `neutral` | Nombre + estado de acceso |
 | Datos degradados | ⏳ | `warning` | "datos de hace N min" |
 | Seguridad del sistema | ■ | Escala del Anexo B.6 | Valor numérico (0.9, 0.4…) |
+| Familia directo / por órdenes | Íconos propios (F9) | `primary` / `secondary` | "DIRECTO" / "ORDEN" |
+
+Los emojis de esta tabla son marcadores del documento: en el rediseño (F10, §9.9) se reemplazan por íconos SVG del set único (RNF-5.10).
+
+### 9.9 Identidad visual (rediseño final, F10)
+
+Una vez completas las funciones (F9), se rediseña **toda** la interfaz con una identidad propia, sobria y futurista, inspirada en la interfaz de EVE Online (el "puente de mando" de una nave), profesional e impactante sin perder la densidad de datos.
+
+- **Concepto:** paneles oscuros y translúcidos sobre un fondo casi negro azulado, líneas finas, esquinas con chaflán, cabeceras de panel en versalitas con tracking amplio y una línea de acento; la información manda y la decoración es mínima.
+- **Paleta (tokens):** fondo, superficie y borde en azules muy oscuros; acento primario frío (cian/azul) y acento secundario ámbar para acciones y avisos; semánticos (éxito, aviso, error, info) ajustados a contraste AA; la escala de seguridad del Anexo B.6 se mantiene intacta. Tema claro coherente ("modo día") además del oscuro principal (RNF-5.1).
+- **Tipografía:** sans técnica para títulos y etiquetas, sans muy legible para el texto y monoespaciada o tabular para las cifras; candidatas con licencia OFL (por ejemplo Oxanium, Rajdhani o Exo 2 para títulos; Inter para el texto; JetBrains Mono para cifras), a elegir en los mockups.
+- **Iconografía:** set lineal único (RNF-5.10), más íconos propios para conceptos de EVE (nave, estación, estructura, stargate, ISK, amenaza) dibujados con el mismo trazo; retratos, renders e íconos de tipos del servidor oficial con un marco consistente.
+- **Componentes propios** (sin los estilos por defecto de daisyUI): panel, tarjeta de KPI, tabla densa con cabecera fija, insignias, control segmentado, pestañas, barra de herramientas, cajón de detalle, diálogos, toasts, tooltips, *skeletons* de carga y estados vacíos con ícono.
+- **Layout:** cabecera con la barra del piloto integrada; navegación lateral colapsable en escritorio y compacta en móvil (a definir en los mockups); jerarquía clara (beneficio, ISK/h y TVS resaltan); micrográficos (*sparklines*) solo donde aportan.
+- **Sistema de diseño documentado:** tokens en `app.css` (`@theme` de Tailwind v4), componentes en `core_components`/`ui` y un catálogo en `/dev/ui` (solo desarrollo) con cada componente y sus estados.
+- **Alcance:** todas las vistas: Cazador y detalle, Viaje activo, Centro de control, Ajustes, login y modo invitado, errores 404/500, estados vacíos, de carga y diálogos.
+- **Proceso:** (1) moodboard y mockups de las vistas principales en tres tamaños, **aprobados por el operador** antes de programar; (2) tokens y componentes; (3) migración vista por vista, conservando los IDs del DOM que usan los tests; (4) revisión final en los tres tamaños.
+
+**CA:** capturas aprobadas de cada vista a 375, 768 y 1440 px; contraste AA verificado (axe o Lighthouse, accesibilidad ≥ 95); `prefers-reduced-motion` respetado; sin scripts inline nuevos (CSP); todos los tests en verde sin cambiar los IDs.
 
 ---
 
@@ -1794,8 +1889,12 @@ Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una
 | **F6** Radar | Amenazas adaptativas | RF-3.1–3.8, 4.12 completo, modo Evasiva de 2.5; RF-8.5; RF-9.5 | 1 h sin 403/429 en R2Z2; ejemplo de §8.9 reproducido en tests |
 | **F7** Logística | Más ISK por viaje | RF-4.10, 4.11, 1.6; RF-9.6 | Combos y retorno visibles; estructuras con acceso por personaje |
 | **F8** Viaje activo | Acompañamiento y ciclo cerrado | RF-7.1–7.6; RF-10.2, 10.3 | Viaje real completado con P&L reconciliado |
-| **F9** Endurecimiento | **v1.0** | RNF de rendimiento, seguridad y accesibilidad; RF-6.9, 9.7; release de producción | Checklist §11.4 completo; benchmarks dentro de RNF-1 |
-| **F10** v1.x | Evolución | Modo Listado (RF-4.1), RF-10.4, vista geográfica de regiones, scopes futuros, EVE-Scout/Thera | Según priorización |
+| **F9** Trading por órdenes | Más estrategias | RF-4.1 (Listado y compra por orden), 4.16, 4.17; RF-6.12; RF-10.5; scope 13 | Station trading y órdenes propias con datos reales; familias diferenciadas en el Cazador; alertas de órdenes superadas |
+| **F10** Rediseño visual | Interfaz final | RNF-5.4, 5.9–5.12; §9.9 en todas las vistas | Mockups aprobados; todas las vistas migradas; CA de §9.9 |
+| **F11** Endurecimiento | **v1.0** | RNF de rendimiento, seguridad y accesibilidad; RF-6.9, 9.7; release de producción | Checklist §11.4 completo; benchmarks dentro de RNF-1 |
+| **F12** v1.x | Evolución | RF-10.4, vista geográfica de regiones, EVE-Scout/Thera | Según priorización |
+
+El rediseño visual (F10) va después de completar las funciones y antes del endurecimiento, para que la verificación de accesibilidad y rendimiento de la v1.0 se haga sobre la interfaz definitiva (D-11).
 
 ---
 
@@ -1813,6 +1912,8 @@ Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una
 | R-08 | Tokens expuestos si se publica la app | Baja | Alto | Loopback por defecto, cifrado, lista blanca, HTTPS |
 | R-09 | Incumplir políticas de CCP o de terceros | Baja | Alto | Solo endpoints oficiales, User-Agent correcto, sin automatización |
 | R-10 | Deriva de la API de ESI | Media | Medio | `X-Compatibility-Date` fija, tests de contrato, alertas por la cabecera `Warning` |
+| R-11 | Station trading con mucha competencia (guerras de 0,01 ISK) o márgenes que se evaporan | Alta | Medio | Métrica de competencia, Certeza baja y explicada, seguimiento de órdenes superadas (RF-4.17) |
+| R-12 | El rediseño visual rompe la usabilidad o se parece demasiado a recursos de CCP | Media | Medio | Mockups aprobados antes de programar, IDs estables, CA de accesibilidad, RNF-5.12 |
 
 ---
 
@@ -1863,12 +1964,14 @@ Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una
 | D-02 | PostgreSQL 18 en Docker con volumen nombrado | Default de Phoenix, robusto y sin los problemas de SQLite sobre bind mounts de Windows | SQLite |
 | D-03 | Estrategia Ueberauth propia para EVE SSO | `ueberauth_eve_sso` no se mantiene desde 2019 | Depender de ese paquete |
 | D-04 | Kills en vivo desde zKillboard R2Z2 (+ killmail.stream como alternativa); línea base con ESI | ESI no ofrece un stream en vivo; RedisQ fue discontinuado | ESI `system_kills` solo (resolución de 1 h) |
-| D-05 | 12 scopes | Valor alto por scope y costo de re-login si se agregan después | 9 scopes |
+| D-05 | 12 scopes (13 desde F9, con `read_character_orders`) | Valor alto por scope y costo de re-login si se agregan después | 9 scopes |
 | D-06 | Req/Finch para HTTP; Oban para jobs periódicos y durables; GenServers para los ciclos de alta frecuencia | Estándar del ecosistema; `Req.Test`; Oban Web | HTTPoison, jobs a mano |
-| D-07 | Modo Instantáneo en el MVP; modo Listado en v1.x | Menor riesgo y cálculo exacto; el Listado requiere modelar la velocidad de venta | Ambos en el MVP |
+| D-07 | Familia directo en el MVP; familia por órdenes (Listado, compra por orden, station trading) en F9 | Menor riesgo y cálculo exacto; el trading por órdenes requiere historial (F5) y modelar la velocidad de ejecución y la competencia | Todo en el MVP |
 | D-08 | Floats para ISK en el motor; redondeo solo al mostrar | Rendimiento; la precisión es suficiente para estimaciones | Decimal |
 | D-09 | Matrices de distancia precomputadas en `persistent_term` | Distancia en O(1) para millones de pares candidatos | Dijkstra por consulta |
 | D-10 | Centro de control en mosaico en lugar de tabla | Escala a ~70 regiones y resalta los problemas | Tabla del borrador |
+| D-11 | Rediseño visual completo al final de las funciones (F10), antes del endurecimiento | Diseñar sobre funciones estables evita rehacer pantallas; la v1.0 se verifica sobre la interfaz definitiva | Rediseñar pantalla por pantalla durante cada fase |
+| D-12 | Trading por órdenes como recomendación: la aplicación sugiere precios y el operador publica en el cliente | ESI no permite crear ni modificar órdenes; respeta RNF-14.2 (sin automatización) | Automatizar la publicación (imposible e indebido) |
 
 ### 15.2 Pendientes de confirmar
 
@@ -1878,6 +1981,7 @@ Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una
 | P-02 | ¿Umbrales anti-scam por defecto (sospechoso 1,5× / scam 3× la mediana de 7 días)? | Sí; ajustar con datos reales en F5 |
 | P-03 | ¿Se piensa exponer la app fuera de localhost (LAN o Internet)? | No en v1 (solo loopback) |
 | P-04 | ¿Formato numérico por defecto? | Estilo EVE (`1,234,567.89`), con opción en español |
+| P-05 | Reglas vigentes de las órdenes: paso mínimo de precio (tick), costo de modificar una orden (relist) y límite de órdenes por habilidades | Verificar contra el Anexo C y el SDE antes de F9; hasta entonces, sin implementar |
 | P-05 | ¿Nombres de ítems para Multibuy en inglés o según el idioma del cliente del juego? | Inglés por defecto, configurable |
 | P-06 | ~~¿Mover el repo a WSL2 o seguir en `C:\` con polling?~~ | **Resuelta (2026-09-28):** se queda en `C:\` con polling (§10.4, opción B) |
 
