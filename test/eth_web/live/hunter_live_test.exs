@@ -133,4 +133,44 @@ defmodule EthWeb.HunterLiveTest do
       assert has_element?(view, "#history", "30 / 30")
     end
   end
+
+  describe "radar en la ruta (RF-4.12, RF-2.5)" do
+    setup do
+      start_supervised!(Eth.Threat.Radar)
+
+      :ets.insert(
+        :eth_threat_heat,
+        {F.perimeter(),
+         %{
+           system_id: F.perimeter(),
+           kills: 5,
+           intensity: 5.0,
+           lambda: 0.05,
+           alert: true,
+           threat: 0.9,
+           classification: %{
+             type: :gate_camp,
+             confidence: 0.8,
+             description: "Gatecamp en el gate a Jita"
+           },
+           updated_at: DateTime.utc_now()
+         }}
+      )
+
+      :ok
+    end
+
+    test "marca la alerta en la fila y la explica en la sección Ruta", %{conn: conn} do
+      publish_market()
+
+      for mode <- ["secure", "evasive"] do
+        {:ok, view, _html} = live(conn, ~p"/?route_mode=#{mode}")
+        assert has_element?(view, "#opportunities", "⚠ Gatecamp")
+
+        view |> element("#opportunities tr[id^='opp-']") |> render_click()
+        assert has_element?(view, "#route", "Perimeter: Gatecamp en el gate a Jita")
+        assert has_element?(view, "#detail", "Ruta (amenazas y riesgo base)")
+      end
+    end
+  end
 end

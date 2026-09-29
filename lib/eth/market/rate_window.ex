@@ -6,7 +6,7 @@ defmodule Eth.Market.RateWindow do
   """
 
   @enforce_keys [:max, :window_ms]
-  defstruct [:max, :window_ms, stamps: :queue.new(), count: 0]
+  defstruct [:max, :window_ms, :stamps, count: 0]
 
   @type t :: %__MODULE__{
           max: pos_integer(),
@@ -17,7 +17,7 @@ defmodule Eth.Market.RateWindow do
 
   @doc "Ventana vacía."
   @spec new(pos_integer(), pos_integer()) :: t()
-  def new(max, window_ms), do: %__MODULE__{max: max, window_ms: window_ms}
+  def new(max, window_ms), do: %__MODULE__{max: max, window_ms: window_ms, stamps: :queue.new()}
 
   @doc """
   Intenta registrar un request en `now`: `{:ok, ventana}` si entra, o `{:wait, ms}` con

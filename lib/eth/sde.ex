@@ -40,6 +40,18 @@ defmodule Eth.Sde do
   @spec type(pos_integer()) :: map() | nil
   def type(id), do: get(:types, id)
 
+  @doc "Grupo de un tipo de nave o módulo, esté o no en el mercado (radar, RF-3.2)."
+  @spec type_group(pos_integer()) :: pos_integer() | nil
+  def type_group(id), do: get(:type_groups, id)
+
+  @doc "Grupo del SDE por ID (`%{name, category_id}`)."
+  @spec group(pos_integer()) :: map() | nil
+  def group(id), do: get(:groups, id)
+
+  @doc "Stargate por ID: `%{system_id, destination_system_id}` (radar, RF-3.2)."
+  @spec stargate(pos_integer()) :: map() | nil
+  def stargate(id), do: get(:stargates, id)
+
   @doc "Subconjunto de dogma para calcular la bodega (`Eth.Sde.Dogma`); `nil` sin SDE."
   @spec dogma() :: Eth.Sde.Dogma.t() | nil
   def dogma do
@@ -65,7 +77,7 @@ defmodule Eth.Sde do
 
   defp get(collection, id) do
     case data() do
-      %{^collection => items} -> Map.get(items, id)
+      %{} = data -> data |> Map.get(collection, %{}) |> Map.get(id)
       nil -> nil
     end
   end

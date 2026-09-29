@@ -1,5 +1,6 @@
 <Layouts.app
   flash={@flash}
+  radar_degraded={@radar_degraded}
   active={:control}
   wide
   pilot={@pilot}
@@ -296,7 +297,84 @@
     </aside>
   </div>
 
-  <%!-- Registro de eventos (RF-8.7) --%>
+  <%!-- Panel del radar (RF-8.5) --%>
+  <section id="radar" aria-labelledby="radar-title" class="card border border-base-300 p-4">
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <h2 id="radar-title" class="text-lg font-semibold">{gettext("Radar de amenazas")}</h2>
+      <p id="radar-feed" class="text-sm tabular-nums text-base-content/70">
+        {feed_label(@feed)}
+        <span :if={@feed[:sequence]}>· {gettext("secuencia")} {@feed.sequence}</span>
+        <span :if={@feed[:lag_s]}>· {gettext("atraso %{s} s", s: @feed.lag_s)}</span>
+        <span :if={@feed[:processed]}>
+          · {gettext("%{n} kills leídas", n: Format.integer(@feed.processed))}
+        </span>
+        · {gettext("línea base: %{kills} h de kills, %{jumps} h de saltos",
+          kills: @baseline.kill_hours,
+          jumps: @baseline.jump_hours
+        )}
+        <span :if={@radar_degraded} class="badge badge-warning badge-sm">
+          {gettext("degradado: solo línea base")}
+        </span>
+      </p>
+    </div>
+
+    <div class="mt-3 grid gap-4 lg:grid-cols-2">
+      <div>
+        <h3 class="text-sm font-semibold">{gettext("Sistemas calientes")}</h3>
+        <p :if={@hot == []} class="text-sm text-base-content/60">
+          {gettext("Sin kills PvP en la ventana de 15 minutos.")}
+        </p>
+        <table :if={@hot != []} class="table table-xs tabular-nums">
+          <thead>
+            <tr>
+              <th>{gettext("Sistema")}</th>
+              <th class="text-right">{gettext("Kills")}</th>
+              <th class="text-right">λ</th>
+              <th>{gettext("Amenaza")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr :for={h <- @hot} id={"hot-#{h.system_id}"} class={[h.alert && "text-error"]}>
+              <td>
+                <span style={sec_style(h.system_id)} class="font-mono">
+                  {sec_label(h.system_id)}
+                </span>
+                {system_name(h.system_id)}
+              </td>
+              <td class="text-right">{h.kills}</td>
+              <td class="text-right">{:erlang.float_to_binary(h.lambda / 1, decimals: 2)}</td>
+              <td>
+                <%= if h.alert do %>
+                  {round(h.threat * 100)} % · {h.classification.description}
+                <% else %>
+                  <span class="text-base-content/50">{gettext("dentro de lo habitual")}</span>
+                <% end %>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        <h3 class="text-sm font-semibold">{gettext("Últimas kills relevantes")}</h3>
+        <p :if={@kills == []} class="text-sm text-base-content/60">
+          {gettext("Transportes destruidos, kills en gates y sistemas en alerta aparecen acá.")}
+        </p>
+        <ol id="radar-kills" class="max-h-72 space-y-0.5 overflow-y-auto text-xs tabular-nums">
+          <li :for={k <- @kills} id={"kill-#{k.id}"} class={[k.alert && "text-error"]}>
+            <span class="text-base-content/60">{Calendar.strftime(k.time, "%H:%M")}</span>
+            {k.system_name}
+            <span :if={k.gate_to}>· {gettext("gate a %{to}", to: k.gate_to)}</span>
+            <span :if={k.victim_transport} class="badge badge-warning badge-xs">
+              {gettext("transporte")}
+            </span>
+            · {k.attackers} {gettext("atacantes")} · {Format.compact(k.value)} ISK
+          </li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
   <%!-- Sesiones de personajes (RF-8.6) --%>
   <section
     id="character-sessions"

@@ -13,6 +13,7 @@ defmodule Eth.GameRules do
   """
 
   @overrides_table :eth_game_rule_overrides
+  @config_cache {__MODULE__, :config}
 
   # Reglas que admiten override: clave => descripción (valores en proporción, 0,075 = 7,5 %).
   @overridable [
@@ -33,7 +34,7 @@ defmodule Eth.GameRules do
         value
 
       :error ->
-        case Keyword.fetch(config(), key) do
+        case Map.fetch(config(), key) do
           {:ok, value} ->
             value
 
@@ -48,7 +49,7 @@ defmodule Eth.GameRules do
   def get(key, default) do
     case override(key) do
       {:ok, value} -> value
-      :error -> Keyword.get(config(), key, default)
+      :error -> Map.get(config(), key, default)
     end
   end
 
@@ -58,7 +59,7 @@ defmodule Eth.GameRules do
 
   @doc "Valor por defecto (el de la configuración, sin override)."
   @spec default(atom()) :: term()
-  def default(key), do: Keyword.fetch!(config(), key)
+  def default(key), do: Map.fetch!(config(), key)
 
   @doc "Tabla ETS de overrides (su dueño es `Eth.GameRules.Overrides`)."
   @spec overrides_table() :: atom()
@@ -95,5 +96,28 @@ defmodule Eth.GameRules do
     end
   end
 
-  defp config, do: Application.get_env(:eth, __MODULE__, [])
+  @doc """
+  Vuelve a leer la configuración (tests que la cambian con `Application.put_env/3`). En
+  ejecución normal no hace falta: `config/*.exs` cambia solo con un reinicio.
+  """
+  @spec reload() :: :ok
+  def reload do
+    :persistent_term.erase(@config_cache)
+    :ok
+  end
+
+  # La configuración se lee de `Application` una vez y queda como mapa en persistent_term:
+  # `Application.get_env/2` copia la lista completa en cada llamada, y el motor consulta
+  # reglas miles de veces por consulta (RNF-1.1).
+  defp config do
+    case :persistent_term.get(@config_cache, nil) do
+      nil ->
+        config = Map.new(Application.get_env(:eth, __MODULE__, []))
+        :persistent_term.put(@config_cache, config)
+        config
+
+      config ->
+        config
+    end
+  end
 end

@@ -140,13 +140,60 @@ defmodule Eth.Engine.EvaluationTest do
       assert row.seconds == 50 + 2 * 180
       assert row.isk_per_hour > 0
       # Órdenes vigentes al llegar (410 s) × datos frescos × sin historial (0,7) × acceso a
-      # estructura (0,9).
-      assert_in_delta row.certainty, :math.exp(-(410 / 60) / 180) * 0.7 * 0.9, 1.0e-6
+      # estructura (0,9) × ruta (2 sistemas highsec con el riesgo base del prior: 0,0005 ×
+      # V[industrial][roaming] 0,5).
+      route = (1 - 0.0005 * 0.5) ** 2
+      assert_in_delta row.breakdown.route_certainty, route, 1.0e-9
+      assert_in_delta row.certainty, :math.exp(-(410 / 60) / 180) * 0.7 * 0.9 * route, 1.0e-6
+      assert row.route_path == [F.jita(), F.perimeter()]
       assert row.breakdown.access_certainty == 0.9
       assert row.shield.status == :no_history
       assert row.tvs in 1..100
 
       assert {[], 0} = Query.run(opps, %{route_mode: :secure, search: "amarr"}, now)
+    end
+
+    test "un sistema a evitar deja fuera las rutas que no tienen alternativa", %{opps: opps} do
+      now = DateTime.utc_now()
+      params = %{route_mode: :shortest, cargo_m3: nil, min_profit: 1_000}
+
+      {rows, 2} = Query.run(opps, params, now)
+      assert length(rows) == 2
+
+      # Perimeter está entre Jita y Ahbazon: sin él no hay camino a Ahbazon. Como destino,
+      # Perimeter sigue permitido.
+      {[row], 1} = Query.run(opps, Map.put(params, :avoid, MapSet.new([F.perimeter()])), now)
+      assert row.opportunity.destination.system_id == F.perimeter()
+    end
+
+    test "una alerta en el camino baja la Certeza y se informa; Evasiva la considera", %{
+      opps: opps
+    } do
+      now = DateTime.utc_now()
+
+      risk = %{
+        base_risk: %{},
+        quiet: %{highsec: 0.0, lowsec: 0.0, nullsec: 0.0},
+        alerts: %{
+          F.perimeter() => %{
+            system_id: F.perimeter(),
+            threat: 0.9,
+            kills: 5,
+            classification: %{type: :gate_camp, description: "Gatecamp"}
+          }
+        },
+        degraded: false
+      }
+
+      params = %{cargo_m3: nil, min_profit: 1_000, search: "perimeter", risk: risk}
+
+      for mode <- [:secure, :evasive] do
+        {[row], 1} = Query.run(opps, Map.put(params, :route_mode, mode), now)
+        assert row.route_alerts.count == 1
+        assert row.route_alerts.worst.classification.type == :gate_camp
+        # Industrial: V[gate_camp] = 0,85 → p = 0,765.
+        assert_in_delta row.breakdown.route_certainty, 1 - 0.765, 1.0e-9
+      end
     end
   end
 

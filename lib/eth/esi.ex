@@ -132,6 +132,20 @@ defmodule Eth.Esi do
   end
 
   @doc """
+  Kills de la última hora por sistema (`/universe/system_kills`): `ship_kills`,
+  `pod_kills` y `npc_kills`; solo lista los sistemas con actividad (caché de 1 h).
+  """
+  @spec system_kills(String.t() | nil) :: {:ok, Response.t()} | {:error, Client.error()}
+  def system_kills(etag \\ nil), do: Client.get("/universe/system_kills", etag: etag)
+
+  @doc """
+  Saltos de la última hora por sistema (`/universe/system_jumps`): `ship_jumps`; solo
+  lista los sistemas con tráfico (caché de 1 h).
+  """
+  @spec system_jumps(String.t() | nil) :: {:ok, Response.t()} | {:error, Client.error()}
+  def system_jumps(etag \\ nil), do: Client.get("/universe/system_jumps", etag: etag)
+
+  @doc """
   Precios de referencia globales (`/markets/prices`): `average_price` y `adjusted_price`
   por tipo, en una sola respuesta sin paginar (caché de ESI de 1 h).
   """

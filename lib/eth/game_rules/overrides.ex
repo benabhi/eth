@@ -4,7 +4,9 @@ defmodule Eth.GameRules.Overrides do
   arrancar carga los overrides guardados en los ajustes del operador; `reload/0` los
   vuelve a publicar después de un cambio desde Ajustes.
 
-  Implementa: RF-9.4, RNF-15.2.
+  También publica los ajustes del radar (α del modo Evasiva y sistemas a evitar, RF-9.5).
+
+  Implementa: RF-9.4, RF-9.5, RNF-15.2.
   """
   use GenServer
 
@@ -35,7 +37,7 @@ defmodule Eth.GameRules.Overrides do
   end
 
   defp load do
-    overrides = Accounts.game_rule_overrides()
+    overrides = Map.merge(Accounts.game_rule_overrides(), Accounts.radar_overrides())
     table = GameRules.overrides_table()
     :ets.delete_all_objects(table)
     :ets.insert(table, Map.to_list(overrides))

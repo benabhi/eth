@@ -4,8 +4,9 @@ defmodule EthWeb.ControlLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Eth.{EngineFixture, Events, KillmailFixture}
   alias Eth.Esi.Budget
-  alias Eth.Events
+  alias Eth.Threat.{Killmail, Radar}
 
   setup do
     Budget.resume_all()
@@ -117,5 +118,32 @@ defmodule EthWeb.ControlLiveTest do
     {:ok, view, _html} = live(conn, ~p"/control")
     assert has_element?(view, "#history-status", "0/250")
     assert has_element?(view, "#history-status", "0 en caché · 0 en cola")
+  end
+
+  describe "radar (RF-8.5, RF-3.8)" do
+    test "sin radar en vivo muestra el indicador de degradado en la cabecera", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/control")
+      assert has_element?(view, "#radar-degraded", "Radar degradado")
+      assert has_element?(view, "#radar", "Sin kills PvP")
+    end
+
+    @tag :tmp_dir
+    test "muestra sistemas calientes y kills relevantes en vivo", %{conn: conn, tmp_dir: tmp_dir} do
+      :ok = EngineFixture.load_sde(tmp_dir)
+      start_supervised!(Radar)
+      {:ok, view, _html} = live(conn, ~p"/control")
+
+      {:ok, kill} =
+        KillmailFixture.raw(system_id: 30_005_196, value: 2.5e9)
+        |> Killmail.normalize()
+
+      Radar.ingest(kill)
+      Radar.recent_kills()
+      send(view.pid, :tick)
+
+      assert has_element?(view, "#hot-30005196")
+      assert has_element?(view, "#kill-#{kill.id}", "transporte")
+      refute has_element?(view, "#radar-degraded")
+    end
   end
 end

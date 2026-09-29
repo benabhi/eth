@@ -9,12 +9,14 @@ defmodule Mix.Tasks.Eth.Replay.Record do
       mix eth.replay.record
       mix eth.replay.record --regions 10000002,10000043
 
+  También copia las kills de la ventana del radar (`priv/data/threat/kills.json`).
   Los snapshots se guardan cada 10 minutos y al apagar el servidor. Después se usa con
   `ETH_DATA_SOURCE=replay`.
   """
   use Mix.Task
 
   alias Eth.Market.Snapshots
+  alias Eth.Threat.Radar
 
   @impl true
   def run(args) do
@@ -37,6 +39,19 @@ defmodule Mix.Tasks.Eth.Replay.Record do
     end
 
     Mix.shell().info("#{length(regions)} regiones grabadas en #{target}")
+    record_kills()
+  end
+
+  # Kills de la ventana del radar (las guarda el servidor cada 30 s), para el feed Replay.
+  defp record_kills do
+    source = Radar.kills_file("threat")
+
+    if File.exists?(source) do
+      File.cp!(source, Radar.kills_file("replay"))
+      Mix.shell().info("Kills del radar grabadas")
+    else
+      Mix.shell().info("Sin kills del radar para grabar (el feed todavía no entregó datos)")
+    end
   end
 
   defp filter(regions, nil), do: regions

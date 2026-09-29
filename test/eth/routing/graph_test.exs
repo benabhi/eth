@@ -121,4 +121,27 @@ defmodule Eth.Routing.GraphTest do
       end
     end
   end
+
+  describe "caminos rápidos y evasivos (RF-2.5)" do
+    test "el camino desde la matriz coincide en largo con el BFS", %{graph: g} do
+      for from <- [1, 2, 3, 4, 5, 8], to <- [1, 2, 3, 4, 5, 8], mode <- [:shortest, :secure] do
+        bfs = Graph.path(g, from, to, mode)
+        fast = Graph.matrix_path(g, from, to, mode)
+        assert (bfs && length(bfs)) == (fast && length(fast))
+        if fast, do: assert(hd(fast) == from and List.last(fast) == to)
+      end
+
+      assert Graph.matrix_path(g, 1, 4, :shortest) == [1, 5, 4]
+      assert Graph.matrix_path(g, 1, 4, :secure) == [1, 2, 3, 4]
+      assert Graph.matrix_path(g, 1, 8, :secure) == nil
+    end
+
+    test "el Dijkstra evita un sistema caro aunque el camino sea más largo", %{graph: g} do
+      assert Graph.weighted_path(g, 1, 4, :shortest, fn _ -> 1 end) == [1, 5, 4]
+      # Amenaza en 5 (lowsec): conviene dar la vuelta por highsec.
+      cost = fn id -> if id == 5, do: 21, else: 1 end
+      assert Graph.weighted_path(g, 1, 4, :shortest, cost) == [1, 2, 3, 4]
+      assert Graph.weighted_path(g, 1, 8, :secure, cost) == nil
+    end
+  end
 end

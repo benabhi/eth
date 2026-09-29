@@ -42,6 +42,7 @@ defmodule EthWeb.HunterLive do
       |> assign(:frozen, false)
       |> assign(:pending, 0)
       |> assign(:selected, nil)
+      |> assign(:route_details, nil)
       |> assign(:total, 0)
       |> assign(:meta, Engine.meta())
       |> assign(:now, Clock.utc_now())
@@ -78,7 +79,8 @@ defmodule EthWeb.HunterLive do
     {:noreply,
      socket
      |> assign(:selected, selected)
-     |> assign(:selected_row, selected_row(selected, socket.assigns.query))}
+     |> assign(:selected_row, selected_row(selected, socket.assigns.query))
+     |> assign_route_details()}
   end
 
   def handle_event("toggle_freeze", _params, socket) do
@@ -181,6 +183,14 @@ defmodule EthWeb.HunterLive do
 
   def handle_info({:history_updated, _count}, socket), do: {:noreply, load_rows(socket)}
 
+  # Cambió el mapa de calor (RF-3.3): cambian el riesgo de ruta, la Certeza y el TVS.
+  # `EthWeb.RadarHook` ya actualizó la cabecera.
+  def handle_info({:heatmap, _version}, %{assigns: %{frozen: true}} = socket) do
+    {:noreply, update(socket, :pending, &(&1 + 1))}
+  end
+
+  def handle_info({:heatmap, _version}, socket), do: {:noreply, load_rows(socket)}
+
   # `EthWeb.PilotHook` ya actualizó @pilot; solo se recalcula si cambió lo que usa el motor.
   def handle_info({:character, _id, _event, _public}, socket) do
     overrides = pilot_overrides(socket.assigns.pilot)
@@ -230,10 +240,19 @@ defmodule EthWeb.HunterLive do
     socket
     |> assign(total: total, meta: Engine.meta(), now: Clock.utc_now(), empty?: rows == [])
     |> assign(:selected_row, selected_row(socket.assigns[:selected], socket.assigns.query))
+    |> assign_route_details()
     |> stream(:rows, rows, reset: true)
   end
 
   # La fila seleccionada se recalcula aparte: puede no estar entre las 200 visibles.
+  # Detalle de la ruta de la fila seleccionada (sección Ruta, RF-6.5).
+  defp assign_route_details(%{assigns: %{selected_row: %{} = row, query: query}} = socket) do
+    ship_class = Map.get(query, :ship_class, Query.defaults().ship_class)
+    assign(socket, :route_details, Engine.route_details(row, ship_class))
+  end
+
+  defp assign_route_details(socket), do: assign(socket, :route_details, nil)
+
   defp selected_row(nil, _query), do: nil
 
   defp selected_row(id, query) do
@@ -293,6 +312,12 @@ defmodule EthWeb.HunterLive do
 
   defp scam?(row), do: row.shield.status == :scam
 
+  defp threat_label(:gate_camp), do: gettext("Gatecamp")
+  defp threat_label(:bubble_camp), do: gettext("Bubble camp")
+  defp threat_label(:smartbomb_camp), do: gettext("Smartbombs")
+  defp threat_label(:hauler_gank), do: gettext("Gank de transportes")
+  defp threat_label(:roaming), do: gettext("Actividad hostil")
+
   defp shield_label(:scam), do: gettext("☠ SCAM")
   defp shield_label(:suspicious), do: gettext("⚠ sospechosa")
   defp shield_label(:no_history), do: gettext("sin historial")
@@ -345,5 +370,6 @@ defmodule EthWeb.HunterLive do
   defp tvs_class(_tvs), do: "badge-ghost"
 
   defp route_label(:secure), do: gettext("Segura")
+  defp route_label(:evasive), do: gettext("Evasiva")
   defp route_label(_shortest), do: gettext("Rápida")
 end

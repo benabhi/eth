@@ -11,18 +11,22 @@ defmodule EthWeb.ControlLive do
 
   Se actualiza por PubSub; un tick por segundo refresca las cuentas regresivas.
 
-  Incluye el estado de la cola de historial (RF-1.12).
+  Incluye el estado de la cola de historial (RF-1.12) y el panel del radar (RF-8.5):
+  estado del feed, sistemas calientes y últimas kills relevantes.
 
-  Implementa: RF-1.12, RF-8.1, RF-8.2, RF-8.3, RF-8.6, RF-8.7, RF-8.8, RF-8.9.
+  Implementa: RF-1.12, RF-3.8, RF-8.1, RF-8.2, RF-8.3, RF-8.5, RF-8.6, RF-8.7, RF-8.8,
+  RF-8.9.
   """
   use EthWeb, :live_view
 
   alias Eth.Characters.Sessions
-  alias Eth.{Clock, Events, Market, Sde}
+  alias Eth.{Clock, Events, Market, Sde, Threat}
   alias Eth.Esi.{Budget, ServerStatus}
   alias EthWeb.Format
 
   @event_limit 60
+  @radar_hot 15
+  @radar_kills 40
   @tiers [hub: "N1 · Hubs", active: "N2 · Activas", rest: "N3 · Resto"]
 
   @impl true
@@ -32,6 +36,7 @@ defmodule EthWeb.ControlLive do
       Phoenix.PubSub.subscribe(Eth.PubSub, Events.topic())
       Phoenix.PubSub.subscribe(Eth.PubSub, ServerStatus.topic())
       Phoenix.PubSub.subscribe(Eth.PubSub, Sde.topic())
+      Phoenix.PubSub.subscribe(Eth.PubSub, Threat.kills_topic())
       schedule_tick()
     end
 
@@ -46,7 +51,9 @@ defmodule EthWeb.ControlLive do
       |> assign(:dev_routes, Application.get_env(:eth, :dev_routes, false))
       |> assign(:sde, Sde.status())
       |> assign(:sessions, Sessions.list())
+      |> assign(:kills, Enum.take(Threat.recent_kills(), @radar_kills))
       |> refresh_health()
+      |> refresh_radar()
 
     {:ok, socket}
   end
@@ -67,6 +74,12 @@ defmodule EthWeb.ControlLive do
   end
 
   def handle_info({:server_status, _status}, socket), do: {:noreply, refresh_health(socket)}
+
+  # Radar (RF-8.5): kills relevantes en vivo; `EthWeb.RadarHook` ya maneja la cabecera.
+  def handle_info({:kill, kill}, socket),
+    do: {:noreply, update(socket, :kills, &Enum.take([kill | &1], @radar_kills))}
+
+  def handle_info({:heatmap, _version}, socket), do: {:noreply, refresh_radar(socket)}
   def handle_info({:sde_status, status}, socket), do: {:noreply, assign(socket, :sde, status)}
   def handle_info({:esi_paused, _until, _reason}, socket), do: {:noreply, refresh_health(socket)}
   def handle_info(:esi_resumed, socket), do: {:noreply, refresh_health(socket)}
@@ -76,7 +89,9 @@ defmodule EthWeb.ControlLive do
 
   def handle_info(:tick, socket) do
     schedule_tick()
-    {:noreply, socket |> assign(:sessions, Sessions.list()) |> refresh_health()}
+
+    {:noreply,
+     socket |> assign(:sessions, Sessions.list()) |> refresh_health() |> refresh_radar()}
   end
 
   ## Eventos de la UI
@@ -142,6 +157,41 @@ defmodule EthWeb.ControlLive do
   ## Datos derivados
 
   defp schedule_tick, do: Process.send_after(self(), :tick, 1_000)
+
+  defp refresh_radar(socket) do
+    assign(socket,
+      feed: Threat.feed_status(),
+      baseline: Threat.baseline_meta(),
+      hot: Enum.take(Threat.hot_systems(), @radar_hot)
+    )
+  end
+
+  defp feed_label(%{source: :off}), do: gettext("Feed apagado (ETH_KILLFEED=off)")
+
+  defp feed_label(%{source: :replay} = f),
+    do: gettext("Replay · %{n} kills grabadas", n: f.recorded)
+
+  defp feed_label(%{status: :live}), do: gettext("R2Z2 · en vivo")
+  defp feed_label(%{status: :waiting}), do: gettext("R2Z2 · al día, esperando kills")
+  defp feed_label(%{status: :banned}), do: gettext("R2Z2 · bloqueado (403): pausa de 1 h")
+  defp feed_label(%{status: :error}), do: gettext("R2Z2 · con errores, reintentando")
+  defp feed_label(_feed), do: gettext("R2Z2 · conectando")
+
+  defp system_name(id), do: (Sde.system(id) || %{name: "#{id}"}).name
+
+  defp sec_style(system_id) do
+    case Sde.system(system_id) do
+      %{security: sec} -> "color: #{Sde.security_color(sec)}"
+      nil -> ""
+    end
+  end
+
+  defp sec_label(system_id) do
+    case Sde.system(system_id) do
+      %{security: sec} -> :erlang.float_to_binary(Sde.security_display(sec), decimals: 1)
+      nil -> "?"
+    end
+  end
 
   defp refresh_health(socket) do
     now = Clock.utc_now()

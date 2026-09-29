@@ -6,7 +6,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.2 |
+| Versión | 1.3 |
 | Fecha | 2026-09-29 |
 | Estado | Base para desarrollo — decisiones a confirmar en §15.2 |
 | Autor | Hernan Jalabert |
@@ -17,6 +17,7 @@
 | Versión | Fecha | Cambios |
 |---|---|---|
 | 0.1 | 2026-09 | Borrador inicial de ideas. |
+| 1.3 | 2026-09-29 | F6 implementada: notas de implementación de RF-2.5, RF-3.1–3.8, RF-8.5 y RF-9.5; killmail.stream diferido (D-15); caminos desde la matriz (D-16); caché de `GameRules` (D-17); tabla `system_activity_samples` y parámetros del radar en B.7. |
 | 1.2 | 2026-09-29 | F5 implementada: notas de implementación de RF-1.9, RF-1.12, RF-4.7, RF-4.8 y RF-6.5; historial sin Oban (D-13); anti-scam y liquidez en tiempo de consulta (D-14); columnas de `market_history_stats` y parámetros de B.7 según el código. |
 | 1.1 | 2026-09-29 | Trading por órdenes: clasificación **directo** frente a **por órdenes** (RF-4.1), station trading en la misma estación (RF-4.16), órdenes propias (RF-4.17), selector de familia en el Cazador (RF-6.12) y alertas de órdenes superadas (RF-10.5). Rediseño visual final con identidad sobria y futurista inspirada en EVE, iconografía, responsividad completa (RNF-5.4, RNF-5.9–5.12, §9.9). Hoja de ruta reordenada: F9 trading por órdenes, F10 rediseño visual, F11 endurecimiento y v1.0, F12 evolución. |
 | 1.0 | 2026-09-28 | Reestructuración completa: verificación técnica contra la documentación vigente de ESI, SSO, SDE y zKillboard; corrección de supuestos (§1.6); requisitos con prioridad, fase y criterios de aceptación; arquitectura OTP; modelo de datos; algoritmos y fórmulas; wireframes; entorno Windows/Docker; estrategia de calidad; hoja de ruta; riesgos y trazabilidad con el borrador. |
@@ -525,6 +526,8 @@ El flete se calcula con el **volumen empaquetado** (en naves y algunos módulos 
 - **Evasiva:** camino de costo mínimo con costo por sistema `1 + α · amenaza(s)` (*α calibrable*), calculado bajo demanda para las oportunidades visibles y los viajes activos.
 - **Sistemas a evitar:** lista del usuario (por ejemplo, sistemas de ganking conocidos) que se aplica a los caminos concretos de todos los modos; las oportunidades cuyo camino cambia se recalculan.
 
+**Implementación v1 (2026-09-29, F6):** Rápida y Segura reconstruyen el camino desde la matriz de distancias (el vecino a un salto menos del destino; ≈ 5 µs por camino, D-16). Evasiva usa un Dijkstra propio sobre la restricción de Rápida con costo `1 + α · amenaza`, y solo busca si el camino corto cruza una alerta (si no, es el mismo). Se calcula para todo el universo en cada consulta, no solo para las filas visibles: medido, la consulta completa en Evasiva tiene p95 de 33 ms. Los sistemas a evitar se editan en Ajustes → Radar; si el camino los cruza (salvo origen y destino) se recalcula con un BFS que los excluye, y si no hay alternativa la oportunidad queda fuera.
+
 #### RF-2.6 · Clasificación y colores de seguridad — M · F2
 
 Regla de redondeo del cliente (0 < sec < 0,05 se muestra como 0,1; el resto, a un decimal), bandas highsec/lowsec/nullsec y escala de colores del Anexo B.6. El color siempre va acompañado del valor numérico.
@@ -579,6 +582,15 @@ Tipos `gate_camp`, `bubble_camp`, `smartbomb_camp`, `hauler_gank` y `roaming` (h
 #### RF-3.8 · Degradación elegante del radar — M · F6
 
 Si el feed en vivo no entrega datos durante > 2 min: estado "Radar degradado", uso exclusivo de la línea base horaria, penalización leve de la Certeza en rutas por low/null e indicador visible en la cabecera y en el Centro de control.
+
+**Implementación v1 (2026-09-29, F6):**
+
+- **Feed** (`Eth.Threat.R2Z2`, behaviour `Eth.Threat.KillFeed`): formato verificado contra el servicio real. Un 403/429 detiene el feed 1 h con un evento de error. El cursor se guarda en `app_state` cada 50 kills y al apagar. `ETH_KILLFEED=off` lo apaga; en modo Replay, `Eth.Threat.ReplayFeed` reproduce en bucle las kills grabadas (`mix eth.replay.record` copia `priv/data/threat/kills.json`). killmail.stream queda para más adelante (D-15).
+- **Normalización** (`Eth.Threat.Killmail`): el SDE procesado suma los stargates con su destino y el grupo de todas las naves y módulos, incluidos los que no están en el mercado (cápsulas, CONCORD). Grupos verificados en el SDE 3552227 (Anexo B.7).
+- **Radar** (`Eth.Threat.Radar`): ventana por sistema en memoria, recalculada con cada kill y cada 30 s. Una kill que no se puede procesar se registra y se descarta. La ventana se guarda en disco cada 30 s y se restaura al arrancar, así un reinicio no pierde las kills de los últimos minutos.
+- **Línea base** (`Eth.Threat.Baseline`): `system_kills` y `system_jumps` solo listan los sistemas con actividad, así que las horas muestreadas se registran aparte (`system_activity_samples`) para distinguir "0 kills" de "sin dato". El riesgo base se suaviza como `ship_kills / (saltos + 50)`; sin muestras de saltos se usa un prior por banda (Anexo B.7).
+- **Degradación:** sin kills del feed durante 120 s (o con el feed apagado) el radar queda degradado; la cabecera lo muestra y cada sistema low/null del camino multiplica la Certeza por 0,97.
+- **Medido (2026-09-29):** a los 20 minutos de arrancar, 155 kills procesadas, sin 403/429 y con un atraso de 40–170 s respecto de zKillboard; 5 sistemas en alerta de 26 con kills. Un sistema con 7 kills y λ = 4,75 no alerta; uno con 5 kills y λ = 0,05 sí (RF-3.5).
 
 ### M4 · Motor de evaluación
 
@@ -979,6 +991,8 @@ Diagrama ESI → Snapshots ETS → Motor → Oportunidades → Clientes con mét
 
 Estado del feed (fuente, secuencia, lag), sistemas calientes (tipo de amenaza, kills, tendencia) y feed de las últimas killmails relevantes (transportes, gates).
 
+*(F6: implementado sin la columna "tendencia", que requiere guardar la serie de cada sistema; queda para F10.)*
+
 #### RF-8.6 · Sesiones de personajes — S · F4
 
 Por personaje: estado del token (vencimiento, re-login requerido), frecuencias de polling actuales y la última lectura de cada dato.
@@ -1021,6 +1035,8 @@ Overrides de las reglas del juego (impuestos base, coeficientes del broker) y br
 #### RF-9.5 · Parámetros del motor y del riesgo — S · F6
 
 Umbrales anti-scam, de liquidez y de frescura; pesos y referencias del TVS; matriz de vulnerabilidad; tiempos por salto; α del modo Evasiva; sistemas a evitar.
+
+*(F6: Ajustes → Radar edita α y los sistemas a evitar. El resto de los parámetros de esta lista sigue en `config.exs` (Anexo B.7): su edición, incluida la matriz de vulnerabilidad celda por celda, queda para el rediseño de F10.)*
 
 #### RF-9.6 · Regiones y estructuras — S · F7
 
@@ -1259,7 +1275,7 @@ Las URLs se resuelven desde los metadatos al arrancar (con las de la tabla como 
 | Bucle | 200 → procesar, esperar 100 ms y pasar a `sequence + 1`; 404 → esperar 6 s y reintentar la misma |
 | Límites | 15 req/s por IP (exceder ⇒ 403 durante 1 h); User-Agent obligatorio (sin él, Cloudflare bloquea) |
 | Retención | ≥ 24 h por archivo de secuencia |
-| Alternativa | `https://killmail.stream` (websocket o long-poll compatible con RedisQ); servicio de terceros |
+| Alternativa | `https://killmail.stream` (websocket o long-poll compatible con RedisQ); servicio de terceros. *Sin implementar en v1 (D-15).* |
 
 ### 6.4 SDE (Static Data Export)
 
@@ -1298,7 +1314,8 @@ Ver §3.4. Las estructuras de dominio (`%Order{}`, `%Opportunity{}`, `%Combo{}`,
 | `structure_access` | structure_id, character_id, status (`ok`/`forbidden`/`unknown`), checked_at, last_error | |
 | `market_history_stats` | region_id, type_id, as_of, median_7d, median_30d, avg_7d, avg_30d, stddev_30d, volume_avg_7d, volume_avg_30d, days_traded_30d, daily_avg (float[30]), daily_volume (bigint[30]), fetched_at | PK (region_id, type_id). |
 | `type_volumes` | type_id, packaged_volume, sde_build | Solo si el SDE no trae el volumen empaquetado. |
-| `system_activity_hourly` | solar_system_id, hour, ship_kills, pod_kills, npc_kills, jumps | PK (system, hour); retención de 30 días. |
+| `system_activity_hourly` | solar_system_id, hour, ship_kills, pod_kills, npc_kills, jumps | PK (system, hour); retención de 30 días. Solo sistemas con actividad. |
+| `system_activity_samples` | source (`kills`/`jumps`), hour | Horas muestreadas: distinguen "0" de "sin dato" (RF-3.4). |
 | `filter_presets` | id, operator_id, name, filters (jsonb), notify | |
 | `exclusions` | id, operator_id, kind (`type`/`station`/`system`/`region`/`route`), ref, expires_at | |
 | `trade_runs` | id, character_id, status, plan (jsonb), predicted_profit, realized_profit, started_at, closed_at | |
@@ -1817,7 +1834,7 @@ EXPOSE 4000
 | `PHX_HOST` / `PORT` | No | Host y puerto públicos | `localhost` / `4000` |
 | `ETH_REGIONS` | No | Subconjunto de regiones (desarrollo) | `10000002,10000043` |
 | `ETH_DATA_SOURCE` | No | `live` o `replay` | `live` |
-| `ETH_KILLFEED` | No | `r2z2`, `killmail_stream` u `off` | `r2z2` |
+| `ETH_KILLFEED` | No | `r2z2` u `off` (en modo Replay se reproducen las kills grabadas) | `r2z2` |
 | `ETH_ALLOWED_CHARACTER_IDS` | No | Lista blanca de personajes (obligatoria si se expone la app) | `2112345678,2119876543` |
 
 ### 10.4 Windows 11 + WSL2 + VS Code
@@ -1989,6 +2006,9 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | D-12 | Trading por órdenes como recomendación: la aplicación sugiere precios y el operador publica en el cliente | ESI no permite crear ni modificar órdenes; respeta RNF-14.2 (sin automatización) | Automatizar la publicación (imposible e indebido) |
 | D-13 | Historial con un GenServer propio (`Eth.Market.History`), sin Oban (desvío de D-06 para este caso) | El refresco post-DT es la misma cola: al vencer las estadísticas, la próxima demanda vuelve a pedir solo los pares relevantes. Oban no está entre las dependencias y no aporta durabilidad útil (los datos son regenerables) | Job de Oban post-DT |
 | D-14 | Anti-scam y liquidez en la consulta personalizada, no en la evaluación universal | El historial llega de a poco (≤ 250/min): leerlo de ETS en cada consulta lo refleja al instante sin reevaluar el universo (400–600 ms). Además el escudo mira las órdenes que consume la cantidad del piloto | Anotar en el Coordinator y reevaluar por cada lote de historial |
+| D-15 | killmail.stream sin implementar en v1; solo R2Z2 y `off` | El behaviour `KillFeed` permite sumarlo sin tocar el radar; hoy es un servicio de terceros sin documentación verificable, y una caída de R2Z2 ya degrada a la línea base (RF-3.8) | Implementarlo a ciegas |
+| D-16 | Caminos de Rápida y Segura reconstruidos desde la matriz de distancias; Evasiva solo busca si el camino corto cruza una alerta | ≈ 5 µs por camino sin memoria extra: C_ruta se calcula para todo el universo en cada consulta (p95 < 35 ms) | Matriz de siguiente salto (+55 MB) o BFS por oportunidad |
+| D-17 | `Eth.GameRules` lee la configuración una vez y la guarda como mapa en `persistent_term` | `Application.get_env/2` copiaba toda la configuración en cada lectura y la consulta lee reglas miles de veces (p95 de ~100 a ~25 ms). `config/*.exs` solo cambia con un reinicio; los tests que la cambian llaman a `GameRules.reload/0` | Pasar un snapshot de reglas por todas las funciones del motor |
 
 ### 15.2 Pendientes de confirmar
 
@@ -2155,13 +2175,22 @@ Aproximación de la escala del cliente. En el tema claro se usan como fondo de i
 | `default_liquidity` | 0.5 | Índice sin historial |
 | `listing.max_days_to_sell` | 7 | Modo Listado |
 | `radar.window_min` / `radar.half_life_min` | 15 / 10 | Mapa de calor |
+| `radar.hauler_weight` / `radar.gate_weight` | 1.5 / 1.5 | Multiplicadores de intensidad (§8.8) |
 | `radar.min_kills` / `radar.p_value` | 3 / 0.01 | Alertas |
-| `radar.baseline_days` | 14 | Línea base |
-| `radar.feed_stale_s` | 120 | Radar degradado |
+| `radar.baseline_days` / `radar.baseline_min_days` | 14 / 7 | Línea base por franja; con menos días, promedio del sistema |
+| `radar.lambda_min` / `radar.lambda_prior` | 0.05 / hs 0.05 · ls 0.2 · ns 0.3 | λ mínima y prior por banda sin datos |
+| `radar.base_risk_max` / `radar.base_risk_smoothing_jumps` | 0.2 / 50 | Riesgo base = kills / (saltos + 50), con tope |
+| `radar.base_risk_prior` | hs 0.0005 · ls 0.01 · ns 0.02 | Riesgo base sin saltos muestreados |
+| `radar.activity_retention_days` | 30 | `system_activity_hourly` |
+| `radar.feed_stale_s` / `radar.degraded_penalty` | 120 / 0.97 | Radar degradado y penalización por sistema low/null |
+| `radar.max_alert_probability` | 0.95 | Tope de p_alerta (§8.9) |
+| `radar_groups` | transporte 28, 380, 1202, 513, 902 · chicas 29, 31, 237, 25, 324, 830, 831, 893, 1283, 1527 · interdictores 541, 894 · smartbomb 72 | Grupos del SDE para clasificar (verificados en el SDE 3552227) |
+| `concord_corporation_id` | 1000125 | Kills de CONCORD (hauler_gank) |
 | `tvs.weights` | ISK/h 0.40 · beneficio 0.25 · ROI 0.15 · liquidez 0.20 | Utilidad |
 | `tvs.refs` | ISK/h 150M · beneficio 100M · ROI 25 % | Normalización |
 | `certainty.order_tau_min` | 180 | Vigencia de órdenes |
-| `evasive.alpha` | 20 | Costo por amenaza en el modo Evasiva |
+| `evasive_alpha` | 20 | Costo por amenaza en el modo Evasiva (editable en Ajustes → Radar) |
+| `avoid_system_ids` | [] | Sistemas a evitar (Ajustes → Radar) |
 | `jump_seconds` | Shuttle 15 · BR 25 · DST 40 · Industrial 50 · Freighter 90 · Otras 45 | Tiempo de viaje |
 | `stop_overhead_s` | 180 | Atraque + compra o venta |
 | `capital.max_share` | 100 % | Capital por operación |

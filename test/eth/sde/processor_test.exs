@@ -142,6 +142,9 @@ defmodule Eth.Sde.ProcessorTest do
     assert data.types[657].capacity == 5800.0
 
     assert data.groups[28] == %{name: "Industrial", category_id: 6}
+    # Radar: grupo de las naves (categoría 6), estén o no en el mercado; gates con destino.
+    assert data.type_groups == %{657 => 28}
+    assert data.stargates[1] == %{system_id: 30_000_142, destination_system_id: 30_000_144}
     assert data.categories[6] == "Ship"
     assert data.corporations[1_000_035].faction_id == 500_001
   end

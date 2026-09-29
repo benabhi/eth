@@ -8,7 +8,12 @@ defmodule Eth.Esi.ServerStatusTest do
     original = Application.get_env(:eth, Eth.GameRules)
     rules = Keyword.put(original, :downtime_window_utc, {~T[10:59:00], ~T[11:15:00]})
     Application.put_env(:eth, Eth.GameRules, rules)
-    on_exit(fn -> Application.put_env(:eth, Eth.GameRules, original) end)
+    Eth.GameRules.reload()
+
+    on_exit(fn ->
+      Application.put_env(:eth, Eth.GameRules, original)
+      Eth.GameRules.reload()
+    end)
   end
 
   test "detecta la ventana de downtime" do

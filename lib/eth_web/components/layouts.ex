@@ -39,6 +39,7 @@ defmodule EthWeb.Layouts do
   attr :characters, :list, default: [], doc: "personajes vinculados (selector)"
   attr :ship_form, :any, default: nil, doc: "formulario del perfil de carga abierto (RF-5.8)"
   attr :wide, :boolean, default: false, doc: "contenedor ancho (tableros)"
+  attr :radar_degraded, :boolean, default: false, doc: "radar sin feed en vivo (RF-3.8)"
 
   slot :inner_block, required: true
 
@@ -72,6 +73,17 @@ defmodule EthWeb.Layouts do
         </nav>
       </div>
       <div class="flex flex-none items-center gap-3">
+        <a
+          :if={@radar_degraded}
+          id="radar-degraded"
+          href={~p"/control"}
+          class="badge badge-warning gap-1"
+          title={
+            gettext("Sin kills del feed en vivo: el riesgo de ruta usa solo la línea base horaria")
+          }
+        >
+          <.icon name="hero-signal-slash" class="size-3" /> {gettext("Radar degradado")}
+        </a>
         <.character_menu pilot={@pilot} characters={@characters} />
         <.theme_toggle />
       </div>

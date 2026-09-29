@@ -116,6 +116,93 @@ defmodule Eth.Routing.Graph do
     end
   end
 
+  @doc """
+  Camino más corto del modo reconstruido desde la matriz de distancias, sin búsqueda:
+  en cada paso se toma el vecino (permitido en el modo) que está a un salto menos del
+  destino; a igualdad, el de menor índice (determinista). `nil` si no hay camino.
+  Cuesta O(saltos × grado): pensado para miles de oportunidades por consulta.
+  """
+  @spec matrix_path(t(), pos_integer(), pos_integer(), mode()) :: [pos_integer()] | nil
+  def matrix_path(%__MODULE__{} = graph, from, to, mode) do
+    with {:ok, i} <- Map.fetch(graph.index, from),
+         {:ok, j} <- Map.fetch(graph.index, to),
+         matrix = Map.fetch!(graph, mode),
+         d when d != @unreachable <- :binary.at(matrix, i * graph.n + j) do
+      graph |> descend(matrix, i, j, d, allowed_fun(graph, mode), [i]) |> to_ids(graph)
+    else
+      _ -> nil
+    end
+  end
+
+  defp descend(_graph, _matrix, _k, _j, 0, _allowed?, acc), do: Enum.reverse(acc)
+
+  defp descend(graph, matrix, k, j, d, allowed?, acc) do
+    next =
+      graph.adjacency
+      |> elem(k)
+      |> Enum.filter(&(allowed?.(&1) and :binary.at(matrix, &1 * graph.n + j) == d - 1))
+      |> Enum.min()
+
+    descend(graph, matrix, next, j, d - 1, allowed?, [next | acc])
+  end
+
+  @doc """
+  Camino de costo mínimo (Dijkstra) donde entrar a un sistema cuesta
+  `cost.(system_id)` (≥ 1): el modo Evasiva usa `1 + α × amenaza` (RF-2.5). Respeta la
+  restricción de seguridad de `mode`. `nil` si no hay camino.
+  """
+  @spec weighted_path(t(), pos_integer(), pos_integer(), mode(), (pos_integer() -> number())) ::
+          [pos_integer()] | nil
+  def weighted_path(%__MODULE__{} = graph, from, to, mode, cost) do
+    with {:ok, i} <- Map.fetch(graph.index, from),
+         {:ok, j} <- Map.fetch(graph.index, to),
+         allowed? = allowed_fun(graph, mode),
+         true <- allowed?.(i) and allowed?.(j) do
+      queue = :gb_sets.singleton({0, i})
+
+      graph
+      |> dijkstra(queue, %{i => 0}, %{i => nil}, j, allowed?, cost)
+      |> rebuild(i, j)
+      |> to_ids(graph)
+    else
+      _ -> nil
+    end
+  end
+
+  defp dijkstra(graph, queue, dist, parents, target, allowed?, cost) do
+    if :gb_sets.is_empty(queue) do
+      parents
+    else
+      {{d, k}, queue} = :gb_sets.take_smallest(queue)
+
+      cond do
+        k == target ->
+          parents
+
+        d > Map.fetch!(dist, k) ->
+          dijkstra(graph, queue, dist, parents, target, allowed?, cost)
+
+        true ->
+          {queue, dist, parents} =
+            graph.adjacency
+            |> elem(k)
+            |> Enum.filter(allowed?)
+            |> Enum.reduce({queue, dist, parents}, &relax(&1, &2, k, d, graph, cost))
+
+          dijkstra(graph, queue, dist, parents, target, allowed?, cost)
+      end
+    end
+  end
+
+  # Mejora la distancia al vecino `m` pasando por `k`, si corresponde.
+  defp relax(m, {queue, dist, parents}, k, d, graph, cost) do
+    nd = d + cost.(elem(graph.ids, m))
+
+    if nd < Map.get(dist, m, :infinity),
+      do: {:gb_sets.add({nd, m}, queue), Map.put(dist, m, nd), Map.put(parents, m, k)},
+      else: {queue, dist, parents}
+  end
+
   defp to_ids(nil, _graph), do: nil
   defp to_ids(indexes, graph), do: Enum.map(indexes, &elem(graph.ids, &1))
 
