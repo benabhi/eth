@@ -24,7 +24,7 @@ defmodule EthWeb.HunterLive do
   """
   use EthWeb, :live_view
 
-  alias Eth.{Characters, Clock, Engine, Market, Sde}
+  alias Eth.{Characters, Clock, Engine, Market, Sde, Tracking}
   alias Eth.Characters.Pilot
   alias Eth.Engine.Query
   alias EthWeb.{Format, HunterParams}
@@ -93,6 +93,28 @@ defmodule EthWeb.HunterLive do
 
   def handle_event("copied", _params, socket) do
     {:noreply, put_flash(socket, :info, gettext("Multibuy copiado al portapapeles"))}
+  end
+
+  # Iniciar viaje (RF-7.1): congela el plan de la fila seleccionada y lleva a /run.
+  def handle_event("start_run", _params, socket) do
+    with %{} = row <- socket.assigns.selected_row,
+         %{} = pilot <- socket.assigns.pilot,
+         nil <- start_run_blocked(pilot, row) do
+      case Tracking.start(pilot.id, row, socket.assigns.query) do
+        {:ok, _run} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, gettext("Viaje iniciado: fijá la ruta desde Viaje activo"))
+           |> push_navigate(to: ~p"/run")}
+
+        {:error, :already_active} ->
+          {:noreply,
+           put_flash(socket, :error, gettext("Ya tenés un viaje en curso: terminalo o abortalo"))}
+      end
+    else
+      reason when is_binary(reason) -> {:noreply, put_flash(socket, :error, reason)}
+      _ -> {:noreply, socket}
+    end
   end
 
   def handle_event("report_false_positive", _params, socket) do
@@ -284,6 +306,14 @@ defmodule EthWeb.HunterLive do
       true ->
         nil
     end
+  end
+
+  # Motivo por el que no se puede iniciar un viaje con esta fila (`nil` si se puede).
+  defp start_run_blocked(nil, _row), do: gettext("Iniciá sesión con EVE para seguir un viaje")
+  defp start_run_blocked(_pilot, %{shield: %{status: :scam}}), do: gettext("Bloqueado: SCAM")
+
+  defp start_run_blocked(pilot, _row) do
+    if Tracking.active(pilot.id), do: gettext("Ya tenés un viaje en curso")
   end
 
   defp ingame_error(:relogin),

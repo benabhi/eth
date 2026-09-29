@@ -67,6 +67,49 @@ defmodule Eth.Accounts do
       else: {:error, :unknown_rule}
   end
 
+  ## Notificaciones (RF-10.3)
+
+  @rule_defaults %{"enabled" => false, "min_tvs" => 75, "min_profit" => 20_000_000}
+
+  @doc "Regla de oportunidades nuevas: apagada por defecto, TVS ≥ 75 y beneficio ≥ 20M."
+  @spec notification_rule() :: %{
+          enabled: boolean(),
+          min_tvs: non_neg_integer(),
+          min_profit: number()
+        }
+  def notification_rule do
+    stored = Map.merge(@rule_defaults, Map.get(operator().settings, "notifications", %{}))
+
+    %{
+      enabled: stored["enabled"] == true,
+      min_tvs: stored["min_tvs"],
+      min_profit: stored["min_profit"]
+    }
+  end
+
+  @doc "Guarda la regla de oportunidades nuevas (TVS 0–100, beneficio ≥ 0)."
+  @spec put_notification_rule(map()) :: :ok | {:error, :invalid_value}
+  def put_notification_rule(%{enabled: enabled, min_tvs: tvs, min_profit: profit})
+      when is_boolean(enabled) and is_integer(tvs) and tvs in 0..100 and is_number(profit) and
+             profit >= 0 do
+    operator = operator()
+    rule = %{"enabled" => enabled, "min_tvs" => tvs, "min_profit" => profit}
+
+    operator
+    |> Operator.settings_changeset(Map.put(operator.settings, "notifications", rule))
+    |> Repo.update!()
+
+    Events.emit(
+      :action,
+      "Usuario",
+      "Alertas de contratos nuevos: #{if enabled, do: "TVS ≥ #{tvs}", else: "apagadas"}"
+    )
+
+    :ok
+  end
+
+  def put_notification_rule(_attrs), do: {:error, :invalid_value}
+
   ## Radar (RF-9.5)
 
   @doc """

@@ -6,7 +6,8 @@ defmodule Eth.Engine do
   """
 
   alias Eth.{Clock, Events, Repo}
-  alias Eth.Engine.{Coordinator, Opportunity, Query, RouteRisk, ScamReport}
+  alias Eth.Engine.{Coordinator, Opportunity, Query, RouteRisk, SaleQuote, ScamReport, Summary}
+  alias Eth.Market.TableOwner
 
   @doc "Tópico con los anuncios de nueva versión de oportunidades."
   @spec topic() :: String.t()
@@ -85,6 +86,48 @@ defmodule Eth.Engine do
       route: RouteRisk.details(row.route_path, ship_class, row.cost, ctx)
     }
   end
+
+  @doc """
+  Cotizaciones de venta de `quantity` unidades de un tipo con las órdenes de compra
+  vigentes de todas las fuentes (RF-7.3), de mayor a menor ingreso neto.
+  """
+  @spec sale_quotes(pos_integer(), pos_integer(), float()) :: [SaleQuote.quote_result()]
+  def sale_quotes(type_id, quantity, tax) do
+    SaleQuote.best(bids(type_id), quantity, tax, &Eth.Routing.distance(&1, &2, :shortest))
+  end
+
+  @doc "Cotización de venta en una estación concreta (RF-7.3)."
+  @spec sale_quote(pos_integer(), map(), pos_integer(), float()) :: SaleQuote.quote_result()
+  def sale_quote(type_id, location, quantity, tax) do
+    SaleQuote.at(location, bids(type_id), quantity, tax, &Eth.Routing.distance(&1, &2, :shortest))
+  end
+
+  # Órdenes de compra del tipo en todas las fuentes, sin las de estructuras que se leen
+  # directo repetidas en la región (RF-1.6).
+  defp bids(type_id) do
+    entries = TableOwner.all()
+    direct = for {{:structure, id}, _entry} <- entries, into: MapSet.new(), do: id
+
+    for {source, entry} <- entries,
+        region_id = region_of(source, entry),
+        {price, loc, sys, range, vol, min_vol, _issued} <- elem(Summary.get(source, type_id), 1),
+        not (match?({:region, _}, source) and MapSet.member?(direct, loc)) do
+      %{
+        price: price,
+        location_id: loc,
+        system_id: sys,
+        region_id: region_id,
+        range: range,
+        volume: vol,
+        min_volume: min_vol
+      }
+    end
+  rescue
+    ArgumentError -> []
+  end
+
+  defp region_of({:region, id}, _entry), do: id
+  defp region_of({:structure, _id}, entry), do: entry.meta[:region_id]
 
   @doc "Consulta personalizada (RF-4.14): `{filas, total}`."
   @spec query(Query.params()) :: {[map()], non_neg_integer()}

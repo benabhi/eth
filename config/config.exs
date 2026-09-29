@@ -188,6 +188,19 @@ config :eth, Eth.GameRules,
   # Estructuras (RF-1.6): top de públicas por órdenes y sincronización horaria.
   structures_top: 30,
   structures_refresh_ms: 3_600_000,
+  # Anti-spam de alertas (RF-10.3, Anexo B.7 notify.cooldown_min).
+  notify_cooldown_min: 10,
+  # Viaje activo (RF-7.2, RF-7.3, RF-7.5): fracción de la inversión o del ingreso que tiene
+  # que moverse el saldo para inferir la compra o la venta; alertas de revalidación y
+  # re-ruteo (Anexo B.7: run.revalidate_drop_pct / run.reroute_gain_pct); gracia de la
+  # reconciliación tras el cierre.
+  run: %{
+    bought_share: 0.9,
+    sold_share: 0.9,
+    revalidate_drop: 0.10,
+    reroute_gain: 0.10,
+    reconcile_grace_min: 90
+  },
   # Historial bajo demanda (RF-1.12, RNF-3.5): ESI admite 300 req/min; se deja margen.
   history_max_per_min: 250,
   history_concurrency: 4,

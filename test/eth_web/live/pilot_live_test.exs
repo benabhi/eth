@@ -57,6 +57,11 @@ defmodule EthWeb.PilotLiveTest do
           send(test, {:ui, conn.request_path, Plug.Conn.fetch_query_params(conn).query_params})
           EsiStub.respond(conn, 204, nil)
 
+        ["characters", _id, "wallet", "transactions"] ->
+          EsiStub.respond(conn, 200, [],
+            expires: DateTime.add(DateTime.utc_now(), 3_600, :second)
+          )
+
         ["characters", _id, resource] ->
           EsiStub.respond(conn, 200, character_body(resource),
             expires: DateTime.add(DateTime.utc_now(), 60, :second)
@@ -237,5 +242,54 @@ defmodule EthWeb.PilotLiveTest do
     type_id = Integer.to_string(@tritanium)
     assert_receive {:ui, "/ui/openwindow/marketdetails", %{"type_id" => ^type_id}}, 2_000
     assert render_async(view) =~ "Mercado abierto en el juego"
+  end
+
+  describe "viaje activo (RF-7.1, F8)" do
+    setup do
+      start_supervised!(Eth.Tracking.Supervisor)
+      :ok
+    end
+
+    test "inicia un viaje desde el Cazador y lo sigue en /run", %{conn: conn} do
+      conn = logged_in(conn)
+      publish_market()
+      # Con la bodega del piloto (9.244 m³) el beneficio del fixture queda bajo 1M.
+      {:ok, view, _html} = live(conn, ~p"/?min_profit=1k")
+      await_pilot(view)
+
+      select_first_row(view)
+      view |> element("#start-run") |> render_click()
+      assert_redirect(view, ~p"/run")
+
+      {:ok, run_view, _html} = live(conn, ~p"/run")
+      assert has_element?(run_view, "#run", "Tritanium")
+      assert has_element?(run_view, "#run-steps li[data-state=current]", "planificado")
+
+      run_view |> element("#run-set-route") |> render_click()
+      assert_receive {:ui, "/ui/autopilot/waypoint", _params}, 2_000
+
+      run_view |> element("#run-confirm-bought") |> render_click()
+      assert has_element?(run_view, "#run-steps li[data-state=current]", "comprado")
+      assert has_element?(run_view, "#run-confirm-sold")
+
+      run_view |> element("#run-abort") |> render_click()
+      assert has_element?(run_view, "#run-empty")
+      assert has_element?(run_view, "#run-history", "abortado")
+
+      # En el Cazador ya se puede iniciar otro.
+      {:ok, view, _html} = live(conn, ~p"/?min_profit=1k")
+      select_first_row(view)
+      refute has_element?(view, "#start-run[disabled]")
+    end
+
+    test "sin sesión de EVE no se puede iniciar un viaje", %{conn: conn} do
+      publish_market()
+      {:ok, view, _html} = live(conn, ~p"/")
+      select_first_row(view)
+      assert has_element?(view, "#start-run[disabled]")
+
+      {:ok, run_view, _html} = live(conn, ~p"/run")
+      assert has_element?(run_view, "#run-guest")
+    end
   end
 end

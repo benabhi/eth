@@ -983,6 +983,14 @@ Reconciliar con `/wallet/transactions` (compras en el origen y ventas en el dest
 
 Listado de viajes con el beneficio total, el ISK/h real y el error de predicción. Los resultados alimentan la calibración de la Certeza (τ de vigencia de las órdenes y factores por nave).
 
+**Implementación v1 (2026-09-29, F8):**
+
+- **Plan congelado** (`trade_runs.plan`): un tipo, una compra y una venta (D-18), con estaciones, cantidades, precios, impuesto, ruta y proyección; un viaje activo por personaje (índice único parcial).
+- **Etapas** (`Eth.Tracking.Stages`, pura): "hacia el origen" al salir del sistema de partida o atracar en el origen; "comprado" atracado en el origen con el saldo ≥ 90 % de la inversión por debajo del inicial; "en tránsito" al dejar el origen; "en destino" al atracar en la estación de venta; "cerrado" con el saldo ≥ 90 % del ingreso por encima de lo que quedó tras comprar (`run.bought_share` / `run.sold_share`). Confirmación manual como respaldo.
+- **Monitor** (`Eth.Tracking.RunMonitor`): se registra como observador de la sesión (polling activo: ubicación 10 s, saldo 2 min); revalida con cada evaluación del motor recotizando la venta con las órdenes de compra vigentes (`Eth.Engine.SaleQuote`, que respeta rango y `min_volume`); con la carga comprada sugiere otro destino si el neto mejora > 10 %; vigila la ruta restante y, con la carga comprada, ofrece la ruta evasiva, que se fija como waypoints sistema por sistema para que el autopiloto no vuelva a la amenaza.
+- **Cierre** (`Eth.Tracking.Reconcile`, pura): `/wallet/transactions` se sincroniza al vencer su caché (1 h, verificado contra ESI real) y se guarda en `wallet_transactions`; se reconcilian compras en el origen y ventas en cualquier estación (una venta fuera del destino se informa como causa) desde el inicio hasta 90 min después del cierre (`run.reconcile_grace_min`); el *sales tax* se estima con la tasa del plan. Si no llega a completarse, se guarda lo que haya al vencer el plazo.
+- **Web:** "Iniciar viaje" en el detalle del Cazador y `/run` con etapas, ubicación y saldo en vivo, revalidación, amenazas, acciones e historial (RF-7.6: proyectado, real, desvío e ISK/h real). La calibración automática de la Certeza con estos resultados queda para después (RF-7.6 es C).
+
 #### RF-7.7 · Registro del cazador — S · F10
 
 Perfil de caza del piloto a partir de los viajes cerrados (RF-7.5): contratos completados, recompensa total (P&L real), ISK/h promedio, precisión de las predicciones, mejor contrato y racha de días con contratos cerrados. Es un resumen motivador y honesto: solo muestra datos reales, sin puntos ni recompensas inventadas. Es la base del ranking de cazadores de F13 (RF-11.6).
@@ -1117,6 +1125,8 @@ Opt-in (API de notificaciones del navegador mediante un colocated hook), útiles
   - eventos del viaje;
   - un token que requiere re-login.
 - **Anti-spam:** deduplicación y enfriamiento por regla (*calibrable*: 10 min).
+
+**Implementación v1 (2026-09-29, F8):** `Eth.Notifications.Dispatcher` publica las alertas con enfriamiento por clave (`notify_cooldown_min`: 10). Disparadores: eventos y amenazas del viaje activo, tokens que requieren re-login y **contratos nuevos** que superan una regla del operador (TVS y beneficio mínimos, con los parámetros del modo invitado, hasta 3 por evaluación y sin avisar la evaluación inicial). Los **presets de filtros con nombre** (RF-6.4) todavía no existen: la regla es un umbral único y los presets con notificación quedan para F10. Toast en todas las vistas; notificación del sistema y sonido (WebAudio, sin archivos) opt-in por navegador en Ajustes → Notificaciones (RF-10.2).
 
 #### RF-10.4 · Webhook de Discord — C · F12
 
