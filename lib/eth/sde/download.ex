@@ -55,11 +55,14 @@ defmodule Eth.Sde.Download do
   defp request do
     contact = Application.get_env(:eth, Eth.Esi.Client, [])[:contact]
 
-    Req.new(
+    [
       base_url: GameRules.get(:sde_base_url),
       headers: [{"user-agent", Client.user_agent(contact)}],
       retry: false,
       decode_body: false
-    )
+    ]
+    # En tests: plug de Req.Test (RNF-3.8).
+    |> Keyword.merge(Application.get_env(:eth, __MODULE__, [])[:req_options] || [])
+    |> Req.new()
   end
 end

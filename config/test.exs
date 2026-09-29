@@ -24,6 +24,7 @@ config :eth, EthWeb.Endpoint,
 # Tests sin red (RNF-3.8): todo request a ESI pasa por stubs de Req.Test; un request
 # sin stub hace fallar el test.
 config :eth, Eth.Esi.Client, req_options: [plug: {Req.Test, Eth.Esi.Client}]
+config :eth, Eth.Sde.Download, req_options: [plug: {Req.Test, Eth.Sde.Download}]
 
 # Directorio de datos propio: los tests nunca leen ni escriben los snapshots de desarrollo.
 config :eth, :data_dir, Path.expand("../tmp/test_data", __DIR__)
