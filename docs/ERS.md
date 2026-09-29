@@ -328,8 +328,7 @@ lib/
 priv/
 ├── repo/migrations/
 ├── gettext/es/LC_MESSAGES/
-├── replay/             # fixtures de replay versionadas (pequeñas)
-└── data/               # (ignorado por git) SDE procesado, matrices, snapshots
+└── data/               # (ignorado por git) SDE procesado, matrices, snapshots/, replay/
 test/
 └── support/fixtures/   # esi/, r2z2/, sde_min/
 dev/                    # código solo de desarrollo (MIX_ENV=dev), p. ej. Eth.Dev.TailwindPoller
@@ -462,7 +461,7 @@ Al apagarse y cada 10 min, persistir en disco (volumen de datos) la generación 
 
 #### RF-1.11 · Modo Replay — S · F1
 
-Con `ETH_DATA_SOURCE=replay`, el sistema reproduce snapshots y killmails grabados (`mix eth.replay.record`) desde `priv/replay/`, en bucle y a velocidad configurable, **sin** llamar a servicios externos. Permite desarrollar la UI, hacer demos y correr benchmarks deterministas.
+Con `ETH_DATA_SOURCE=replay`, el sistema reproduce snapshots grabados (`mix eth.replay.record` copia los del reinicio en caliente) desde `priv/data/replay/`, en bucle y **sin** llamar a servicios externos. Permite desarrollar la UI, hacer demos y correr benchmarks deterministas. Las grabaciones pesan decenas de MB: viven en el volumen de datos, no en git. *(F6)* Se suman killmails grabados; *(C)* velocidad de reproducción configurable.
 
 #### RF-1.12 · Historial de mercado bajo demanda — M · F5
 

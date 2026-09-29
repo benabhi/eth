@@ -17,6 +17,9 @@
       <%= cond do %>
         <% is_nil(@server) -> %>
           <div class="text-base-content/70">{gettext("Consultando…")}</div>
+        <% @server[:replay] -> %>
+          <div class="font-semibold text-info">◆ {gettext("Modo Replay")}</div>
+          <div class="text-xs text-base-content/70">{gettext("datos grabados, sin ESI")}</div>
         <% @server.online -> %>
           <div class="font-semibold text-success">● {gettext("En línea")}</div>
           <div class="text-sm tabular-nums">

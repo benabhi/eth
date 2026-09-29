@@ -70,7 +70,14 @@ defmodule Eth.Esi.ServerStatus do
   @impl true
   def init(_opts) do
     :ets.new(@table, [:named_table, :public, :set, read_concurrency: true])
-    send(self(), :poll)
+
+    # En modo Replay no se consulta ESI (RF-1.11).
+    if Eth.Market.data_source() == :replay do
+      :ets.insert(@table, {:status, %{online: nil, replay: true, vip: false}})
+    else
+      send(self(), :poll)
+    end
+
     {:ok, %{online: nil, downtime: false}}
   end
 

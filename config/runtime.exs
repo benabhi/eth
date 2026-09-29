@@ -29,6 +29,14 @@ if compatibility_date = System.get_env("ESI_COMPATIBILITY_DATE") do
   config :eth, Eth.Esi.Client, compatibility_date: compatibility_date
 end
 
+# Fuente de datos de mercado (RF-1.11): live (ESI) o replay (snapshots grabados, sin red).
+config :eth,
+       :data_source,
+       (case System.get_env("ETH_DATA_SOURCE", "live") do
+          "replay" -> :replay
+          _ -> :live
+        end)
+
 # Subconjunto de regiones (ETH_REGIONS=10000002,10000043). Vacío o ausente = todas.
 case System.get_env("ETH_REGIONS", "") |> String.split(",", trim: true) do
   [] ->

@@ -18,6 +18,12 @@ defmodule Eth.Market.Supervisor do
       Eth.Market.RegionManager
     ]
 
+    # En modo Replay no se guardan snapshots (serían los mismos datos reproducidos).
+    children =
+      if Eth.Market.data_source() == :live,
+        do: children ++ [Eth.Market.SnapshotSaver],
+        else: children
+
     Supervisor.init(children, strategy: :rest_for_one)
   end
 end

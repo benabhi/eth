@@ -25,6 +25,9 @@ config :eth, EthWeb.Endpoint,
 # sin stub hace fallar el test.
 config :eth, Eth.Esi.Client, req_options: [plug: {Req.Test, Eth.Esi.Client}]
 
+# Directorio de datos propio: los tests nunca leen ni escriben los snapshots de desarrollo.
+config :eth, :data_dir, Path.expand("../tmp/test_data", __DIR__)
+
 # En tests los procesos de fondo (mercado, estado de TQ, limpieza) no arrancan solos:
 # cada test levanta lo que necesita.
 config :eth, :start_workers, false

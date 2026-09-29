@@ -163,12 +163,16 @@ defmodule EthWeb.ControlLive do
   def display(status, now) do
     case Market.freshness(status.last_modified, status.expires, now) do
       :none -> {:none, gettext("Sin datos"), "neutral"}
-      :fresh -> {:fresh, gettext("Cacheado"), "success"}
+      :fresh -> fresh_label(status)
       :degraded -> {:degraded, gettext("Degradado"), "warning"}
       :stale -> {:stale, gettext("Viejo"), "warning"}
       :excluded -> {:excluded, gettext("Excluido"), "error"}
     end
   end
+
+  defp fresh_label(%{replay: true}), do: {:fresh, gettext("Replay"), "success"}
+  defp fresh_label(%{restored: true}), do: {:fresh, gettext("Restaurado"), "success"}
+  defp fresh_label(_status), do: {:fresh, gettext("Cacheado"), "success"}
 
   # Texto secundario del mosaico según el estado.
   defp timing(%{status: :fetching, progress: {done, total}}, _now) when is_integer(total),

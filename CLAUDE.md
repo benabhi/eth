@@ -2,7 +2,7 @@
 
 Instrucciones permanentes para Claude Code (y cualquier colaborador). La fuente de verdad funcional es **[docs/ERS.md](docs/ERS.md)**: antes de implementar, leer la sección del requisito (`RF-x.y` / `RNF-x.y`) y cumplir sus criterios de aceptación.
 
-**Estado actual:** fase **F0 — Fundaciones** completa (proyecto Phoenix, Docker, CI, hook de autoría, página base). Próxima: **F1 — Adquisición de mercado**. Actualizar esta línea al cambiar de fase (ERS §12).
+**Estado actual:** fases **F0** y **F1** completas (cliente ESI con presupuesto, pollers regionales con snapshots ETS, downtime, reinicio en caliente, modo Replay y Centro de control). Pendiente menor de F1: métricas globales de 1 h (RF-8.9). Próxima: **F2 — SDE y ruteo**. Actualizar esta línea al cambiar de fase (ERS §12).
 
 ## Reglas innegociables
 
@@ -55,7 +55,11 @@ docker compose exec phoenix iex --sname console --cookie eth --remsh eth@eth   #
 docker compose exec phoenix elixir --sname probe --cookie eth --rpc-eval eth@eth 'IO.inspect(Eth.Market.RegionPoller.status(10000002))'
 ```
 
-Para iterar sin gastar presupuesto de ESI: `ETH_REGIONS=10000002,10000043` (subconjunto de regiones) o `ETH_DATA_SOURCE=replay` (datos grabados).
+Presupuesto de ESI en desarrollo:
+
+- Por defecto docker-compose escanea solo los 5 hubs (`ETH_REGIONS`); `ETH_REGIONS=` (vacío) en `.env` escanea todo el universo.
+- Reiniciar no vuelve a descargar: los snapshots se guardan al apagar y se restauran al arrancar (RF-1.10).
+- Sin red: `docker compose exec phoenix mix eth.replay.record` graba los snapshots actuales y `ETH_DATA_SOURCE=replay docker compose up -d phoenix` los reproduce sin tocar ESI.
 
 ## Dónde va cada cosa
 

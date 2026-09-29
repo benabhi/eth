@@ -12,7 +12,7 @@ defmodule Eth.Market.RegionManager do
   use GenServer
 
   alias Eth.{Esi, Events, GameRules}
-  alias Eth.Market.RegionPoller
+  alias Eth.Market.{RegionPoller, Snapshots}
 
   @retry_ms 30_000
 
@@ -57,7 +57,19 @@ defmodule Eth.Market.RegionManager do
     end
   end
 
+  # En modo Replay las regiones son las grabadas; no se consulta ESI.
   defp discover do
+    if Eth.Market.data_source() == :replay, do: discover_replay(), else: discover_live()
+  end
+
+  defp discover_replay do
+    case Snapshots.list(Snapshots.dir(:replay)) do
+      [] -> {:error, "modo Replay sin datos: grabá con `mix eth.replay.record`"}
+      regions -> {:ok, Enum.filter(regions, fn {id, _} -> GameRules.scannable_region?(id) end)}
+    end
+  end
+
+  defp discover_live do
     with {:ok, %{body: ids}} <- Esi.region_ids(),
          scannable = Enum.filter(ids, &GameRules.scannable_region?/1),
          {:ok, %{body: names}} <- Esi.names(scannable) do

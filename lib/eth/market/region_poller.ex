@@ -17,9 +17,9 @@ defmodule Eth.Market.RegionPoller do
   """
   use GenServer
 
-  alias Eth.{Clock, Events, GameRules}
+  alias Eth.{Clock, Events, GameRules, Market}
   alias Eth.Esi.{Budget, ServerStatus}
-  alias Eth.Market.{Fetcher, Policy, TableOwner}
+  alias Eth.Market.{Fetcher, Policy, Snapshots, TableOwner}
 
   @topic "market:status"
   @history_size 20
@@ -84,8 +84,25 @@ defmodule Eth.Market.RegionPoller do
 
   @impl true
   def init({region_id, name}) do
-    state = %__MODULE__{region_id: region_id, name: name}
-    {:ok, schedule(state, initial_delay(region_id))}
+    {:ok, %__MODULE__{region_id: region_id, name: name}, {:continue, :restore}}
+  end
+
+  # Reinicio en caliente (RF-1.10): si hay un snapshot reciente en disco, se publica y el
+  # primer ciclo espera a su Expires. En modo Replay no se restaura: se reproduce.
+  @impl true
+  def handle_continue(:restore, state) do
+    if Market.data_source() == :live, do: restore(state.region_id)
+    {:noreply, schedule(state, initial_delay(state.region_id))}
+  end
+
+  defp restore(region_id) do
+    max_age_s = GameRules.get(:warm_restart_max_age_min) * 60
+
+    with %{last_modified: lm} <- Snapshots.read_meta(region_id, Snapshots.dir(:snapshots)),
+         true <- DateTime.diff(Clock.utc_now(), lm, :second) < max_age_s,
+         {:ok, tid, meta} <- Snapshots.load(region_id, Snapshots.dir(:snapshots)) do
+      TableOwner.publish(tid, {:region, region_id}, Map.put(meta, :restored, true))
+    end
   end
 
   @impl true
@@ -146,6 +163,10 @@ defmodule Eth.Market.RegionPoller do
 
   # Orden de decisión: downtime → presupuesto/pausa de ESI → política por nivel → descarga.
   defp tick(state) do
+    if Market.data_source() == :replay, do: replay(state), else: live_tick(state)
+  end
+
+  defp live_tick(state) do
     if ServerStatus.downtime?() do
       until = ServerStatus.window_end(Clock.utc_now())
       delay = Clock.ms_until(until) + Enum.random(0..60_000)
@@ -166,6 +187,32 @@ defmodule Eth.Market.RegionPoller do
       start_fetch(state)
     else
       %{state | skipped: state.skipped + 1} |> schedule(@default_cycle_ms)
+    end
+  end
+
+  # Modo Replay (RF-1.11): republica el snapshot grabado como una generación nueva, con
+  # fechas actuales, sin llamar a ESI. Sirve para desarrollar y medir sin red.
+  defp replay(state) do
+    started = System.monotonic_time(:millisecond)
+    now = Clock.utc_now()
+
+    case Snapshots.load(state.region_id, Snapshots.dir(:replay)) do
+      {:ok, tid, meta} ->
+        meta =
+          Map.merge(meta, %{
+            last_modified: now,
+            expires: DateTime.add(now, div(@default_cycle_ms, 1000), :second),
+            replay: true,
+            restored: false,
+            not_modified_pages: 0,
+            duration_ms: System.monotonic_time(:millisecond) - started
+          })
+
+        {:ok, generation} = TableOwner.publish(tid, {:region, state.region_id}, meta)
+        handle_result({:ok, Map.put(meta, :generation, generation)}, state)
+
+      :error ->
+        handle_result({:error, :replay_missing}, state)
     end
   end
 
@@ -247,6 +294,7 @@ defmodule Eth.Market.RegionPoller do
   defp describe({:http, status}), do: "HTTP #{status}"
   defp describe({:transport, message}), do: "Error de red: #{message}"
   defp describe(:inconsistent), do: "Páginas inconsistentes entre snapshots de ESI"
+  defp describe(:replay_missing), do: "No hay snapshot grabado para el modo Replay"
   defp describe({:crash, reason}), do: "Fallo inesperado: #{inspect(reason)}"
   defp describe(other), do: inspect(other)
 
@@ -344,7 +392,9 @@ defmodule Eth.Market.RegionPoller do
       bytes: meta[:bytes],
       last_modified: meta[:last_modified],
       expires: meta[:expires],
-      not_modified_pages: meta[:not_modified_pages]
+      not_modified_pages: meta[:not_modified_pages],
+      restored: meta[:restored] == true,
+      replay: meta[:replay] == true
     }
   end
 end

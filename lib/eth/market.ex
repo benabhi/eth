@@ -11,6 +11,10 @@ defmodule Eth.Market do
   # Margen tras Expires para que la descarga del ciclo siguiente termine (The Forge ≈ 25 s).
   @refresh_margin_s 120
 
+  @doc "Fuente de datos de mercado: `:live` (ESI) o `:replay` (snapshots grabados)."
+  @spec data_source() :: :live | :replay
+  def data_source, do: Application.get_env(:eth, :data_source, :live)
+
   @doc "Tópico con los cambios de estado de los pollers."
   @spec status_topic() :: String.t()
   defdelegate status_topic, to: RegionPoller, as: :topic

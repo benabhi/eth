@@ -39,6 +39,8 @@ services:
       # En desarrollo, solo los 5 hubs para no gastar el presupuesto de ESI de tu IP.
       # Para escanear todo el universo: ETH_REGIONS= (vacío) en .env.
       ETH_REGIONS: ${ETH_REGIONS-10000002,10000043,10000032,10000030,10000042}
+      # live (ESI) o replay (snapshots grabados con `mix eth.replay.record`, sin red).
+      ETH_DATA_SOURCE: ${ETH_DATA_SOURCE:-live}
     depends_on:
       db:
         condition: service_healthy
@@ -49,6 +51,8 @@ services:
       bash -lc "mix deps.get && mix assets.setup && mix ecto.create && mix ecto.migrate && exec elixir --sname eth --cookie eth -S mix phx.server"
     stdin_open: true
     tty: true
+    # Apagado ordenado: da tiempo a guardar los snapshots de mercado (RF-1.10).
+    stop_grace_period: 60s
 
 volumes:
   pgdata:
