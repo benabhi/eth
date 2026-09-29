@@ -36,7 +36,12 @@ defmodule Eth.Market.HistoryTest do
   defp put_rule(key, value) do
     previous = Application.get_env(:eth, Eth.GameRules)
     Application.put_env(:eth, Eth.GameRules, Keyword.put(previous, key, value))
-    on_exit(fn -> Application.put_env(:eth, Eth.GameRules, previous) end)
+    Eth.GameRules.reload()
+
+    on_exit(fn ->
+      Application.put_env(:eth, Eth.GameRules, previous)
+      Eth.GameRules.reload()
+    end)
   end
 
   test "atiende la demanda por prioridad, guarda en ETS y PostgreSQL y no repite pares vigentes" do

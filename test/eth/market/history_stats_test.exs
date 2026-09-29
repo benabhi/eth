@@ -27,7 +27,12 @@ defmodule Eth.Market.HistoryStatsTest do
         Keyword.put(previous, :downtime_window_utc, {~T[10:59:00], ~T[11:15:00]})
       )
 
-      on_exit(fn -> Application.put_env(:eth, Eth.GameRules, previous) end)
+      on_exit(fn ->
+        Application.put_env(:eth, Eth.GameRules, previous)
+        Eth.GameRules.reload()
+      end)
+
+      Eth.GameRules.reload()
     end
 
     test "antes del fin del downtime el último día publicado es anteayer" do
