@@ -207,7 +207,7 @@ flowchart LR
 | Autenticación | Ueberauth + estrategia EVE SSO propia; Joken o JOSE para JWT | — | `ueberauth_eve_sso` no se mantiene. |
 | Persistencia | PostgreSQL 18 + Ecto; Cloak.Ecto | — | Refresh tokens cifrados, perfiles, historial, viajes. |
 | Jobs | Oban (+ Oban Web) | — | Tareas periódicas y durables: SDE diario, historial post-DT, línea base, P&L, limpieza. |
-| Grafos | BFS propio + libgraph (Dijkstra ponderado) | — | Matrices de distancia precomputadas. |
+| Grafos | BFS propio (sin dependencias) | — | Matrices de distancia precomputadas; el Dijkstra ponderado del modo Evasiva (F6) también será propio. |
 | Memoria | ETS · `:persistent_term` | — | Órdenes, oportunidades y calor en ETS; SDE y matrices en `persistent_term`. |
 | Observabilidad | `:telemetry`, Telemetry.Metrics, Phoenix LiveDashboard | — | |
 | Calidad | ExUnit, StreamData, Mox, Credo, Dialyxir, Sobelow, mix_audit, Benchee | — | |
@@ -487,9 +487,11 @@ Con `ETH_DATA_SOURCE=replay`, el sistema reproduce snapshots grabados (`mix eth.
 
 Sistemas (nombre, seguridad real, constelación, región), stargates y sus destinos, regiones, constelaciones, estaciones NPC (nombre, sistema, corporación dueña), tipos (nombre localizado, volumen, capacidad, grupo, categoría, grupo de mercado, `published`), grupos y categorías, corporaciones NPC → facción y, *(C)*, atributos de naves para estimar tiempos. Los nombres exactos de archivos y campos se toman del esquema publicado del SDE.
 
+El SDE **no trae el nombre armado de las estaciones** (solo índices de planeta y luna, corporación y operación). Se resuelven con ESI `/universe/names` (6 requests para ≈ 5.200 estaciones) al procesar cada build; si ESI no responde, se componen con la regla del cliente (`<sistema> <planeta romano> - Moon <n> - <corporación> <operación>`), que no contempla los planetas con nombre propio ("Amarr VIII (Oris)").
+
 #### RF-2.3 · Volumen empaquetado — M · F2
 
-El flete se calcula con el **volumen empaquetado** (en naves y algunos módulos difiere del volumen armado). Fuente: el SDE si lo incluye; si no, `/universe/types/{id}` (`packaged_volume`), pedido de forma perezosa y persistido por build.
+El flete se calcula con el **volumen empaquetado** (en naves y algunos módulos difiere del volumen armado). Fuente: el campo `packagedVolume` de `types.jsonl` (verificado 2026-09-29: Rifter 27.289 m³ armado vs 2.500 m³ empaquetado); si faltara, se usa `volume`. No hace falta pedirlo a ESI.
 
 #### RF-2.4 · Grafo de navegación y matrices de distancia — M · F2
 
@@ -498,6 +500,11 @@ El flete se calcula con el **volumen empaquetado** (en naves y algunos módulos 
 - Distancia en O(1) para el screening; los caminos concretos se calculan bajo demanda.
 
 **CA:** distancias verificadas contra casos conocidos (fixtures) y propiedades: simetría, `Segura ≥ Rápida` y desigualdad triangular.
+
+**Verificación contra ESI (2026-09-29, build 3552227: 5.227 sistemas ruteables, construcción 23 s, carga desde caché 0,4 s).** Se compararon 68 pares con `/latest/route` (la ruta sin versión `/route/{o}/{d}` figura en la especificación pero responde 404):
+
+- **Rápida:** idéntica en los pares entre hubs (Jita→Amarr 11, Jita→Dodixie 12, Jita→Rens 15, Amarr→Hek 15). Las diferencias en nullsec se deben a que ESI rutea por **Zarzakh** (excluido a propósito); ESI no encuentra ruta hacia la región **Exordium** (10001004), que el grafo sí conecta.
+- **Segura:** no es comparable. El `secure` de ESI significa "preferir seguro" (admite low/null y usa otro costo: Jita→Amarr 45 saltos), mientras que el modo Segura de la app es **estrictamente highsec** (seguridad real ≥ 0,45): Jita→Amarr 34 saltos. Si un extremo no es highsec, no hay ruta Segura.
 
 #### RF-2.5 · Modos de ruta y sistemas a evitar — M · F2 (Evasiva: S · F6)
 

@@ -75,6 +75,17 @@ defmodule EthWeb.ControlLiveTest do
     assert render(view) =~ "The Forge: Error"
   end
 
+  test "muestra el estado del SDE", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/control")
+
+    send(view.pid, {:sde_status, %{state: :ready, build: 3_552_227, routable_systems: 5227}})
+    assert view |> element("#sde-status") |> render() =~ "5,227"
+    assert view |> element("#sde-status") |> render() =~ "3552227"
+
+    send(view.pid, {:sde_status, %{state: :error, error: "sin red"}})
+    assert view |> element("#sde-status") |> render() =~ "sin red"
+  end
+
   test "los eventos llegan en vivo y se filtran", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/control")
 

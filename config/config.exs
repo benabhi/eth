@@ -73,6 +73,15 @@ config :eth, Eth.GameRules,
   circuit_breaker_open_ms: 600_000,
   # Frescura (RF-4.9): minutos para degradado / viejo / excluido
   staleness_minutes: {5, 15, 30},
+  # SDE (RF-2.1): URL base y chequeo de builds nuevos cada 6 h.
+  sde_base_url: "https://developers.eveonline.com/static-data",
+  sde_check_interval_ms: 21_600_000,
+  # Ruteo (RF-2.4): regiones fuera del grafo (Pochven y la región de Zarzakh, con
+  # mecánicas de gates especiales) y sistema raíz de la componente conexa principal (Jita).
+  excluded_route_region_ids: [10_000_070, 10_001_000],
+  route_root_system_id: 30_000_142,
+  # Umbral de highsec sobre la seguridad real (se muestra ≥ 0.5)
+  highsec_min_security: 0.45,
   # Downtime diario de Tranquility (UTC) (RF-1.8)
   downtime_window_utc: {~T[10:59:00], ~T[11:15:00]},
   status_poll_ms: 60_000

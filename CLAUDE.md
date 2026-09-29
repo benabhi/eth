@@ -2,7 +2,7 @@
 
 Instrucciones permanentes para Claude Code (y cualquier colaborador). La fuente de verdad funcional es **[docs/ERS.md](docs/ERS.md)**: antes de implementar, leer la sección del requisito (`RF-x.y` / `RNF-x.y`) y cumplir sus criterios de aceptación.
 
-**Estado actual:** fases **F0** y **F1** completas (cliente ESI con presupuesto, pollers regionales con snapshots ETS, downtime, reinicio en caliente, modo Replay y Centro de control). Pendiente menor de F1: métricas globales de 1 h (RF-8.9). Próxima: **F2 — SDE y ruteo**. Actualizar esta línea al cambiar de fase (ERS §12).
+**Estado actual:** fases **F0**, **F1** y **F2** completas (cliente ESI con presupuesto, pollers regionales con snapshots ETS, reinicio en caliente, modo Replay, Centro de control, SDE con caché por build y grafo con matrices de distancia Rápida/Segura). Pendiente menor de F1: métricas globales de 1 h (RF-8.9). Próxima: **F3 — Motor v1 + Cazador (MVP-0)**. Actualizar esta línea al cambiar de fase (ERS §12).
 
 ## Reglas innegociables
 
@@ -60,6 +60,7 @@ Presupuesto de ESI en desarrollo:
 - Por defecto docker-compose escanea solo los 5 hubs (`ETH_REGIONS`); `ETH_REGIONS=` (vacío) en `.env` escanea todo el universo.
 - Reiniciar no vuelve a descargar: los snapshots se guardan al apagar y se restauran al arrancar (RF-1.10).
 - Sin red: `docker compose exec phoenix mix eth.replay.record` graba los snapshots actuales y `ETH_DATA_SOURCE=replay docker compose up -d phoenix` los reproduce sin tocar ESI.
+- SDE: la primera vez se descarga (≈ 100 MB, ~25 s); después carga desde `priv/data/sde/processed-<build>.etf` en < 1 s. Borrar ese archivo fuerza reprocesar.
 
 ## Dónde va cada cosa
 

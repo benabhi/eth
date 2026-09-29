@@ -19,12 +19,7 @@ defmodule Eth.Market.Snapshots do
   @doc "Directorio de un tipo de snapshot (`:snapshots` o `:replay`)."
   @spec dir(:snapshots | :replay) :: Path.t()
   def dir(kind) when kind in [:snapshots, :replay],
-    do: Path.join(data_dir(), Atom.to_string(kind))
-
-  @doc "Directorio base de datos regenerables (volumen de datos, nunca en git)."
-  @spec data_dir() :: Path.t()
-  def data_dir,
-    do: Application.get_env(:eth, :data_dir) || Path.join(:code.priv_dir(:eth), "data")
+    do: Path.join(Eth.Storage.data_dir(), Atom.to_string(kind))
 
   # Las rutas se arman solo con el directorio de datos configurado y un region_id entero
   # (guard is_integer), nunca con entrada externa: se omite la regla de traversal de

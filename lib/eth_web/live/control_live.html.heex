@@ -10,7 +10,7 @@
   <%!-- Barra de salud global (RF-8.1) --%>
   <section
     aria-label={gettext("Salud global")}
-    class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6"
+    class="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7"
   >
     <div class="card bg-base-200 p-3">
       <div class="text-xs uppercase text-base-content/60">Tranquility</div>
@@ -97,6 +97,19 @@
           "órdenes"
         )}
       </div>
+    </div>
+
+    <div id="sde-status" class="card bg-base-200 p-3">
+      <div class="text-xs uppercase text-base-content/60">{gettext("Datos estáticos")}</div>
+      <% {sde_text, sde_class, sde_icon} = sde_label(@sde) %>
+      <div class={["font-semibold", sde_class]}>{sde_icon} {sde_text}</div>
+      <div :if={@sde[:build]} class="text-xs text-base-content/70 tabular-nums">
+        SDE {@sde.build}
+        <span :if={@sde[:routable_systems]}>
+          · {Format.integer(@sde.routable_systems)} {gettext("sistemas ruteables")}
+        </span>
+      </div>
+      <div :if={@sde[:error]} class="text-xs text-error">{@sde.error}</div>
     </div>
 
     <div class="card bg-base-200 p-3">

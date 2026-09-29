@@ -14,7 +14,7 @@ defmodule EthWeb.ControlLive do
   """
   use EthWeb, :live_view
 
-  alias Eth.{Clock, Events, Market}
+  alias Eth.{Clock, Events, Market, Sde}
   alias Eth.Esi.{Budget, ServerStatus}
   alias EthWeb.Format
 
@@ -27,6 +27,7 @@ defmodule EthWeb.ControlLive do
       Phoenix.PubSub.subscribe(Eth.PubSub, Market.status_topic())
       Phoenix.PubSub.subscribe(Eth.PubSub, Events.topic())
       Phoenix.PubSub.subscribe(Eth.PubSub, ServerStatus.topic())
+      Phoenix.PubSub.subscribe(Eth.PubSub, Sde.topic())
       schedule_tick()
     end
 
@@ -39,6 +40,7 @@ defmodule EthWeb.ControlLive do
       |> assign(:events, Events.recent(@event_limit))
       |> assign(:tiers, @tiers)
       |> assign(:dev_routes, Application.get_env(:eth, :dev_routes, false))
+      |> assign(:sde, Sde.status())
       |> refresh_health()
 
     {:ok, socket}
@@ -60,6 +62,7 @@ defmodule EthWeb.ControlLive do
   end
 
   def handle_info({:server_status, _status}, socket), do: {:noreply, refresh_health(socket)}
+  def handle_info({:sde_status, status}, socket), do: {:noreply, assign(socket, :sde, status)}
   def handle_info({:esi_paused, _until, _reason}, socket), do: {:noreply, refresh_health(socket)}
   def handle_info(:esi_resumed, socket), do: {:noreply, refresh_health(socket)}
 
@@ -249,6 +252,13 @@ defmodule EthWeb.ControlLive do
     do: round((limit - remaining) * 100 / limit)
 
   defp budget_used_pct(_budget), do: 0
+
+  defp sde_label(%{state: :ready}), do: {gettext("Listo"), "text-success", "●"}
+  defp sde_label(%{state: :downloading}), do: {gettext("Descargando"), "text-info", "◐"}
+  defp sde_label(%{state: :processing}), do: {gettext("Procesando"), "text-info", "◐"}
+  defp sde_label(%{state: :error}), do: {gettext("Error"), "text-error", "×"}
+  defp sde_label(%{state: :stopped}), do: {gettext("Detenido"), "text-base-content/70", "□"}
+  defp sde_label(_loading), do: {gettext("Cargando"), "text-base-content/70", "◐"}
 
   defp level_badge("error"), do: {"ERROR", "badge-error"}
   defp level_badge("warning"), do: {"AVISO", "badge-warning"}
