@@ -194,6 +194,16 @@ defmodule Eth.Engine.Coordinator do
     %{source: source, tid: entry.tid, region_id: id, last_modified: entry.meta.last_modified}
   end
 
+  # Estructura (RF-1.6): su región viene en el meta que guarda el Fetcher.
+  defp source({{:structure, _id} = source, entry}) do
+    %{
+      source: source,
+      tid: entry.tid,
+      region_id: entry.meta[:region_id],
+      last_modified: entry.meta.last_modified
+    }
+  end
+
   defp publish({summarized, types, opportunities, stats}, state) do
     tid = :ets.new(:eth_opportunities, [:set, :public, read_concurrency: true])
     :ets.insert(tid, Enum.map(opportunities, &{&1.id, &1}))

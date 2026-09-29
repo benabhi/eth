@@ -82,6 +82,54 @@ defmodule Eth.Engine.EvaluationTest do
     end
   end
 
+  describe "estructuras (RF-1.6)" do
+    test "CA: una orden de estructura que también trae la región no se cuenta dos veces" do
+      if :ets.whereis(:eth_engine_summaries) == :undefined, do: Summary.create_table()
+      structure = F.perimeter_station()
+
+      # La región trae la venta de Jita y, además, la compra de la estructura.
+      F.publish_orders([
+        {:sell, @tritanium, 4.0, 100_000, F.jita_44(), F.jita(), []},
+        {:buy, @tritanium, 5.0, 50_000, structure, F.perimeter(), []}
+      ])
+
+      # La estructura, leída directo, trae la misma orden de compra.
+      tid = :ets.new(:eth_orders, [:ordered_set, :public])
+
+      :ets.insert(
+        tid,
+        Eth.Market.Order.to_row(
+          %{
+            "order_id" => 2,
+            "type_id" => @tritanium,
+            "is_buy_order" => true,
+            "price" => 5.0,
+            "location_id" => structure,
+            "system_id" => F.perimeter(),
+            "volume_remain" => 50_000,
+            "min_volume" => 1,
+            "range" => "station",
+            "issued" => "2026-09-28T12:00:00Z"
+          },
+          1
+        )
+      )
+
+      now = DateTime.utc_now()
+      meta = %{last_modified: now, expires: now, region_id: 10_000_002, system_id: F.perimeter()}
+      {:ok, _} = TableOwner.publish(tid, {:structure, structure}, meta)
+
+      sources =
+        for {source, entry} <- TableOwner.all() do
+          Summary.replace(source, entry.tid)
+          %{source: source, tid: entry.tid, region_id: 10_000_002, last_modified: now}
+        end
+
+      [opp] = Evaluator.run(sources, [@tritanium], tax: Fees.sales_tax(4), min_profit: 1_000)
+      assert opp.quantity == 50_000
+    end
+  end
+
   describe "consulta personalizada" do
     setup do
       opps =

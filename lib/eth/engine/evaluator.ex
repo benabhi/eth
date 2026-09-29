@@ -43,6 +43,9 @@ defmodule Eth.Engine.Evaluator do
       sources: sources,
       tax: Keyword.fetch!(opts, :tax),
       screen_tax: Fees.min_sales_tax(),
+      # Estructuras leídas directo: sus órdenes se descartan de las fuentes regionales, que
+      # pueden traer parte de ellas (RF-1.6: ninguna orden aparece dos veces).
+      direct: for(%{source: {:structure, id}} <- sources, into: MapSet.new(), do: id),
       min_profit: Keyword.fetch!(opts, :min_profit),
       min_margin: GameRules.get(:min_unit_margin_isk)
     }
@@ -60,7 +63,7 @@ defmodule Eth.Engine.Evaluator do
   @spec evaluate_type(pos_integer(), map()) :: [Opportunity.t()]
   def evaluate_type(type_id, ctx) do
     with %{} = type <- Sde.type(type_id),
-         {asks, bids} when asks != [] and bids != [] <- gather(type_id, ctx.sources) do
+         {asks, bids} when asks != [] and bids != [] <- gather(type_id, ctx) do
       best_bid = bids |> Enum.map(& &1.price) |> Enum.max()
       screen_net = best_bid * (1 - ctx.screen_tax)
 
@@ -75,9 +78,9 @@ defmodule Eth.Engine.Evaluator do
   end
 
   # Mejores ventas por ubicación y compras de todas las fuentes, con su región y fuente.
-  defp gather(type_id, sources) do
-    Enum.reduce(sources, {[], []}, fn src, {asks, bids} ->
-      {src_asks, src_bids} = Summary.get(src.source, type_id)
+  defp gather(type_id, ctx) do
+    Enum.reduce(ctx.sources, {[], []}, fn src, {asks, bids} ->
+      {src_asks, src_bids} = src.source |> Summary.get(type_id) |> dedupe_direct(src, ctx.direct)
 
       asks =
         Enum.reduce(src_asks, asks, fn {price, loc, sys}, acc ->
@@ -107,6 +110,18 @@ defmodule Eth.Engine.Evaluator do
 
       {asks, bids}
     end)
+  end
+
+  # Una fuente regional no aporta órdenes de estructuras que se leen directo.
+  defp dedupe_direct(summary, %{source: {:structure, _}}, _direct), do: summary
+
+  defp dedupe_direct({asks, bids} = summary, _region_src, direct) do
+    if MapSet.size(direct) == 0 do
+      summary
+    else
+      {Enum.reject(asks, &MapSet.member?(direct, elem(&1, 1))),
+       Enum.reject(bids, &MapSet.member?(direct, elem(&1, 1)))}
+    end
   end
 
   defp evaluate_origin(origin, bids, type_id, type, ctx) do

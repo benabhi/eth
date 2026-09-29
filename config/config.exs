@@ -184,6 +184,9 @@ config :eth, Eth.GameRules,
   # Downtime diario de Tranquility (UTC) (RF-1.8)
   downtime_window_utc: {~T[10:59:00], ~T[11:15:00]},
   status_poll_ms: 60_000,
+  # Estructuras (RF-1.6): top de públicas por órdenes y sincronización horaria.
+  structures_top: 30,
+  structures_refresh_ms: 3_600_000,
   # Historial bajo demanda (RF-1.12, RNF-3.5): ESI admite 300 req/min; se deja margen.
   history_max_per_min: 250,
   history_concurrency: 4,
