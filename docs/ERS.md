@@ -107,7 +107,7 @@ Verificado contra la documentación oficial vigente al 2026-09-28 (fuentes en el
 | # | Supuesto del borrador | Realidad verificada | Impacto en el diseño |
 |---|---|---|---|
 | 1 | Radar de kills con "polling en vivo de ESI". | ESI no ofrece un stream global de killmails; `/universe/system_kills` agrega la última hora con caché de 1 h. RedisQ de zKillboard se discontinuó el **31-may-2026**; su reemplazo es **R2Z2**. | Radar = zKillboard R2Z2 (tiempo real) + ESI `system_kills`/`system_jumps` (línea base). RF-3.x |
-| 2 | Descarga libre de todas las regiones. | Desde el **24-feb-2026**, `/markets/{region_id}/orders` tiene rate limit: **12.000 tokens / 15 min por IP** (2XX = 2 tokens, 3XX = 1, 4XX = 5, 5XX = 0). Escanear las 113 regiones de ESI (≈ 1.723 páginas) cada 5 min consume ≈ 10.338 tokens: **≈ 86 %**. | Gestor de presupuesto, niveles de prioridad, ETag/304 y exclusión de regiones sin mercado. RF-1.2, RF-1.7 |
+| 2 | Descarga libre de todas las regiones. | Desde el **24-feb-2026**, `/markets/{region_id}/orders` tiene rate limit: **12.000 tokens / 15 min por IP** (2XX = 2 tokens, 3XX = 1, 4XX = 5, 5XX = 0). Escanear las 113 regiones de ESI (≈ 1.723 páginas) cada 5 min consume ≈ 10.338 tokens: **≈ 86 %**. Medido el 2026-09-29 sobre las 69 regiones escaneables: 1.595 páginas ⇒ **≈ 80 %** (§8.11). | Gestor de presupuesto, niveles de prioridad, ETag/304 y exclusión de regiones sin mercado. RF-1.2, RF-1.7 |
 | 3 | Historial de precios para todas las oportunidades. | `/markets/{region_id}/history` devuelve **un tipo en una región por request**, con un límite de **300 req/min**, y se actualiza una vez por día. | Historial **bajo demanda**, solo para candidatos, cacheado hasta el downtime. RF-1.12 |
 | 4 | "Broker Fee/Sales Tax" siempre. | En arbitraje instantáneo (comprar a órdenes de venta y vender a órdenes de compra) **no se paga broker fee**, solo *sales tax*: 7,5 % × (1 − 0,11 × Accounting) = 3,375 % con Accounting V (vigente desde el 12-mar-2025). El broker fee solo se paga al **publicar** órdenes. | Impuestos según el modo de ejecución. RF-4.5 |
 | 5 | Venta solo en la estación de la orden. | Las órdenes de compra tienen **rango** (estación, sistema, N saltos, región) y `min_volume`: se puede vender desde otra estación dentro del rango. | Venta remota por rango: rutas más cortas y oportunidades "sin moverse". RF-4.3 |
@@ -1419,6 +1419,12 @@ Universo completo (113 regiones ESI, ≈ 1.723 páginas, dato de CCP de feb-2026
     1.723 páginas × 2 tokens  =  3.446 tokens por ciclo de 5 min
     × 3 ciclos por ventana    = 10.338 tokens / 15 min  ⇒  ≈ 86 % del presupuesto
 Ahorros: excluir regiones sin mercado útil, 304 (1 token) en páginas sin cambios, niveles.
+
+Medición real (2026-09-29, X-Pages de las 69 regiones escaneables):
+    1.595 páginas × 2 tokens  =  3.190 tokens por ciclo
+    × 3 ciclos por ventana    =  9.570 tokens / 15 min  ⇒  ≈ 80 % del presupuesto
+    Concentración: 4 regiones (The Forge 405, Domain 183, Metropolis 120, Sinq Laison 115)
+    suman 823 páginas (52 %); 32 regiones tienen 1 sola página. Los 5 hubs: 894 páginas.
 ```
 
 | Presupuesto restante del grupo | N1 Hubs | N2 Activas | N3 Resto |
