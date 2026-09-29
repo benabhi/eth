@@ -303,30 +303,32 @@ defmodule EthWeb.HunterLive do
   defp shield_class(_status), do: "badge-ghost"
 
   @doc false
-  # Puntos de un sparkline SVG (viewBox 0 0 120 32) con los promedios diarios; los días
-  # sin operaciones cortan la línea. Devuelve una lista de tramos `"x,y x,y …"`.
-  @spec sparkline([float() | nil]) :: [String.t()]
+  # Puntos `"x,y x,y …"` de un sparkline SVG (viewBox 0 0 120 32) con los promedios
+  # diarios: une los días con operaciones, cada uno en su posición del calendario. `nil`
+  # si no hubo ninguno; un único día se dibuja como un trazo corto.
+  @spec sparkline([float() | nil]) :: String.t() | nil
   def sparkline(values) do
-    present = Enum.reject(values, &is_nil/1)
-
-    if present == [] do
-      []
-    else
-      {low, high} = Enum.min_max(present)
-      span = if high - low > 0, do: high - low, else: 1.0
-      step = 120 / max(length(values) - 1, 1)
-
+    points =
       values
       |> Enum.with_index()
-      |> Enum.chunk_by(fn {value, _i} -> is_nil(value) end)
-      |> Enum.reject(fn [{value, _i} | _] -> is_nil(value) end)
-      |> Enum.map(fn chunk ->
-        Enum.map_join(chunk, " ", fn {value, i} ->
-          x = Float.round(i * step, 1)
-          y = Float.round(30 - (value - low) / span * 28, 1)
-          "#{x},#{y}"
+      |> Enum.reject(fn {value, _i} -> is_nil(value) end)
+
+    case points do
+      [] ->
+        nil
+
+      [{_value, i}] ->
+        x = i * 120 / max(length(values) - 1, 1)
+        "#{Float.round(max(x - 2, 0.0), 1)},16 #{Float.round(min(x + 2, 120.0), 1)},16"
+
+      _many ->
+        {low, high} = points |> Enum.map(&elem(&1, 0)) |> Enum.min_max()
+        span = if high - low > 0, do: high - low, else: 1.0
+        step = 120 / max(length(values) - 1, 1)
+
+        Enum.map_join(points, " ", fn {value, i} ->
+          "#{Float.round(i * step, 1)},#{Float.round(30 - (value - low) / span * 28, 1)}"
         end)
-      end)
     end
   end
 

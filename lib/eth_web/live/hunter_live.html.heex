@@ -368,15 +368,15 @@
         <%= if h = r.history.destination do %>
           <div id="history" class="text-sm">
             <svg
-              :if={sparkline(h.daily_avg) != []}
+              :if={sparkline(h.daily_avg)}
               viewBox="0 0 120 32"
+              preserveAspectRatio="none"
               class="h-10 w-full text-primary"
               role="img"
               aria-label={gettext("Precio promedio diario de los últimos 30 días")}
             >
               <polyline
-                :for={points <- sparkline(h.daily_avg)}
-                points={points}
+                points={sparkline(h.daily_avg)}
                 fill="none"
                 stroke="currentColor"
                 stroke-width="1.5"
