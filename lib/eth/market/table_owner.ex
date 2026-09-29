@@ -73,6 +73,8 @@ defmodule Eth.Market.TableOwner do
     :ets.insert(@catalog, {source, %{tid: tid, generation: generation, meta: meta}})
     send(caller, {ref, generation})
     Phoenix.PubSub.broadcast(Eth.PubSub, topic(source), {:snapshot, source, generation, meta})
+    # Tópico general para el motor de evaluación (RF-4.13).
+    Phoenix.PubSub.broadcast(Eth.PubSub, "market:snapshots", {:snapshot, source, generation})
     {:noreply, state}
   end
 

@@ -105,6 +105,11 @@ config :eth, Eth.GameRules,
   },
   stop_overhead_s: 180,
   guest_ship_class: :industrial,
+  # Bodega por defecto del modo invitado (Iteron Mark V con módulos de carga). Sin este
+  # tope el ranking lo dominan cargas imposibles (capitales, millones de m³).
+  guest_cargo_m3: 38_500,
+  # Certeza de acceso (ERS §8.9): estructura con mercado público 0,9; NPC 1.
+  structure_access_certainty: 0.9,
   # TVS y Certeza (ERS §8.9)
   tvs_weights: %{isk_per_hour: 0.40, profit: 0.25, roi: 0.15, liquidity: 0.20},
   tvs_refs: %{isk_per_hour: 150_000_000, profit: 100_000_000, roi: 0.25},
