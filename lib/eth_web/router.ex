@@ -17,7 +17,7 @@ defmodule EthWeb.Router do
   scope "/", EthWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", HunterLive
     live "/control", ControlLive
   end
 

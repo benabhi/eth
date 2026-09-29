@@ -111,6 +111,9 @@ defmodule Eth.Engine.Query do
         profit: result.profit,
         avg_buy: result.avg_buy,
         avg_sell: result.avg_sell,
+        # Órdenes consumidas por la cantidad personalizada (no la universal).
+        asks_used: result.asks_used,
+        bids_used: result.bids_used,
         roi: roi,
         cargo_m3: result.quantity * opp.unit_volume,
         jumps_to_origin: to_origin,
@@ -156,7 +159,9 @@ defmodule Eth.Engine.Query do
         tax: opp.tax,
         profit: opp.profit,
         avg_buy: opp.avg_buy,
-        avg_sell: opp.avg_sell
+        avg_sell: opp.avg_sell,
+        asks_used: opp.asks,
+        bids_used: opp.bids
       }
     else
       Book.walk(opp.asks, opp.bids, Fees.sales_tax(p.accounting), %{

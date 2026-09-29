@@ -80,6 +80,16 @@ defmodule EthWeb.Format do
 
   def duration(seconds), do: "#{pad(div(seconds, 60))}:#{pad(rem(seconds, 60))}"
 
+  @doc "Duración de viaje legible: `18 min`, `1 h 02 min` (redondeo al minuto)."
+  @spec travel(non_neg_integer()) :: String.t()
+  def travel(seconds) do
+    minutes = round(seconds / 60)
+
+    if minutes < 60,
+      do: "#{max(minutes, 1)} min",
+      else: "#{div(minutes, 60)} h #{pad(rem(minutes, 60))} min"
+  end
+
   @doc "Antigüedad relativa en español: `hace 4 s`, `hace 9 min`, `hace 2 h`."
   @spec ago(DateTime.t() | nil, DateTime.t()) :: String.t()
   def ago(nil, _now), do: "—"

@@ -1,0 +1,341 @@
+<Layouts.app flash={@flash} active={:hunter} wide>
+  <div class="flex flex-wrap items-baseline justify-between gap-2">
+    <h1 class="text-2xl font-bold">{gettext("Cazador de trades")}</h1>
+    <p id="hunter-status" class="text-sm text-base-content/70 tabular-nums">
+      <%= if @meta do %>
+        {gettext("%{total} oportunidades", total: Format.integer(@total))} · {gettext(
+          "evaluado %{ago}",
+          ago: Format.ago(@meta.evaluated_at, @now)
+        )} · v{@meta.version} · {gettext("motor %{ms} ms", ms: @meta.duration_ms)}
+      <% else %>
+        {gettext("El motor todavía no evaluó el mercado: espera el primer ciclo de descarga.")}
+      <% end %>
+    </p>
+  </div>
+
+  <%!-- Filtros (RF-6.4) --%>
+  <.form
+    for={@form}
+    id="filters"
+    phx-change="filter"
+    phx-submit="filter"
+    class="card border border-base-300 p-4"
+  >
+    <div class="grid grid-cols-2 gap-x-3 md:grid-cols-4 xl:grid-cols-9">
+      <div class="col-span-2 md:col-span-4 xl:col-span-2">
+        <.input
+          field={@form[:search]}
+          label={gettext("Buscar")}
+          placeholder={gettext("Objeto, estación, sistema o región")}
+          phx-debounce="300"
+        />
+      </div>
+      <.input
+        field={@form[:route_mode]}
+        type="select"
+        label={gettext("Ruta")}
+        options={[{gettext("Segura (solo highsec)"), "secure"}, {gettext("Rápida"), "shortest"}]}
+      />
+      <.input field={@form[:max_jumps]} type="number" min="0" label={gettext("Saltos máx.")} />
+      <.input
+        field={@form[:min_profit]}
+        label={gettext("Beneficio ≥")}
+        placeholder="1M"
+        phx-debounce="400"
+      />
+      <.input
+        field={@form[:min_roi]}
+        type="number"
+        min="0"
+        step="0.1"
+        label={gettext("ROI ≥ (%)")}
+      />
+      <.input
+        field={@form[:capital]}
+        label={gettext("Capital")}
+        placeholder={gettext("sin límite")}
+        phx-debounce="400"
+      />
+      <.input
+        field={@form[:cargo_m3]}
+        type="number"
+        min="0"
+        label={gettext("Bodega (m³)")}
+        placeholder={gettext("sin límite")}
+        phx-debounce="400"
+      />
+      <.input
+        field={@form[:accounting]}
+        type="select"
+        label={gettext("Accounting")}
+        options={for level <- 0..5, do: {"#{level}", "#{level}"}}
+      />
+    </div>
+    <div class="mt-2 flex flex-wrap items-center gap-3">
+      <div class="w-48">
+        <.input
+          field={@form[:sort]}
+          type="select"
+          label={gettext("Ordenar por")}
+          options={[
+            {"TVS", "tvs"},
+            {gettext("Beneficio"), "profit"},
+            {"ISK/h", "isk_per_hour"},
+            {"ROI", "roi"},
+            {gettext("Saltos"), "jumps"},
+            {gettext("Inversión"), "cost"},
+            {gettext("Frescura"), "age"}
+          ]}
+        />
+      </div>
+      <button type="button" phx-click="reset_filters" class="btn btn-ghost btn-sm">
+        {gettext("Restablecer")}
+      </button>
+      <span class="text-xs text-base-content/60">
+        {gettext(
+          "Modo invitado: impuestos, capital y bodega manuales. Montos con sufijo: 5M, 1.5B."
+        )}
+      </span>
+    </div>
+  </.form>
+
+  <div class="grid gap-6 2xl:grid-cols-[1fr_28rem]">
+    <section aria-labelledby="opps-title" class="card border border-base-300">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-base-300 p-3">
+        <h2 id="opps-title" class="font-semibold">
+          {gettext("Oportunidades")}
+          <span class="text-sm font-normal text-base-content/60">
+            · {route_label(@query.route_mode)} · {gettext("máx. 200 filas")}
+          </span>
+        </h2>
+        <div class="flex items-center gap-2">
+          <span :if={@frozen and @pending > 0} class="badge badge-warning">
+            {ngettext("%{count} cambio pendiente", "%{count} cambios pendientes", @pending)}
+          </span>
+          <button
+            id="freeze"
+            type="button"
+            phx-click="toggle_freeze"
+            aria-pressed={to_string(@frozen)}
+            class={["btn btn-sm", if(@frozen, do: "btn-warning", else: "btn-outline")]}
+          >
+            {if @frozen, do: gettext("Aplicar y reanudar"), else: gettext("Congelar")}
+          </button>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>{gettext("Objeto y flete")}</th>
+              <th>{gettext("Origen → Destino")}</th>
+              <th>{gettext("Ruta")}</th>
+              <th class="text-right">{gettext("Beneficio")}</th>
+              <th class="text-right">ISK/h</th>
+              <th class="text-right">{gettext("TVS")}</th>
+              <th><span class="sr-only">{gettext("Acciones")}</span></th>
+            </tr>
+          </thead>
+          <tbody id="opportunities" phx-update="stream">
+            <tr id="opportunities-empty" class="hidden only:table-row">
+              <td colspan="7" class="py-8 text-center text-base-content/60">
+                {gettext(
+                  "Sin oportunidades con estos filtros. Probá bajar el beneficio mínimo o el ROI."
+                )}
+              </td>
+            </tr>
+            <tr
+              :for={{dom_id, row} <- @streams.rows}
+              id={dom_id}
+              phx-click="select"
+              phx-value-id={row.id}
+              class={[
+                "cursor-pointer align-top hover:bg-base-200",
+                @selected == row.id && "bg-base-200"
+              ]}
+            >
+              <td class="max-w-56">
+                <div class="flex items-center gap-2">
+                  <img
+                    src={"https://images.evetech.net/types/#{row.opportunity.type_id}/icon?size=32"}
+                    alt=""
+                    width="24"
+                    height="24"
+                    loading="lazy"
+                  />
+                  <span class="truncate font-semibold">{row.opportunity.type_name}</span>
+                </div>
+                <div class="text-xs text-base-content/70 tabular-nums">
+                  ×{Format.integer(row.quantity)} · {Format.integer(round(row.cargo_m3))} m³
+                </div>
+              </td>
+              <td class="max-w-80 text-sm">
+                <div class="truncate" title={row.opportunity.origin.name}>
+                  <span style={sec_style(row.opportunity.origin.security)} class="font-mono">
+                    {sec_label(row.opportunity.origin.security)}
+                  </span>
+                  {row.opportunity.origin.name}
+                </div>
+                <div class="truncate" title={row.opportunity.destination.name}>
+                  →
+                  <span style={sec_style(row.opportunity.destination.security)} class="font-mono">
+                    {sec_label(row.opportunity.destination.security)}
+                  </span>
+                  {row.opportunity.destination.name}
+                </div>
+                <div class="flex gap-1">
+                  <span :if={row.opportunity.remote_sale} class="badge badge-info badge-xs">
+                    ↔ {gettext("venta por rango")}
+                  </span>
+                  <span
+                    :if={
+                      row.opportunity.origin.structure or row.opportunity.destination.structure
+                    }
+                    class="badge badge-neutral badge-xs"
+                  >
+                    {gettext("estructura")}
+                  </span>
+                </div>
+              </td>
+              <td class="text-sm tabular-nums">
+                {row.jumps_to_origin}+{row.jumps}
+                <div class="text-xs text-base-content/60">
+                  ETA {Format.travel(row.seconds)}
+                </div>
+              </td>
+              <td class="text-right tabular-nums">
+                <div class="font-semibold">{Format.compact(row.profit)}</div>
+                <div class="text-xs text-base-content/60">
+                  {gettext("inv.")} {Format.compact(row.cost)} · {pct(row.roi)}
+                </div>
+              </td>
+              <td class="text-right tabular-nums">{Format.compact(row.isk_per_hour)}</td>
+              <td class="text-right">
+                <span class={["badge badge-sm", tvs_class(row.tvs)]}>{row.tvs}</span>
+                <div class="text-xs text-base-content/60 tabular-nums">{pct(row.certainty)}</div>
+              </td>
+              <td>
+                <button
+                  id={"copy-#{row.id}"}
+                  type="button"
+                  phx-hook=".Clipboard"
+                  data-text={multibuy(row)}
+                  class="btn btn-ghost btn-xs"
+                  title={gettext("Copiar Multibuy")}
+                >
+                  <.icon name="hero-clipboard-document" class="size-4" />
+                  <span class="sr-only">{gettext("Copiar Multibuy")}</span>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <%!-- Detalle y explicabilidad (RF-6.5) --%>
+    <aside
+      id="detail"
+      aria-labelledby="detail-title"
+      class="card h-fit border border-base-300 p-4"
+    >
+      <%= if r = @selected_row do %>
+        <h2 id="detail-title" class="text-lg font-semibold">{r.opportunity.type_name}</h2>
+        <p class="text-sm">
+          {r.opportunity.origin.name}<br />→ {r.opportunity.destination.name}
+        </p>
+        <p class="text-xs text-base-content/60">
+          {route_label(@query.route_mode)} · {r.jumps_to_origin} {gettext("saltos al origen")} + {r.jumps} {gettext(
+            "al destino"
+          )} · ETA {Format.travel(r.seconds)}
+        </p>
+
+        <h3 class="mt-3 text-sm font-semibold">{gettext("Cálculo")}</h3>
+        <dl class="grid grid-cols-[auto_1fr] gap-x-3 text-sm tabular-nums">
+          <dt class="text-base-content/60">{gettext("Cantidad")}</dt>
+          <dd>{Format.integer(r.quantity)} ({Format.integer(round(r.cargo_m3))} m³)</dd>
+          <dt class="text-base-content/60">{gettext("Compra promedio")}</dt>
+          <dd>{Format.compact(r.avg_buy)}</dd>
+          <dt class="text-base-content/60">{gettext("Venta promedio")}</dt>
+          <dd>{Format.compact(r.avg_sell)}</dd>
+          <dt class="text-base-content/60">{gettext("Inversión")}</dt>
+          <dd>{Format.compact(r.cost)}</dd>
+          <dt class="text-base-content/60">{gettext("Sales tax")}</dt>
+          <dd>{Format.compact(r.tax)} ({pct(r.tax_rate)})</dd>
+          <dt class="text-base-content/60">{gettext("Ingreso neto")}</dt>
+          <dd>{Format.compact(r.revenue)}</dd>
+          <dt class="text-base-content/60">{gettext("Beneficio")}</dt>
+          <dd class="font-semibold">{Format.compact(r.profit)} (ROI {pct(r.roi)})</dd>
+          <dt class="text-base-content/60">ISK/h</dt>
+          <dd>{Format.compact(r.isk_per_hour)}</dd>
+        </dl>
+
+        <h3 class="mt-3 text-sm font-semibold">{gettext("Libro consumido")}</h3>
+        <div class="grid grid-cols-2 gap-2 font-mono text-xs">
+          <div>
+            <div class="text-base-content/60">{gettext("Compra (ventas)")}</div>
+            <div :for={{price, qty} <- r.asks_used}>
+              {Format.compact(price)} × {Format.integer(qty)}
+            </div>
+          </div>
+          <div>
+            <div class="text-base-content/60">{gettext("Venta (compras)")}</div>
+            <div :for={{price, qty, min_volume} <- r.bids_used}>
+              {Format.compact(price)} × {Format.integer(qty)}<span :if={min_volume > 1}> (mín. {min_volume})</span>
+            </div>
+          </div>
+        </div>
+
+        <h3 class="mt-3 text-sm font-semibold">
+          {gettext("¿Por qué TVS %{tvs}?", tvs: r.tvs)}
+        </h3>
+        <p class="text-xs tabular-nums">
+          {gettext("utilidad")} {:erlang.float_to_binary(r.utility, decimals: 2)} × {gettext(
+            "certeza"
+          )} {:erlang.float_to_binary(r.certainty, decimals: 2)}
+        </p>
+        <ul class="text-xs text-base-content/80 tabular-nums">
+          <li>
+            {gettext("Órdenes vigentes al llegar")}: {pct(r.breakdown.order_certainty)}
+          </li>
+          <li>{gettext("Frescura de datos")}: {pct(r.breakdown.data_certainty)}</li>
+          <li>{gettext("Acceso")}: {pct(r.breakdown.access_certainty)}</li>
+          <li>
+            {gettext("Liquidez (provisional hasta tener historial, F5)")}: {pct(
+              r.breakdown.liquidity
+            )}
+          </li>
+        </ul>
+
+        <button
+          id="copy-detail"
+          type="button"
+          phx-hook=".Clipboard"
+          data-text={multibuy(r)}
+          class="btn btn-primary btn-sm mt-4"
+        >
+          <.icon name="hero-clipboard-document" class="size-4" /> {gettext("Copiar Multibuy")}
+        </button>
+      <% else %>
+        <h2 id="detail-title" class="text-lg font-semibold">{gettext("Detalle")}</h2>
+        <p class="text-sm text-base-content/70">
+          {gettext(
+            "Elegí una oportunidad para ver el cálculo, el libro consumido y el porqué de su TVS."
+          )}
+        </p>
+      <% end %>
+    </aside>
+  </div>
+
+  <script :type={Phoenix.LiveView.ColocatedHook} name=".Clipboard">
+    export default {
+      mounted() {
+        this.el.addEventListener("click", (event) => {
+          event.stopPropagation()
+          navigator.clipboard.writeText(this.el.dataset.text).then(() => this.pushEvent("copied", {}))
+        })
+      }
+    }
+  </script>
+</Layouts.app>
