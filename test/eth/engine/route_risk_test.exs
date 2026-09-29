@@ -14,7 +14,7 @@ defmodule Eth.Engine.RouteRiskTest do
     :ok = EngineFixture.load_sde(tmp_dir)
   end
 
-  defp ctx(alerts \\ %{}, opts \\ []) do
+  defp ctx(alerts, opts \\ []) do
     %{
       base_risk: Keyword.get(opts, :base_risk, %{}),
       quiet: %{highsec: 0.0, lowsec: 0.0, nullsec: 0.0},

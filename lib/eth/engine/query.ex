@@ -15,7 +15,7 @@ defmodule Eth.Engine.Query do
   Implementa: RF-2.8, RF-4.6, RF-4.7, RF-4.8, RF-4.12, RF-4.14, RF-6.2, RF-6.4.
   """
 
-  alias Eth.Engine.{Book, Fees, Liquidity, Opportunity, Score, Shield}
+  alias Eth.Engine.{Book, Fees, Liquidity, Opportunity, RouteRisk, Score, Shield}
   alias Eth.{GameRules, Routing}
   alias Eth.Market.{History, Prices}
 
@@ -25,7 +25,7 @@ defmodule Eth.Engine.Query do
           optional(:accounting) => 0..5,
           optional(:capital) => number() | nil,
           optional(:cargo_m3) => number() | nil,
-          optional(:route_mode) => :shortest | :secure,
+          optional(:route_mode) => :shortest | :secure | :evasive,
           optional(:base_system_id) => pos_integer(),
           optional(:ship_class) => atom(),
           optional(:max_jumps) => pos_integer() | nil,
@@ -71,7 +71,7 @@ defmodule Eth.Engine.Query do
   """
   @spec run([Opportunity.t()], params(), DateTime.t()) :: {[map()], non_neg_integer()}
   def run(opportunities, params, now) do
-    p = Map.merge(defaults(), params)
+    p = defaults() |> Map.merge(params) |> Map.put_new_lazy(:risk, &RouteRisk.context/0)
     search = normalize(p.search)
 
     rows =
@@ -86,9 +86,12 @@ defmodule Eth.Engine.Query do
   @doc "Personaliza una oportunidad (`nil` si no es viable con estos parámetros)."
   @spec personalize(Opportunity.t(), map(), DateTime.t()) :: map() | nil
   def personalize(%Opportunity{} = opp, p, now) do
-    with jumps when is_integer(jumps) <- route_jumps(opp, p.route_mode),
-         to_origin when is_integer(to_origin) <-
-           Routing.distance(p.base_system_id, opp.origin.system_id, p.route_mode),
+    p = Map.put_new_lazy(p, :risk, &RouteRisk.context/0)
+
+    with [_ | _] = route <- path(opp.origin.system_id, opp.destination.system_id, p),
+         [_ | _] = to_origin_path <- path(p.base_system_id, opp.origin.system_id, p),
+         jumps = length(route) - 1,
+         to_origin = length(to_origin_path) - 1,
          result = recompute(opp, p),
          true <- result.quantity > 0 and result.profit >= p.min_profit,
          age_min = DateTime.diff(now, opp.last_modified, :second) / 60,
@@ -113,7 +116,10 @@ defmodule Eth.Engine.Query do
 
       access_certainty = access_certainty(opp)
       scam_certainty = Shield.certainty(shield.status)
-      certainty = order_certainty * data_certainty * scam_certainty * access_certainty
+      route_certainty = route_certainty(to_origin_path, route, result.cost, p)
+
+      certainty =
+        order_certainty * data_certainty * scam_certainty * access_certainty * route_certainty
 
       %{
         opportunity: opp,
@@ -143,7 +149,11 @@ defmodule Eth.Engine.Query do
         shield: shield,
         illiquid: Liquidity.illiquid?(dest_stats),
         history: %{destination: dest_stats, origin: origin_stats},
+        to_origin_path: to_origin_path,
+        route_path: route,
+        route_alerts: route_alerts(to_origin_path ++ route, p.risk),
         breakdown: %{
+          route_certainty: route_certainty,
           liquidity: liquidity,
           order_certainty: order_certainty,
           data_certainty: data_certainty,
@@ -178,8 +188,32 @@ defmodule Eth.Engine.Query do
       else: 1.0
   end
 
-  defp route_jumps(opp, :secure), do: opp.secure_jumps
-  defp route_jumps(opp, _shortest), do: opp.jumps
+  # Caminos del triángulo (RF-2.8): Rápida y Segura desde la matriz; Evasiva evita las
+  # alertas del radar sobre la restricción de Rápida (RF-2.5).
+  defp path(from, to, %{route_mode: :evasive, risk: risk}),
+    do: Routing.evasive_path(from, to, :shortest, &threat(risk, &1))
+
+  defp path(from, to, p), do: Routing.matrix_path(from, to, p.route_mode)
+
+  defp threat(risk, system_id) do
+    case risk.alerts do
+      %{^system_id => %{threat: threat}} -> threat
+      _ -> 0.0
+    end
+  end
+
+  # Ida vacía hasta el origen y viaje cargado hasta el destino (sin contar dos veces el
+  # sistema de origen).
+  defp route_certainty(to_origin_path, [_origin | loaded], cargo_value, p) do
+    RouteRisk.certainty(to_origin_path, p.ship_class, 0, p.risk) *
+      RouteRisk.certainty(loaded, p.ship_class, cargo_value, p.risk)
+  end
+
+  # Alertas del radar en el camino: cantidad y la más grave (para la insignia).
+  defp route_alerts(systems, risk) do
+    alerts = systems |> Enum.uniq() |> Enum.map(&risk.alerts[&1]) |> Enum.reject(&is_nil/1)
+    %{count: length(alerts), worst: Enum.max_by(alerts, & &1.threat, fn -> nil end)}
+  end
 
   defp recompute(opp, p) do
     guest? = p.accounting == GameRules.get(:guest_accounting_level)

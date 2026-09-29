@@ -21,6 +21,7 @@ defmodule Eth.Engine.RouteRisk do
   alias Eth.Threat.{Baseline, Radar}
 
   @type context :: %{
+          optional(:rules) => map(),
           base_risk: %{pos_integer() => float()},
           quiet: %{atom() => float()},
           alerts: %{pos_integer() => map()},
@@ -36,9 +37,25 @@ defmodule Eth.Engine.RouteRisk do
       base_risk: risk.by_system,
       quiet: risk.quiet,
       alerts: Radar.hot_systems() |> Enum.filter(& &1.alert) |> Map.new(&{&1.system_id, &1}),
-      degraded: Radar.degraded?()
+      degraded: Radar.degraded?(),
+      rules: rules()
     }
   end
+
+  # Reglas leídas una vez por consulta: `GameRules.get/1` copia la configuración en cada
+  # llamada y aquí se evaluaría por cada sistema de cada camino.
+  defp rules do
+    radar = GameRules.get(:radar)
+
+    %{
+      vulnerability: GameRules.get(:vulnerability),
+      max_alert: radar.max_alert_probability,
+      penalty: radar.degraded_penalty,
+      highsec_min: GameRules.get(:highsec_min_security)
+    }
+  end
+
+  defp rules(ctx), do: Map.get_lazy(ctx, :rules, &rules/0)
 
   @doc "Atractivo de la carga para los gankers: 10M → 0,05 · 100M → 0,33 · 1B → 0,67 · 10B → 1."
   @spec attractiveness(number()) :: float()
@@ -51,15 +68,19 @@ defmodule Eth.Engine.RouteRisk do
   @doc "Probabilidad de perder la nave en el sistema `s` (clase de nave y valor de carga)."
   @spec probability(pos_integer(), atom(), number(), context()) :: float()
   def probability(system_id, ship_class, cargo_value, ctx) do
-    v = vulnerability(ship_class)
-    base = Map.get(ctx.base_risk, system_id) || Map.fetch!(ctx.quiet, band(system_id))
+    r = rules(ctx)
+    probability(system_id, vulnerability(r, ship_class), cargo_value, ctx, r)
+  end
+
+  defp probability(system_id, v, cargo_value, ctx, r) do
+    base = Map.get(ctx.base_risk, system_id) || Map.fetch!(ctx.quiet, band(system_id, r))
     p_base = v.roaming * base
 
     p_alert =
       case ctx.alerts do
         %{^system_id => %{threat: threat, classification: %{type: type}}} ->
           a = if type == :hauler_gank, do: attractiveness(cargo_value), else: 1.0
-          min(GameRules.get(:radar).max_alert_probability, threat * v[type] * a)
+          min(r.max_alert, threat * v[type] * a)
 
         _ ->
           0.0
@@ -71,13 +92,14 @@ defmodule Eth.Engine.RouteRisk do
   @doc "Factor de Certeza de un camino: Π (1 − p_s), con la penalización si está degradado."
   @spec certainty([pos_integer()], atom(), number(), context()) :: float()
   def certainty(path, ship_class, cargo_value, ctx) do
-    penalty = GameRules.get(:radar).degraded_penalty
+    r = rules(ctx)
+    v = vulnerability(r, ship_class)
 
     Enum.reduce(path, 1.0, fn s, acc ->
-      factor = 1 - probability(s, ship_class, cargo_value, ctx)
+      factor = 1 - probability(s, v, cargo_value, ctx, r)
 
       factor =
-        if ctx.degraded and band(s) != :highsec, do: factor * penalty, else: factor
+        if ctx.degraded and band(s, r) != :highsec, do: factor * r.penalty, else: factor
 
       acc * factor
     end)
@@ -106,15 +128,15 @@ defmodule Eth.Engine.RouteRisk do
     end)
   end
 
-  defp vulnerability(ship_class) do
-    matrix = GameRules.get(:vulnerability)
-    Map.get(matrix, ship_class, matrix.other)
-  end
+  defp vulnerability(r, ship_class),
+    do: Map.get(r.vulnerability, ship_class, r.vulnerability.other)
 
-  defp band(system_id) do
+  # Misma regla que `Eth.Sde.security_band/1`, con el umbral ya leído.
+  defp band(system_id, r) do
     case Sde.system(system_id) do
-      %{security: sec} -> Sde.security_band(sec)
-      nil -> :nullsec
+      %{security: sec} when sec >= r.highsec_min -> :highsec
+      %{security: sec} when sec > 0 -> :lowsec
+      _ -> :nullsec
     end
   end
 end
