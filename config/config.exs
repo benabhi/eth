@@ -279,6 +279,9 @@ config :eth, Eth.GameRules,
     }
   }
 
+# zKillboard R2Z2 (RF-3.1, ERS §6.3).
+config :eth, Eth.Threat.R2Z2, base_url: "https://r2z2.zkillboard.com/ephemeral"
+
 # Configure esbuild (the version is required)
 config :esbuild,
   version: "0.25.4",

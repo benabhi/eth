@@ -51,6 +51,15 @@ config :eth,
           _ -> :live
         end)
 
+# Feed de killmails del radar (RF-3.1): r2z2 (por defecto) u off. En modo Replay se
+# reproducen las kills grabadas sin importar este valor.
+config :eth,
+       :killfeed,
+       (case System.get_env("ETH_KILLFEED", "r2z2") do
+          "off" -> :off
+          _ -> :r2z2
+        end)
+
 # Subconjunto de regiones (ETH_REGIONS=10000002,10000043). Vacío o ausente = todas.
 case System.get_env("ETH_REGIONS", "") |> String.split(",", trim: true) do
   [] ->

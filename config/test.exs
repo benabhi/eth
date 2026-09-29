@@ -25,6 +25,7 @@ config :eth, EthWeb.Endpoint,
 # sin stub hace fallar el test.
 config :eth, Eth.Esi.Client, req_options: [plug: {Req.Test, Eth.Esi.Client}]
 config :eth, Eth.Sde.Download, req_options: [plug: {Req.Test, Eth.Sde.Download}]
+config :eth, Eth.Threat.R2Z2, req_options: [plug: {Req.Test, Eth.Threat.R2Z2}]
 
 # SSO y bóveda con valores de prueba (nunca credenciales reales).
 config :eth, Eth.Sso,
