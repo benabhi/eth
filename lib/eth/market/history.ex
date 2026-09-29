@@ -192,19 +192,21 @@ defmodule Eth.Market.History do
     queue = Enum.drop_while(state.queue, &(MapSet.member?(inflight_pairs, &1) or fresh?(&1, now)))
 
     case queue do
-      [] ->
-        %{state | queue: []}
+      [] -> %{state | queue: []}
+      [pair | rest] -> launch(%{state | queue: queue}, pair, rest)
+    end
+  end
 
-      [pair | rest] ->
-        case RateWindow.take(state.window, mono()) do
-          {:wait, ms} ->
-            schedule(%{state | queue: queue}, ms)
+  # Lanza el request del primer par si la ventana lo permite; si no, espera a que se libere.
+  defp launch(state, pair, rest) do
+    case RateWindow.take(state.window, mono()) do
+      {:wait, ms} ->
+        schedule(state, ms)
 
-          {:ok, window} ->
-            task = Task.Supervisor.async_nolink(Eth.Market.TaskSupervisor, fn -> fetch(pair) end)
-            state = %{state | queue: rest, window: window}
-            pump(%{state | inflight: Map.put(state.inflight, task.ref, pair)})
-        end
+      {:ok, window} ->
+        task = Task.Supervisor.async_nolink(Eth.Market.TaskSupervisor, fn -> fetch(pair) end)
+        inflight = Map.put(state.inflight, task.ref, pair)
+        pump(%{state | queue: rest, window: window, inflight: inflight})
     end
   end
 
