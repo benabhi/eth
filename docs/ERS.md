@@ -442,6 +442,14 @@ Los estados *Degradado* y *Viejo* son derivados: dependen de la edad del último
 
 **CA:** una estructura con 403 no vuelve a pedirse para ese personaje antes de 24 h; ninguna orden aparece dos veces.
 
+**Implementación v1 (2026-09-29, F7):**
+
+- **Verificado contra ESI real:** hay 50 estructuras públicas con mercado; `/universe/structures/{id}` y `/markets/structures/{id}` responden con el token del personaje; las órdenes de estructura **no traen `system_id`** (se completa con el de la estructura) y no informan rate limit por cabeceras.
+- **Procesos:** `Eth.Market.StructureManager` sincroniza la lista pública cada hora, resuelve nombre y sistema (hasta 60 por ciclo) y mantiene un `Eth.Market.StructurePoller` por estructura seguida; el `Fetcher` es el mismo de las regiones (páginas, ETag y consistencia).
+- **Acceso:** el poller prueba primero a los personajes con acceso comprobado y nunca a uno con un 403 de menos de 24 h; ante un 403 pasa enseguida al siguiente. El acceso se publica en ETS para la Certeza de acceso (AS-8): NPC 1, privada verificada 0,95, pública 0,9, sin verificar o sin acceso 0,5.
+- **Duplicados:** se deduplica por **ubicación** en lugar de por `order_id`: si una estructura se lee directo, sus órdenes se descartan de la fuente regional. Es equivalente, porque el endpoint de la estructura trae su libro completo; un test verifica que ninguna orden cuenta dos veces.
+- **Medido (5 hubs):** 23 de las 50 públicas caen en las regiones habilitadas; todas se descargaron con acceso; 291 de 824 oportunidades usan una estructura en el origen o el destino. La consulta con estructuras mide p95 de 23–44 ms.
+
 #### RF-1.7 · Presupuesto de rate limit y guardas de error — M · F1
 
 - `Eth.Esi.Budget` mantiene, por grupo de rate limit (y por personaje en las rutas autenticadas), los últimos `X-Ratelimit-Limit` y `X-Ratelimit-Remaining`; por separado, el *error limit* legado (`X-ESI-Error-Limit-Remain` / `-Reset`).
