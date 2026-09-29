@@ -18,6 +18,7 @@ defmodule EthWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    live "/control", ControlLive
   end
 
   # Healthchecks (RNF-9.4)

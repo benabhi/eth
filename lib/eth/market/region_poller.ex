@@ -67,7 +67,7 @@ defmodule Eth.Market.RegionPoller do
   Descarga ahora, solo si ESI ya tiene datos nuevos (`Expires` vencido) o si la región
   está en error. Nunca elude la caché de ESI (RF-8.8).
   """
-  @spec refresh_now(pos_integer()) :: :ok | {:error, :not_expired | :busy}
+  @spec refresh_now(pos_integer()) :: :ok | {:error, :not_expired | :busy | :paused}
   def refresh_now(region_id), do: GenServer.call(via(region_id), :refresh_now)
 
   @doc "Pausa manual de la región."
@@ -94,6 +94,9 @@ defmodule Eth.Market.RegionPoller do
   def handle_call(:refresh_now, _from, %{status: :fetching} = state),
     do: {:reply, {:error, :busy}, state}
 
+  def handle_call(:refresh_now, _from, %{status: :paused} = state),
+    do: {:reply, {:error, :paused}, state}
+
   def handle_call(:refresh_now, _from, state) do
     if refreshable?(state) do
       Events.emit(:action, "Usuario", "Actualización manual de #{state.name}")
@@ -109,9 +112,11 @@ defmodule Eth.Market.RegionPoller do
     {:reply, :ok, broadcast(%{state | status: :paused, pause_reason: :manual, next_at: nil})}
   end
 
+  # Reanudar respeta Expires: si el snapshot vigente todavía no venció, espera (RNF-3.3).
   def handle_call(:resume, _from, state) do
     Events.emit(:action, "Usuario", "Reanudación de la región #{state.name}")
-    {:reply, :ok, schedule(%{state | status: :idle, pause_reason: nil}, 0)}
+    delay = next_cycle_delay(state.region_id)
+    {:reply, :ok, schedule(%{state | status: :idle, pause_reason: nil}, delay)}
   end
 
   @impl true
@@ -247,8 +252,11 @@ defmodule Eth.Market.RegionPoller do
 
   ## Utilidades
 
+  # "Ignorar backoff" sí; saltarse un rate limit o la caché de ESI, nunca.
+  defp refreshable?(%{status: :rate_limited}), do: false
+
   defp refreshable?(state) do
-    state.status in [:backoff, :rate_limited, :paused] or
+    state.status == :backoff or
       case TableOwner.current({:region, state.region_id}) do
         nil -> true
         %{meta: %{expires: expires}} -> DateTime.compare(Clock.utc_now(), expires) != :lt
@@ -257,8 +265,16 @@ defmodule Eth.Market.RegionPoller do
 
   defp initial_delay(region_id) do
     case TableOwner.current({:region, region_id}) do
-      %{meta: %{expires: expires}} -> Clock.ms_until(expires) + jitter()
       nil -> Enum.random(0..@initial_stagger_ms)
+      _snapshot -> next_cycle_delay(region_id)
+    end
+  end
+
+  # Espera hasta Expires del snapshot vigente (+ jitter); 0 si no hay snapshot.
+  defp next_cycle_delay(region_id) do
+    case TableOwner.current({:region, region_id}) do
+      %{meta: %{expires: expires}} -> Clock.ms_until(expires) + jitter()
+      nil -> 0
     end
   end
 

@@ -1,0 +1,294 @@
+<Layouts.app flash={@flash} active={:control} wide>
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <h1 class="text-2xl font-bold">{gettext("Centro de control")}</h1>
+    <div class="text-sm text-base-content/70 tabular-nums">
+      EVE {Format.eve_time(@now)} UTC
+      <a :if={@dev_routes} href="/dev/dashboard" class="link ml-3">LiveDashboard</a>
+    </div>
+  </div>
+
+  <%!-- Barra de salud global (RF-8.1) --%>
+  <section
+    aria-label={gettext("Salud global")}
+    class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6"
+  >
+    <div class="card bg-base-200 p-3">
+      <div class="text-xs uppercase text-base-content/60">Tranquility</div>
+      <%= cond do %>
+        <% is_nil(@server) -> %>
+          <div class="text-base-content/70">{gettext("Consultando…")}</div>
+        <% @server.online -> %>
+          <div class="font-semibold text-success">● {gettext("En línea")}</div>
+          <div class="text-sm tabular-nums">
+            {Format.integer(@server.players)} {gettext("pilotos")}
+            <span :if={@server.vip} class="badge badge-warning badge-sm">VIP</span>
+          </div>
+        <% true -> %>
+          <div class="font-semibold text-error">× {gettext("Sin respuesta")}</div>
+      <% end %>
+    </div>
+
+    <div class="card bg-base-200 p-3">
+      <div class="text-xs uppercase text-base-content/60">{gettext("Error limit ESI")}</div>
+      <div class="font-semibold tabular-nums">
+        {if @budget.error_limit, do: "#{@budget.error_limit.remain}/100", else: "—"}
+      </div>
+      <div class="text-xs text-base-content/60">{gettext("errores permitidos por minuto")}</div>
+    </div>
+
+    <div class="card bg-base-200 p-3">
+      <div class="text-xs uppercase text-base-content/60">
+        {gettext("Presupuesto de mercado")}
+      </div>
+      <%= if @market_budget do %>
+        <div class="font-semibold tabular-nums">
+          {Format.integer(@market_budget.remaining)}/{Format.integer(@market_budget.limit)} tk
+        </div>
+        <progress
+          class={[
+            "progress h-1.5",
+            if(budget_used_pct(@market_budget) >= 90,
+              do: "progress-error",
+              else: "progress-primary"
+            )
+          ]}
+          value={budget_used_pct(@market_budget)}
+          max="100"
+          aria-label={gettext("Presupuesto usado")}
+        ></progress>
+        <div class="text-xs text-base-content/60">
+          {gettext("%{pct} % usado en la ventana", pct: budget_used_pct(@market_budget))}
+        </div>
+      <% else %>
+        <div class="text-base-content/70">—</div>
+      <% end %>
+    </div>
+
+    <div class="card bg-base-200 p-3">
+      <div class="text-xs uppercase text-base-content/60">ESI</div>
+      <%= if @budget.paused_until do %>
+        <div class="font-semibold text-warning">□ {gettext("En pausa")}</div>
+        <div class="text-xs text-base-content/70">
+          {gettext("motivo")}: {@budget.pause_reason}
+        </div>
+        <button phx-click="resume_esi" class="btn btn-xs btn-primary mt-1">
+          {gettext("Reanudar")}
+        </button>
+      <% else %>
+        <div class="font-semibold text-success">● {gettext("Activo")}</div>
+        <button
+          phx-click="pause_esi"
+          data-confirm={gettext("¿Pausar todas las descargas de ESI?")}
+          class="btn btn-xs btn-outline btn-warning mt-1"
+        >
+          {gettext("Pausa global")}
+        </button>
+      <% end %>
+    </div>
+
+    <div class="card bg-base-200 p-3">
+      <div class="text-xs uppercase text-base-content/60">{gettext("Memoria")}</div>
+      <div class="font-semibold tabular-nums">{Format.bytes(@memory.total)}</div>
+      <div class="text-xs text-base-content/70 tabular-nums">
+        ETS {Format.bytes(@memory.ets)} · {Format.compact(totals(@regions).orders)} {gettext(
+          "órdenes"
+        )}
+      </div>
+    </div>
+
+    <div class="card bg-base-200 p-3">
+      <div class="text-xs uppercase text-base-content/60">{gettext("Próximo downtime")}</div>
+      <div class="font-semibold tabular-nums">{Format.countdown(@next_downtime, @now)}</div>
+      <div class="text-xs text-base-content/60">11:00 UTC</div>
+    </div>
+  </section>
+
+  <div class="grid gap-6 xl:grid-cols-[1fr_24rem]">
+    <%!-- Mapa de regiones (RF-8.2) --%>
+    <section aria-labelledby="regions-title" class="space-y-4">
+      <div class="flex items-baseline justify-between">
+        <h2 id="regions-title" class="text-lg font-semibold">
+          {gettext("Regiones")} ({totals(@regions).count})
+        </h2>
+        <span class="text-sm text-base-content/70">
+          {gettext("%{fresh} con datos frescos", fresh: totals(@regions).fresh)}
+        </span>
+      </div>
+
+      <p :if={@regions == %{}} class="text-base-content/70">
+        {gettext(
+          "Todavía no hay pollers corriendo. El mercado arranca unos segundos después del servidor."
+        )}
+      </p>
+
+      <div :for={{tier, tier_title} <- @tiers} :if={regions_in_tier(@regions, tier) != []}>
+        <h3 class="mb-2 text-sm font-semibold uppercase text-base-content/60">{tier_title}</h3>
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
+          <button
+            :for={{r, {key, label, color}} <- tiles(@regions, tier, @now)}
+            id={"region-#{r.region_id}"}
+            type="button"
+            phx-click="select_region"
+            phx-value-id={r.region_id}
+            aria-label={"#{r.name}: #{label}"}
+            aria-pressed={to_string(@selected == r.region_id)}
+            class={[
+              "card border-l-4 bg-base-200 p-3 text-left transition hover:bg-base-300",
+              tone_border(color),
+              @selected == r.region_id && "ring-2 ring-primary"
+            ]}
+          >
+            <div class="truncate font-semibold">{r.name}</div>
+            <div class={["text-sm", tone_text(color)]}>{status_icon(key)} {label}</div>
+            <div class="text-xs tabular-nums">{timing(r, @now)}</div>
+            <progress
+              :if={r.status == :fetching}
+              class="progress progress-info h-1"
+              value={progress_pct(r)}
+              max="100"
+            ></progress>
+            <div class="text-xs text-base-content/70 tabular-nums">
+              {Format.compact(r.orders)} {gettext("órd.")} · {Format.ago(r.last_modified, @now)}
+            </div>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <%!-- Detalle de proceso (RF-8.3) --%>
+    <aside aria-labelledby="detail-title" class="card h-fit border border-base-300 p-4">
+      <%= if r = @selected && @regions[@selected] do %>
+        <div class="flex items-start justify-between">
+          <h2 id="detail-title" class="text-lg font-semibold">{r.name}</h2>
+          <button
+            phx-click="close_detail"
+            class="btn btn-ghost btn-xs"
+            aria-label={gettext("Cerrar detalle")}
+          >
+            ✕
+          </button>
+        </div>
+        <div class="text-xs text-base-content/60">{r.region_id} · {tier_label(r.tier)}</div>
+
+        <dl class="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm tabular-nums">
+          <dt class="text-base-content/60">{gettext("Estado")}</dt>
+          <dd>{r |> display(@now) |> elem(1)} ({r.status})</dd>
+          <dt class="text-base-content/60">{gettext("Generación")}</dt>
+          <dd>{r.generation || "—"}</dd>
+          <dt class="text-base-content/60">Last-Modified</dt>
+          <dd>{Format.eve_time(r.last_modified)} ({Format.ago(r.last_modified, @now)})</dd>
+          <dt class="text-base-content/60">Expires</dt>
+          <dd>{Format.eve_time(r.expires)} (T-{Format.countdown(r.expires, @now)})</dd>
+          <dt class="text-base-content/60">{gettext("Próximo ciclo")}</dt>
+          <dd>{Format.eve_time(r.next_at)}</dd>
+          <dt class="text-base-content/60">{gettext("Páginas")}</dt>
+          <dd>{r.pages || "—"} ({r.not_modified_pages || 0} × 304)</dd>
+          <dt class="text-base-content/60">{gettext("Órdenes")}</dt>
+          <dd>
+            {Format.integer(r.orders)}
+            <span class="text-base-content/60">
+              ({gettext("venta")} {Format.compact(r.sell_orders)} · {gettext("compra")} {Format.compact(
+                r.buy_orders
+              )})
+            </span>
+          </dd>
+          <dt class="text-base-content/60">{gettext("Memoria ETS")}</dt>
+          <dd>{Format.bytes(r.bytes)}</dd>
+          <dt class="text-base-content/60">{gettext("Fallos seguidos")}</dt>
+          <dd>{r.failures}</dd>
+          <dt :if={r.last_error} class="text-base-content/60">{gettext("Último error")}</dt>
+          <dd :if={r.last_error} class="text-error">{r.last_error}</dd>
+        </dl>
+
+        <div :if={r.history != []} class="mt-3">
+          <div class="text-xs text-base-content/60">
+            {gettext("Duración de los últimos %{n} ciclos", n: length(r.history))} · {gettext(
+              "último"
+            )}: {Format.duration(div(hd(r.history).duration_ms, 1000))}
+          </div>
+          <svg viewBox="0 0 100 20" class="h-10 w-full text-primary" aria-hidden="true">
+            <polyline
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              points={sparkline_points(r.history)}
+            />
+          </svg>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button
+            phx-click="refresh_now"
+            phx-value-id={r.region_id}
+            class="btn btn-sm btn-primary"
+          >
+            {gettext("Actualizar ahora")}
+          </button>
+          <button
+            :if={r.status != :paused or r.pause_reason != :manual}
+            phx-click="pause_region"
+            phx-value-id={r.region_id}
+            class="btn btn-sm btn-outline"
+          >
+            {gettext("Pausar")}
+          </button>
+          <button
+            :if={r.status == :paused and r.pause_reason == :manual}
+            phx-click="resume_region"
+            phx-value-id={r.region_id}
+            class="btn btn-sm btn-outline"
+          >
+            {gettext("Reanudar")}
+          </button>
+        </div>
+        <p class="mt-2 text-xs text-base-content/60">
+          {gettext(
+            "\"Actualizar ahora\" solo actúa si ESI ya publicó datos nuevos (Expires vencido) o si la región está en error."
+          )}
+        </p>
+      <% else %>
+        <h2 id="detail-title" class="text-lg font-semibold">{gettext("Detalle")}</h2>
+        <p class="text-sm text-base-content/70">
+          {gettext("Elegí una región del mapa para ver sus métricas y acciones.")}
+        </p>
+      <% end %>
+    </aside>
+  </div>
+
+  <%!-- Registro de eventos (RF-8.7) --%>
+  <section aria-labelledby="events-title" class="card border border-base-300 p-4">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 id="events-title" class="text-lg font-semibold">{gettext("Eventos")}</h2>
+      <div class="join" role="group" aria-label={gettext("Filtrar eventos")}>
+        <button
+          :for={
+            {value, label} <- [
+              {"", gettext("Todos")},
+              {"error", gettext("Errores")},
+              {"warning", gettext("Avisos")},
+              {"action", gettext("Acciones")}
+            ]
+          }
+          phx-click="filter_events"
+          phx-value-level={value}
+          aria-pressed={to_string((@event_level || "") == value)}
+          class={["btn btn-xs join-item", (@event_level || "") == value && "btn-active"]}
+        >
+          {label}
+        </button>
+      </div>
+    </div>
+
+    <ol id="events" class="mt-3 max-h-80 space-y-1 overflow-y-auto font-mono text-sm">
+      <li :if={@events == []} class="text-base-content/60">{gettext("Sin eventos.")}</li>
+      <li :for={e <- @events} class="flex gap-3">
+        <span class="tabular-nums text-base-content/60">{Format.eve_time(e.at)}</span>
+        <span class={["badge badge-sm w-16", level_badge(e.level) |> elem(1)]}>
+          {level_badge(e.level) |> elem(0)}
+        </span>
+        <span class="w-28 shrink-0 truncate text-base-content/80">{e.source}</span>
+        <span>{e.message}</span>
+      </li>
+    </ol>
+  </section>
+</Layouts.app>

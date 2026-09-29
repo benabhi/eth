@@ -31,6 +31,7 @@ defmodule EthWeb.Layouts do
     doc: "scope actual de la sesión"
 
   attr :active, :atom, default: nil, doc: "sección activa de la navegación"
+  attr :wide, :boolean, default: false, doc: "contenedor ancho (tableros)"
 
   slot :inner_block, required: true
 
@@ -68,8 +69,8 @@ defmodule EthWeb.Layouts do
       </div>
     </header>
 
-    <main class="px-4 py-10 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-5xl space-y-6">
+    <main class="px-4 py-6 sm:px-6 lg:px-8">
+      <div class={["mx-auto space-y-6", if(@wide, do: "max-w-screen-2xl", else: "max-w-5xl")]}>
         {render_slot(@inner_block)}
       </div>
     </main>
@@ -83,7 +84,7 @@ defmodule EthWeb.Layouts do
     [
       {:hunter, gettext("Cazador"), ~p"/"},
       {:run, gettext("Viaje activo"), nil},
-      {:control, gettext("Centro de control"), nil},
+      {:control, gettext("Centro de control"), ~p"/control"},
       {:settings, gettext("Ajustes"), nil}
     ]
   end

@@ -101,16 +101,30 @@ defmodule Eth.Market.RegionPollerTest do
   end
 
   @tag :capture_log
-  test "la pausa manual detiene el ciclo y reanudar lo retoma" do
-    stub_ok(DateTime.add(DateTime.utc_now(), 300, :second))
+  test "la pausa manual detiene el ciclo; reanudar respeta Expires" do
+    expires = DateTime.utc_now() |> DateTime.add(300, :second) |> DateTime.truncate(:second)
+    stub_ok(expires)
     start_poller()
     await_status(:cached)
 
     :ok = RegionPoller.pause(@region)
     assert %{status: :paused, pause_reason: :manual, next_at: nil} = RegionPoller.status(@region)
+    assert RegionPoller.refresh_now(@region) == {:error, :paused}
 
     :ok = RegionPoller.resume(@region)
-    await_status(:cached)
+    status = RegionPoller.status(@region)
+    assert status.status == :idle
+    # No se adelanta a Expires aunque se reanude antes.
+    assert DateTime.compare(status.next_at, expires) != :lt
+  end
+
+  @tag :capture_log
+  test "en backoff se puede forzar el reintento (ignorar backoff)" do
+    Req.Test.stub(Eth.Esi.Client, fn conn -> EsiStub.respond(conn, 502, %{"error" => "bad"}) end)
+    start_poller()
+    await_status(:backoff)
+
+    assert RegionPoller.refresh_now(@region) == :ok
   end
 
   test "el backoff crece exponencialmente y abre el circuito" do
