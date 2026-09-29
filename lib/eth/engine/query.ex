@@ -17,7 +17,7 @@ defmodule Eth.Engine.Query do
 
   alias Eth.Engine.{Book, Fees, Liquidity, Opportunity, RouteRisk, Score, Shield}
   alias Eth.{GameRules, Routing}
-  alias Eth.Market.{History, Prices}
+  alias Eth.Market.{History, Prices, StructureManager}
 
   @sorts [:tvs, :profit, :isk_per_hour, :roi, :jumps, :cost, :age]
 
@@ -114,7 +114,7 @@ defmodule Eth.Engine.Query do
           liquidity: liquidity
         })
 
-      access_certainty = access_certainty(opp)
+      {access_certainty, access} = access(opp, p)
       scam_certainty = Shield.certainty(shield.status)
       route_certainty = route_certainty(to_origin_path, route, result.cost, p)
 
@@ -152,6 +152,7 @@ defmodule Eth.Engine.Query do
         to_origin_path: to_origin_path,
         route_path: route,
         route_alerts: route_alerts(to_origin_path ++ route, p.risk),
+        access: access,
         breakdown: %{
           route_certainty: route_certainty,
           liquidity: liquidity,
@@ -181,12 +182,39 @@ defmodule Eth.Engine.Query do
     })
   end
 
-  # Órdenes en estructuras con mercado público: acceso sujeto a ACL (ERS §8.9).
-  defp access_certainty(opp) do
-    if opp.origin.structure or opp.destination.structure,
-      do: GameRules.get(:structure_access_certainty),
-      else: 1.0
+  # Certeza de acceso (ERS §8.9, AS-8): producto de origen y destino según el acceso del
+  # personaje activo a cada estructura (NPC = 1).
+  defp access(opp, p) do
+    rules = GameRules.get(:access_certainty)
+    character_id = Map.get(p, :character_id)
+    origin = location_access(opp.origin, character_id)
+    destination = location_access(opp.destination, character_id)
+
+    factor =
+      if opp.origin.location_id == opp.destination.location_id,
+        do: access_factor(origin, rules),
+        else: access_factor(origin, rules) * access_factor(destination, rules)
+
+    {factor, %{origin: origin, destination: destination}}
   end
+
+  # Acceso a una ubicación: :npc, :public, :private_ok, :private_unverified o :forbidden.
+  defp location_access(%{structure: false}, _character_id), do: :npc
+
+  defp location_access(%{location_id: id}, character_id) do
+    case StructureManager.access(id) do
+      %{access: %{^character_id => "forbidden"}} -> :forbidden
+      %{public: false, access: %{^character_id => "ok"}} -> :private_ok
+      %{public: false} -> :private_unverified
+      # Pública, o no registrada pero con órdenes en la región (solo las públicas las tienen).
+      _public -> :public
+    end
+  end
+
+  defp access_factor(:npc, _rules), do: 1.0
+  defp access_factor(:public, rules), do: rules.public
+  defp access_factor(:private_ok, rules), do: rules.private_verified
+  defp access_factor(_unverified_or_forbidden, rules), do: rules.unverified
 
   # Caminos del triángulo (RF-2.8): Rápida y Segura desde la matriz; Evasiva evita las
   # alertas del radar sobre la restricción de Rápida (RF-2.5).

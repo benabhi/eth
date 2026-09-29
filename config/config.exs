@@ -157,8 +157,9 @@ config :eth, Eth.GameRules,
   dogma_skill_level_attribute_id: 280,
   # Flags de ESI /assets de los módulos montados en una nave (OpenAPI de ESI).
   fitted_location_flag_prefixes: ~w(HiSlot MedSlot LoSlot RigSlot SubSystemSlot),
-  # Certeza de acceso (ERS §8.9): estructura con mercado público 0,9; NPC 1.
-  structure_access_certainty: 0.9,
+  # Certeza de acceso (ERS §8.9, AS-8): NPC 1; estructura privada con acceso verificado
+  # 0,95; pública 0,9; sin verificar o sin acceso 0,5.
+  access_certainty: %{private_verified: 0.95, public: 0.9, unverified: 0.5},
   # TVS y Certeza (ERS §8.9)
   tvs_weights: %{isk_per_hour: 0.40, profit: 0.25, roi: 0.15, liquidity: 0.20},
   tvs_refs: %{isk_per_hour: 150_000_000, profit: 100_000_000, roi: 0.25},

@@ -250,9 +250,10 @@
                     :if={
                       row.opportunity.origin.structure or row.opportunity.destination.structure
                     }
-                    class="badge badge-neutral badge-xs"
+                    class={["badge badge-xs", access_class(worst_access(row.access))]}
+                    title={access_title(row.access)}
                   >
-                    {gettext("estructura")}
+                    {access_label(worst_access(row.access))}
                   </span>
                 </div>
               </td>

@@ -214,6 +214,29 @@ defmodule Eth.Engine.EvaluationTest do
       assert row.opportunity.destination.system_id == F.perimeter()
     end
 
+    test "Certeza de acceso según el personaje activo (AS-8)", %{opps: opps} do
+      :ets.new(:eth_structure_access, [:named_table, :public])
+      now = DateTime.utc_now()
+      params = %{route_mode: :secure, cargo_m3: nil, min_profit: 1_000, search: "perimeter"}
+      station = F.perimeter_station()
+
+      put = fn access -> :ets.insert(:eth_structure_access, {station, access}) end
+
+      put.(%{public: false, access: %{7 => "ok"}})
+      {[row], 1} = Query.run(opps, Map.put(params, :character_id, 7), now)
+      assert row.breakdown.access_certainty == 0.95
+      assert row.access.destination == :private_ok
+
+      # Otro personaje (o el invitado) sin acceso verificado a la privada.
+      {[row], 1} = Query.run(opps, params, now)
+      assert row.breakdown.access_certainty == 0.5
+
+      put.(%{public: true, access: %{7 => "forbidden"}})
+      {[row], 1} = Query.run(opps, Map.put(params, :character_id, 7), now)
+      assert row.access.destination == :forbidden
+      assert row.breakdown.access_certainty == 0.5
+    end
+
     test "una alerta en el camino baja la Certeza y se informa; Evasiva la considera", %{
       opps: opps
     } do
