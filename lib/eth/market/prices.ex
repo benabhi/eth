@@ -25,7 +25,7 @@ defmodule Eth.Market.Prices do
   alias Eth.Market.RegionPoller
 
   @table :eth_prices
-  @file_name "prices.etf"
+  @file_name "prices.json"
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -162,22 +162,46 @@ defmodule Eth.Market.Prices do
 
   ## Persistencia (RF-1.10)
 
+  # JSON (no `binary_to_term`): el archivo se lee al arrancar y nunca debe poder crear
+  # términos arbitrarios. La ruta es un literal dentro del directorio de datos, nunca
+  # entrada externa: se omite la regla de traversal de Sobelow.
+  # sobelow_skip ["Traversal.FileModule"]
   defp persist(rows, etag, expires) do
     path = Path.join(Storage.path("market"), @file_name)
-    data = :erlang.term_to_binary(%{rows: rows, etag: etag, expires: expires})
+
+    data =
+      Jason.encode!(%{
+        "rows" => Enum.map(rows, &Tuple.to_list/1),
+        "etag" => etag,
+        "expires" => expires && DateTime.to_iso8601(expires)
+      })
 
     with :ok <- File.write(path <> ".tmp", data), do: File.rename(path <> ".tmp", path)
   end
 
+  # sobelow_skip ["Traversal.FileModule"]
   defp restore(state) do
     path = Path.join(Storage.path("market"), @file_name)
 
-    with {:ok, binary} <- File.read(path),
-         %{rows: rows, etag: etag, expires: expires} <- :erlang.binary_to_term(binary, [:safe]) do
-      :ets.insert(@table, rows)
-      %{state | etag: etag, expires: expires}
+    with {:ok, json} <- File.read(path),
+         {:ok, %{"rows" => rows, "etag" => etag, "expires" => expires}} <- Jason.decode(json) do
+      :ets.insert(
+        @table,
+        for([type_id, average, adjusted] <- rows, do: {type_id, average, adjusted})
+      )
+
+      %{state | etag: etag, expires: parse_datetime(expires)}
     else
       _ -> state
+    end
+  end
+
+  defp parse_datetime(nil), do: nil
+
+  defp parse_datetime(iso) do
+    case DateTime.from_iso8601(iso) do
+      {:ok, datetime, _offset} -> datetime
+      _error -> nil
     end
   end
 
