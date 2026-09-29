@@ -114,6 +114,7 @@ defmodule Eth.Engine.StationQuery do
 
     with %{} = q <- StationTrading.quote(opp, fees, p.own_order_ids),
          %{volume_avg_7d: daily_volume} <- stats,
+         true <- StationTrading.realistic?(q, stats),
          data_certainty when data_certainty > 0 <- Score.data_certainty(age_min) do
       plan = StationTrading.plan(q, daily_volume, p.capital)
       shield = shield(opp, q, stats, p.own_order_ids, now)

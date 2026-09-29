@@ -161,7 +161,8 @@ config :eth, Eth.GameRules,
   # - participation: fracción del volumen diario (7 d) que se apunta a mover por día;
   # - competition_band / competition_half: órdenes dentro de ±banda del precio sugerido;
   #   con `competition_half` órdenes la Certeza por competencia es 0,5;
-  # - book_depth: órdenes guardadas por lado; history_demand_max: pares por evaluación.
+  # - book_depth: órdenes guardadas por lado; history_demand_max: pares por evaluación;
+  # - max_price_to_median: realismo de los precios sugeridos frente a la mediana.
   station_trading: %{
     screen_margin: 0.02,
     min_margin: 0.05,
@@ -170,6 +171,9 @@ config :eth, Eth.GameRules,
     competition_band: 0.05,
     competition_half: 10,
     book_depth: 25,
+    # Precios sugeridos dentro de ×2 / ÷2 de la mediana de 7 días (si no, el margen es
+    # ilusorio: una venta a un precio que nadie paga).
+    max_price_to_median: 2.0,
     history_demand_max: 2_000
   },
   # Broker fee mínimo posible en una estación NPC (BR V y standings 10/10): cota del

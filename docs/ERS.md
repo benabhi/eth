@@ -938,6 +938,8 @@ Temas de daisyUI, persistidos por navegador y sin parpadeo al cargar.
 
 **CA:** cambiar de familia conserva los demás filtros; la URL restaura la familia; las tres vistas respetan el máximo de 200 filas.
 
+- Implementación (F9): cada familia es una ruta propia, que conserva la familia en la URL: `/` (Directo, `HunterLive`), `/station` (Estación, `StationLive`) y, más adelante, la de Por órdenes. El selector (`EthWeb.TradingComponents.family_nav/1`) mantiene la búsqueda al cambiar de familia; los filtros propios de cada familia viven en su URL. En Estación los precios sugeridos se copian sin separadores de miles para pegarlos en la ventana de orden del cliente. Además del anti-scam, se descartan las cotizaciones irreales: ambos precios sugeridos deben caer dentro de ×2 / ÷2 de la mediana de 7 días (`max_price_to_median`), para que una venta publicada a un precio absurdo no infle el margen.
+
 ### M7 · Viaje activo y resultados
 
 #### RF-7.1 · Inicio de viaje — S · F8

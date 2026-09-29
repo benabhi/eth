@@ -7,8 +7,11 @@
   characters={@characters}
   ship_form={@ship_form}
 >
-  <div class="flex flex-wrap items-baseline justify-between gap-2">
-    <h1 class="text-2xl font-bold">{gettext("Cazador de trades")}</h1>
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex flex-wrap items-center gap-3">
+      <h1 class="text-2xl font-bold">{gettext("Cazador de trades")}</h1>
+      <.family_nav active={:direct} search={@form[:search].value} />
+    </div>
     <p id="hunter-status" class="text-sm text-base-content/70 tabular-nums">
       <%= if @meta do %>
         {gettext("%{total} oportunidades", total: Format.integer(@total))} · {gettext(

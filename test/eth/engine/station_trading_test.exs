@@ -57,6 +57,16 @@ defmodule Eth.Engine.StationTradingTest do
       assert StationTrading.competition_certainty(%{bids: 10, asks: 3}) == 0.5
     end
 
+    test "precios realistas frente a la mediana (×2 / ÷2)" do
+      q = StationTrading.quote(%{bids: [order(4.0, 1, 1)], asks: [order(5.0, 1, 2)]}, @fees)
+
+      assert StationTrading.realistic?(q, %{median_7d: 4.5, median_30d: 4.5})
+      refute StationTrading.realistic?(q, %{median_7d: 1.0, median_30d: 1.0})
+      refute StationTrading.realistic?(q, %{median_7d: 20.0, median_30d: 20.0})
+      assert StationTrading.realistic?(q, %{median_7d: nil, median_30d: 4.5})
+      refute StationTrading.realistic?(q, nil)
+    end
+
     test "el plan usa una parte del volumen diario y lo acota el capital (escrow 100 %)" do
       q = StationTrading.quote(%{bids: [order(4.0, 1, 1)], asks: [order(5.0, 1, 2)]}, @fees)
 
@@ -138,20 +148,33 @@ defmodule Eth.Engine.StationTradingTest do
       assert row.profit_day > 0
     end
 
-    test "una compra muy por encima de la mediana es la firma del scam: se oculta" do
+    test "una venta a un precio absurdo no es realista: no se propone" do
       put_history(4.5, 1_000_000)
 
       opps =
         evaluate([
-          {:buy, @tritanium, 50.0, 1_000_000, F.jita_44(), F.jita(), []},
-          {:sell, @tritanium, 80.0, 1_000_000, F.jita_44(), F.jita(), []}
+          {:buy, @tritanium, 4.0, 1_000_000, F.jita_44(), F.jita(), []},
+          {:sell, @tritanium, 190_000_000.0, 1, F.jita_44(), F.jita(), []}
+        ])
+
+      assert {[], 0} = StationQuery.run(opps, %{shield: :all}, DateTime.utc_now())
+    end
+
+    test "una compra inflada (firma del scam) queda marcada y se puede ocultar" do
+      put_history(4.5, 1_000_000)
+
+      opps =
+        evaluate([
+          {:buy, @tritanium, 8.0, 1_000_000, F.jita_44(), F.jita(), []},
+          {:sell, @tritanium, 8.9, 1_000_000, F.jita_44(), F.jita(), []}
         ])
 
       now = DateTime.utc_now()
-      assert {[], 0} = StationQuery.run(opps, %{}, now)
-      {[row], 1} = StationQuery.run(opps, %{shield: :all}, now)
-      assert row.shield.status == :scam
-      assert row.certainty == 0.0
+      params = %{min_margin: 0}
+      {[row], 1} = StationQuery.run(opps, Map.put(params, :shield, :all), now)
+      assert row.shield.status in [:suspicious, :scam]
+      assert row.certainty < 1.0
+      assert {[], 0} = StationQuery.run(opps, Map.put(params, :shield, :safe), now)
     end
 
     test "los standings con la corporación dueña y su facción bajan el broker" do

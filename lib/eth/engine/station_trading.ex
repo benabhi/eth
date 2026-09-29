@@ -99,6 +99,22 @@ defmodule Eth.Engine.StationTrading do
     }
   end
 
+  @doc """
+  ¿Los precios sugeridos son realistas frente a lo que de verdad se opera? Ambos deben
+  caer dentro de `:max_price_to_median` veces la mediana de 7 días (30 si en 7 hubo
+  pocos días operados) hacia arriba y hacia abajo. Descarta, por ejemplo, una venta
+  publicada a un precio absurdo que nadie va a pagar (el margen sería ilusorio). Sin
+  mediana no hay forma de saberlo: `false`.
+  """
+  @spec realistic?(quote_t(), map() | nil) :: boolean()
+  def realistic?(q, stats) do
+    median = stats && (stats[:median_7d] || stats[:median_30d])
+    ratio = GameRules.get(:station_trading).max_price_to_median
+
+    is_number(median) and median > 0 and q.sell_price <= median * ratio and
+      q.buy_price >= median / ratio
+  end
+
   @doc "Certeza por competencia: 1 sin competidores, 0,5 con `:competition_half` en la banda."
   @spec competition_certainty(%{bids: non_neg_integer(), asks: non_neg_integer()}) :: float()
   def competition_certainty(%{bids: bids, asks: asks}) do

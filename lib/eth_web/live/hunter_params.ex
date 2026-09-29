@@ -49,11 +49,12 @@ defmodule EthWeb.HunterParams do
     |> Map.new()
   end
 
-  # El capital se redondea hacia abajo al millón: el filtro nunca supera el saldo.
-  defp format_capital(capital) when capital >= 1.0e6,
+  @doc "Capital para el formulario, redondeado hacia abajo al millón (nunca supera el saldo)."
+  @spec format_capital(number()) :: String.t()
+  def format_capital(capital) when capital >= 1.0e6,
     do: format_isk(Float.floor(capital / 1.0e6) * 1.0e6)
 
-  defp format_capital(capital), do: Integer.to_string(floor(capital))
+  def format_capital(capital), do: Integer.to_string(floor(capital))
 
   @doc "Parámetros de la consulta a partir de strings (valores inválidos se ignoran)."
   @spec to_query(map()) :: map()
