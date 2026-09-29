@@ -107,4 +107,15 @@ defmodule EthWeb.ControlLiveTest do
     view |> element("button", "Reanudar") |> render_click()
     assert Budget.check() == :ok
   end
+
+  test "muestra el estado de la cola de historial (RF-1.12)", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/control")
+    assert has_element?(view, "#history-status", "—")
+
+    start_supervised!({Task.Supervisor, name: Eth.Market.TaskSupervisor})
+    start_supervised!(Eth.Market.History)
+    {:ok, view, _html} = live(conn, ~p"/control")
+    assert has_element?(view, "#history-status", "0/250")
+    assert has_element?(view, "#history-status", "0 en caché · 0 en cola")
+  end
 end
