@@ -182,11 +182,11 @@
         <% end %>
       </div>
 
-      <%!-- Pipeline en vivo (RF-8.4): de EVE a tus pantallas; la flecha late si pasan datos --%>
+      <%!-- Pipeline en vivo (RF-8.4): de EVE a las pestañas abiertas; la flecha late si pasan datos --%>
       <.panel id="pipeline" title={gettext("Pipeline")} help={:engine}>
         <:help_body>
           {gettext(
-            "Cómo viajan los datos: EVE → mercados en memoria → motor → oportunidades → tus pantallas. Cada flecha se anima mientras pasan datos por ella."
+            "Cómo viajan los datos: la app le pide el mercado a EVE, lo guarda en memoria, el motor busca trades y los muestra en cada pestaña abierta de la app. Cada flecha se anima mientras pasan datos por ella."
           )}
         </:help_body>
         <ol class="flex flex-col items-stretch gap-2 md:flex-row md:items-center">

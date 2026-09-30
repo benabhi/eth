@@ -87,7 +87,8 @@ defmodule EthWeb.ControlLiveTest do
     for stage <- ~w(esi snapshots engine opportunities viewers),
         do: assert(has_element?(view, "#pipe-#{stage}"))
 
-    assert has_element?(view, "#pipe-viewers", "1 conectada")
+    assert has_element?(view, "#pipe-viewers", "Pestañas abiertas")
+    assert has_element?(view, "#pipe-viewers", "1")
   end
 
   test "sin mercado corriendo muestra el estado vacío", %{conn: conn} do

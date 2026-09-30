@@ -456,14 +456,14 @@ defmodule EthWeb.ControlLive do
         id: "esi",
         title: "ESI",
         value: gettext("%{n} consultas/s", n: Float.round(requests / 60, 1)),
-        detail: error_limit_text(assigns.budget),
+        detail: gettext("pedidos a los servidores de EVE"),
         flowing: false
       },
       %{
         id: "snapshots",
         title: gettext("Mercados en memoria"),
-        value: gettext("%{fresh}/%{count} regiones", fresh: t.fresh, count: t.count),
-        detail: gettext("%{orders} órdenes", orders: Format.compact(t.orders)),
+        value: gettext("%{fresh}/%{count} regiones al día", fresh: t.fresh, count: t.count),
+        detail: gettext("%{orders} órdenes guardadas", orders: Format.compact(t.orders)),
         flowing: requests > 0
       },
       %{
@@ -471,11 +471,14 @@ defmodule EthWeb.ControlLive do
         title: gettext("Motor"),
         value:
           if(meta,
-            do: gettext("%{s} s por ciclo", s: Float.round(meta.duration_ms / 1000, 1)),
+            do: gettext("%{s} s por cálculo", s: Float.round(meta.duration_ms / 1000, 1)),
             else: "—"
           ),
         detail:
-          if(meta, do: gettext("versión %{v}", v: meta.version), else: gettext("sin evaluar")),
+          if(meta,
+            do: gettext("busca trades en todo el mercado"),
+            else: gettext("todavía no calculó")
+          ),
         flowing: fresh_engine?
       },
       %{
@@ -496,18 +499,13 @@ defmodule EthWeb.ControlLive do
       },
       %{
         id: "viewers",
-        title: gettext("Pantallas"),
-        value: ngettext("%{count} conectada", "%{count} conectadas", assigns.viewers),
-        detail: gettext("se actualizan en vivo"),
+        title: gettext("Pestañas abiertas"),
+        value: Format.integer(assigns.viewers),
+        detail: gettext("de la app, se actualizan solas"),
         flowing: fresh_engine? and assigns.viewers > 0
       }
     ]
   end
-
-  defp error_limit_text(%{error_limit: %{remain: remain}}),
-    do: gettext("error limit %{n}/100", n: remain)
-
-  defp error_limit_text(_budget), do: gettext("sin respuestas todavía")
 
   # Mosaicos de la última hora (RF-8.9): título, valor del último minuto con datos y serie.
   defp metric_tiles(s) do
