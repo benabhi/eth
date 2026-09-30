@@ -6,7 +6,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.6 |
+| Versión | 1.7 |
 | Fecha | 2026-09-29 |
 | Estado | Base para desarrollo — decisiones a confirmar en §15.2 |
 | Autor | Hernan Jalabert |
@@ -17,6 +17,7 @@
 | Versión | Fecha | Cambios |
 |---|---|---|
 | 0.1 | 2026-09 | Borrador inicial de ideas. |
+| 1.7 | 2026-09-29 | **Diseño final y cierre de v1.0:** principio "trades rápido primero" (RNF-5.13); explicación de cada cifra con tooltip, fórmula con los valores reales y enlace al manual (RNF-5.14); instrumentos del Centro de control (anillos de progreso para pollers, medidores por tipo de proceso, §9.10); hitos y rachas del registro del cazador con datos reales (RF-7.7); nuevo módulo M11 **Manual integrado** (`/docs`, RF-11.1–11.4); auditoría total de sistemas como última tarea de v1.0 (§11.6, F11). |
 | 1.6 | 2026-09-29 | **Sin instancia pública:** se descarta el módulo M11 (multiusuario, suscripciones con ISK, reclamo de contratos y ranking público) y la fase F13 (D-20). La herramienta es de **uso personal y autoalojada**: cada piloto la descarga y la usa con sus personajes (§2.3, D-01, RNF-10.5–10.7). La gamificación del tablón de caza (RF-6.13) y el registro del cazador (RF-7.7) se mantienen, en versión personal. |
 | 1.5 | 2026-09-29 | **Tablón de caza:** la interfaz adopta la metáfora de un tablón de contratos de caza, gamificada y profesional (RF-6.13, §9.9, D-19); la ficha del trade se despliega bajo la fila (RF-6.5); registro del cazador (RF-7.7); Centro de control con pestañas y estética de consola de operaciones (RF-8.10); nuevo módulo M11 (Comunidad: multiusuario, suscripción con ISK, reclamo de contratos y ranking de cazadores) en una fase posterior a v1.0 (F13, D-20). |
 | 1.4 | 2026-09-29 | Combos (RF-4.10) y retorno (RF-4.11) descartados (D-18): F7 pasa a ser "Estructuras" (RF-1.6, RF-9.6 y acceso por personaje); mockups de §9 con un trade individual. |
@@ -1005,6 +1006,10 @@ Listado de viajes con el beneficio total, el ISK/h real y el error de predicció
 
 Perfil de caza del piloto a partir de los viajes cerrados (RF-7.5): contratos completados, recompensa total (P&L real), ISK/h promedio, precisión de las predicciones, mejor contrato y racha de días con contratos cerrados. Es un resumen motivador y honesto: solo muestra datos reales, sin puntos ni recompensas inventadas. Es personal: compara al piloto consigo mismo (semana, mes, histórico y por personaje) y nunca se publica.
 
+- **Hitos** (*calibrables*), siempre sobre viajes cerrados y reconciliados con la billetera: primer contrato, recompensa acumulada (100M, 1B, 10B…), mejor contrato, contratos de rango S, racha de días con contratos cerrados, precisión de predicción sostenida. Cada hito muestra cuándo se logró y con qué viaje.
+- **Rango del cazador:** nivel según la recompensa real acumulada (escala *calibrable*), con la barra de progreso al siguiente nivel.
+- Un aviso discreto (toast) al lograr un hito; nunca bloquea ni interrumpe la búsqueda de trades.
+
 ### M8 · Centro de control (monitor del sistema)
 
 Rediseño del "monitor de GenServers": en lugar de una tabla, un **tablero operativo** en cinco zonas (wireframe en §9.6): salud global, mapa de regiones en mosaico, pipeline en vivo, radar y personajes, y registro de eventos. Está pensado para ver ~70 regiones de un vistazo y actuar con un clic. Una tabla escala mal a 70 filas y oculta lo importante: el mosaico hace saltar a la vista lo que está en rojo.
@@ -1053,6 +1058,8 @@ El Centro de control crece con cada fase: se organiza en **pestañas** con URL p
 | **Personajes** | Sesiones y tokens (RF-8.6). |
 | **Registros** | Eventos del sistema filtrables (RF-8.7). |
 | **ESI** | Presupuestos por grupo, error limit, pausas y controles manuales (RF-8.8). |
+
+Los procesos se muestran como **instrumentos** (§9.10), cada tipo con su forma: los pollers de región como anillos con la cuenta regresiva hasta `Expires` y el progreso de páginas, la cola de historial como un medidor de caudal, el feed del radar como un pulso con el lag, los presupuestos de ESI como arcos, las sesiones de personajes como anillos pequeños por recurso y el SDE como una secuencia de pasos. Todo instrumento tiene tooltip con el dato exacto y enlace al manual (RF-11.3).
 
 **Acabado:** estética de consola de operaciones (§9.9): paneles de instrumentos con indicadores de estado tipo LED, *sparklines* y contadores que se actualizan en vivo, cifras monoespaciadas y una rejilla sutil; el movimiento indica actividad real (datos que fluyen), nunca decoración.
 
@@ -1148,6 +1155,32 @@ Aviso (en la app y, si está activo, del navegador) cuando una orden propia deja
 
 - Implementación (F9): `Eth.Characters.OrderWatch` recalcula el estado con cada evaluación del motor y con cada lectura nueva de órdenes, y avisa solo las transiciones de primera a superada (la primera lectura siembra el estado sin avisar); la alerta lleva a `/station`.
 
+### M11 · Manual integrado
+
+Documentación de uso dentro de la propia aplicación, con su misma identidad visual, para que cualquier piloto entienda qué hace cada pantalla y de dónde sale cada número.
+
+#### RF-11.1 · Manual en la aplicación — S · F10
+
+- Sección **Manual** (`/docs`) en la navegación, con índice lateral, secciones y subsecciones enlazables (`/docs/<sección>#<ancla>`), búsqueda por texto y navegación anterior/siguiente.
+- Contenido en español, escrito en Markdown versionado en el repositorio (`priv/docs/*.md`) y compilado en la aplicación (sin servicios externos, CSP intacta).
+- **Secciones mínimas:** primeros pasos (instalación, registrar la aplicación de EVE, primer login); el Cazador y sus tres familias (directo, por órdenes, estación); cómo se calculan beneficio, impuestos, comisiones, walk-the-book, TVS, Certeza, rango y peligro (con ejemplos numéricos); anti-scam y liquidez; radar y rutas; bodega y perfiles de nave; viaje activo y registro del cazador; órdenes propias; Centro de control; Ajustes; límites de ESI y privacidad; glosario; preguntas frecuentes.
+
+**CA:** todas las secciones mínimas existen; la búsqueda encuentra términos del glosario; las páginas cumplen §9.9 en los tres tamaños.
+
+#### RF-11.2 · Ayuda contextual — S · F10
+
+Cada pantalla y cada panel tiene un acceso "?" a la sección del manual que lo explica; los estados vacíos y los mensajes de error enlazan a la solución (por ejemplo, "falta un permiso" lleva a cómo concederlo).
+
+#### RF-11.3 · Fórmulas explicadas con los valores reales — S · F10
+
+El desglose de una oportunidad (RF-6.5) y los tooltips (RNF-5.14) muestran cada fórmula con los números de esa fila (por ejemplo, `sales tax = 7,5 % × (1 − 0,11 × 5) = 3,375 %`) y enlazan a la sección del manual correspondiente.
+
+#### RF-11.4 · Manual al día — S · F10/F11
+
+- Un test recorre los enlaces de la aplicación al manual y falla si alguno apunta a una sección o ancla inexistente.
+- Todo cambio de comportamiento visible (fórmula, parámetro, pantalla) actualiza el manual en el mismo cambio, como el ERS (Definición de "Hecho", §11.5).
+- Los valores de las reglas del juego que cita el manual salen de `Eth.GameRules` al renderizar (no quedan copiados a mano).
+
 ---
 
 ## 5. Requisitos no funcionales
@@ -1213,6 +1246,9 @@ Aviso (en la app y, si está activo, del navegador) cuando una orden propia deja
 - **RNF-5.9** Identidad visual sobria, futurista y elegante inspirada en la interfaz de EVE Online, coherente en todas las vistas (lenguaje visual de §9.9).
 - **RNF-5.10** Iconografía: un único set de íconos lineales SVG, con trazo y tamaños uniformes; sin emojis en la interfaz; un ícono solo donde aporta significado (sin saturar).
 - **RNF-5.11** Movimiento sutil: transiciones de ≤ 200 ms que no distraen de los datos en vivo; se respeta `prefers-reduced-motion`.
+- **RNF-5.13** **Trades rápido primero:** la razón de ser de la aplicación es encontrar trades rápido. El Cazador muestra oportunidades útiles en < 1 s desde que se abre (con datos en memoria), las acciones frecuentes están a un clic o a una tecla (RF-6.9), y ningún efecto, animación o elemento decorativo retrasa ni tapa los datos. Ante un conflicto entre estética y utilidad, gana la utilidad.
+- **RNF-5.14** **Todo se entiende:** cada cifra calculada (beneficio, ROI, ISK/h, TVS, Certeza, rango, peligro, margen, espera, comisiones, bodega) tiene un tooltip con su definición, la fórmula con los valores reales de esa fila y un enlace a la sección del manual que la explica (RF-11.3). Los términos del juego y de la aplicación usan el glosario del manual. Los tooltips son accesibles por teclado y en pantallas táctiles. Los índices y conceptos complejos (rango, TVS, Certeza, peligro, liquidez, instrumentos del Centro de control) llevan además el clásico **"?" en un círculo** junto a su etiqueta, que abre la explicación y enlaza a la documentación.
+- **RNF-5.15** **Estados de carga:** toda espera tiene respuesta visual. Más de ~300 ms (por ejemplo, abrir la ficha de un contrato, que recalcula libro, ruta y radar para la nave): spinner con un texto de qué se está haciendo; primera carga de una lista o panel: *skeleton* con la forma del contenido, nunca una pantalla en blanco; acciones in-game (fijar ruta, abrir mercado): el botón muestra su propio estado hasta la respuesta de ESI. Todo spinner respeta `prefers-reduced-motion`.
 - **RNF-5.12** Propiedad intelectual: inspiración, no copia. Sin logos, capturas, fuentes ni recursos gráficos propietarios de CCP; solo las imágenes del servidor oficial (retratos, renders e íconos de tipos) según la licencia (RNF-14.1). Fuentes con licencia libre (OFL), servidas por la propia aplicación (CSP, RNF-4.8).
 
 ### RNF-6 · Idioma y estándares de código
@@ -1818,13 +1854,32 @@ Una vez completas las funciones (F9), se rediseña **toda** la interfaz con una 
 - **Paleta (tokens):** fondo, superficie y borde en azules muy oscuros; acento primario frío (cian/azul) y acento secundario ámbar para acciones y avisos; semánticos (éxito, aviso, error, info) ajustados a contraste AA; la escala de seguridad del Anexo B.6 se mantiene intacta. Tema claro coherente ("modo día") además del oscuro principal (RNF-5.1).
 - **Tipografía:** sans técnica para títulos y etiquetas, sans muy legible para el texto y monoespaciada o tabular para las cifras; candidatas con licencia OFL (por ejemplo Oxanium, Rajdhani o Exo 2 para títulos; Inter para el texto; JetBrains Mono para cifras), a elegir en los mockups.
 - **Iconografía:** set lineal único (RNF-5.10), más íconos propios para conceptos de EVE (nave, estación, estructura, stargate, ISK, amenaza) dibujados con el mismo trazo; retratos, renders e íconos de tipos del servidor oficial con un marco consistente.
-- **Componentes propios** (sin los estilos por defecto de daisyUI): panel, tarjeta de KPI, tabla densa con cabecera fija, insignias, control segmentado, pestañas, barra de herramientas, cajón de detalle, diálogos, toasts, tooltips, *skeletons* de carga y estados vacíos con ícono.
+- **Componentes propios** (sin los estilos por defecto de daisyUI), un único juego para toda la aplicación: panel, tarjeta de KPI, tabla densa con cabecera fija, insignias, control segmentado, pestañas, barra de herramientas, cajón de detalle, diálogos, menús y popovers, mensajes flash (info, éxito, aviso, error y hito logrado), tooltips con fórmula, ícono de ayuda "?" en círculo, spinners, *skeletons* de carga, estados vacíos y de error con su solución. Cada uno en modo noche y modo día (RNF-5.1), con contraste AA en ambos.
 - **Layout:** cabecera con la barra del piloto integrada; navegación lateral colapsable en escritorio y compacta en móvil (a definir en los mockups); jerarquía clara (beneficio, ISK/h y TVS resaltan); micrográficos (*sparklines*) solo donde aportan.
 - **Sistema de diseño documentado:** tokens en `app.css` (`@theme` de Tailwind v4), componentes en `core_components`/`ui` y un catálogo en `/dev/ui` (solo desarrollo) con cada componente y sus estados.
 - **Alcance:** todas las vistas: Cazador y detalle, Viaje activo, Centro de control, Ajustes, login y modo invitado, errores 404/500, estados vacíos, de carga y diálogos.
+- **Mockups (2026-09-29):** lienzo "EVE Trade Hunter · Rediseño F10" con el sistema de diseño, el tablón (escritorio y teléfono), el Centro de control con instrumentos, el manual, los componentes compartidos (mensajes, capas y carga) y el modo día con la ayuda "?".
 - **Proceso:** (1) moodboard y mockups de las vistas principales en tres tamaños, **aprobados por el operador** antes de programar; (2) tokens y componentes; (3) migración vista por vista, conservando los IDs del DOM que usan los tests; (4) revisión final en los tres tamaños.
 
 **CA:** capturas aprobadas de cada vista a 375, 768 y 1440 px; contraste AA verificado (axe o Lighthouse, accesibilidad ≥ 95); `prefers-reduced-motion` respetado; sin scripts inline nuevos (CSP); todos los tests en verde sin cambiar los IDs.
+
+### 9.10 Instrumentos y microinteracciones (F10)
+
+Cada tipo de proceso tiene su instrumento, dibujado en SVG con los tokens del tema y animado solo cuando cambia un dato real (RNF-5.11):
+
+| Proceso | Instrumento | Qué comunica |
+|---|---|---|
+| Poller de región / estructura | **Anillo doble:** exterior = cuenta regresiva hasta `Expires`; interior = páginas descargadas del ciclo | Estado (color + ícono + texto), `T-mm:ss`, páginas `x/y` |
+| Cola de historial | **Medidor de caudal** (barra horizontal con la tasa por minuto frente al tope) y pendientes | Req/min, pendientes, próxima ventana |
+| Feed del radar (R2Z2) | **Pulso** que late con cada kill recibida y un indicador de lag | En vivo / degradado, lag en segundos |
+| Presupuesto de ESI por grupo | **Arco** (medio anillo) con tokens usados/disponibles y la ventana | % usado, reserva, pausa |
+| Error limit | **Arco** con umbral marcado | Errores restantes, reinicio |
+| Sesión de personaje | **Anillos pequeños** por recurso (ubicación, nave, billetera…) con la próxima consulta | Frescura de cada dato |
+| SDE / arranque | **Secuencia de pasos** (descarga → proceso → grafo → listo) | Paso actual y duración |
+| Evaluación del motor | **Barra segmentada** por etapa (resúmenes, directo, estación, por órdenes) | Duración por etapa, versión |
+
+- **Microinteracciones del tablón:** entrada breve de los contratos nuevos, destello tenue en la cifra que cambió (verde si mejoró, rojo si empeoró), sello animado al expirar; el cursor sobre una fila revela sus acciones sin mover el layout.
+- **Límite:** ninguna animación dura más de 200 ms salvo los anillos (que siguen el tiempo real), ninguna se repite sin un dato nuevo y todas se desactivan con `prefers-reduced-motion`.
 
 ---
 
@@ -1995,6 +2050,22 @@ Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una
 - [ ] Textos de UI en español vía Gettext; código en inglés; sin warnings.
 - [ ] Telemetría y eventos para los procesos nuevos.
 - [ ] `docs/ERS.md`, `CLAUDE.md`, `.env.example` y `CHANGELOG.md` actualizados si corresponde.
+- [ ] Manual integrado (M11) actualizado si cambia algo visible para el usuario.
+
+### 11.6 Auditoría total previa a v1.0 (última tarea de F11)
+
+Antes de publicar v1.0 se hace un **relevamiento y auditoría completa** de todos los sistemas, con un informe versionado en `docs/audit-v1.0.md` (hallazgos, severidad, corrección o decisión) y los arreglos en el mismo ciclo:
+
+1. **Al día con EVE:** cada endpoint de ESI usado contra la OpenAPI vigente (rutas, campos, scopes, grupos de rate limit, caché) y la fecha de compatibilidad; los 13 scopes; flujo de EVE SSO (metadatos, JWKS, claims); formato y build del SDE; servidor de imágenes; zKillboard R2Z2 (formato, límites, User-Agent).
+2. **Reglas del juego:** impuestos, broker, relist, ticks de precio, límites de órdenes, IDs de habilidades y grupos, regiones y mercados especiales, dogma de la bodega: cada valor de `Eth.GameRules` verificado contra fuentes del Anexo C con su fecha.
+3. **Funcionalidad de punta a punta:** checklist §11.4 completo con un personaje real; las tres familias de trading con datos reales; viaje activo cerrado y reconciliado; alertas.
+4. **Rendimiento y recursos:** RNF-1 medidos con el universo completo (consulta, evaluación, arranque, memoria).
+5. **Seguridad y privacidad:** revisión de seguridad del código, `mix sobelow`, `deps.audit`, `hex.audit`, CSP, manejo de tokens y secretos, dependencias actualizadas.
+6. **Calidad:** cobertura (§11.3), Dialyzer y Credo en verde, deuda técnica y pendientes menores del ERS resueltos o diferidos con decisión explícita.
+7. **Documentación:** ERS, `CLAUDE.md`, README (guía de instalación), manual integrado y `.env.example` coherentes con el comportamiento real.
+8. **Accesibilidad y diseño:** CA de §9.9 y RNF-5 verificados en los tres tamaños.
+
+**CA:** el informe no tiene hallazgos de severidad alta abiertos; cada hallazgo medio o bajo tiene corrección o decisión registrada.
 
 ---
 
@@ -2012,8 +2083,8 @@ Registro de la aplicación SSO: en <https://developers.eveonline.com>, crear una
 | **F7** Estructuras | Más mercado por viaje | RF-1.6; RF-9.6; acceso por personaje en la Certeza (AS-8). *(RF-4.10 y 4.11 descartados: D-18)* | Estructuras con acceso por personaje; ninguna orden duplicada |
 | **F8** Viaje activo | Acompañamiento y ciclo cerrado | RF-7.1–7.6; RF-10.2, 10.3 | Viaje real completado con P&L reconciliado |
 | **F9** Trading por órdenes | Más estrategias | RF-4.1 (Listado y compra por orden), 4.16, 4.17; RF-6.12; RF-10.5; scope 13 | Station trading y órdenes propias con datos reales; familias diferenciadas en el Cazador; alertas de órdenes superadas |
-| **F10** Rediseño: tablón de caza | Interfaz final | RNF-5.4, 5.9–5.12; §9.9 en todas las vistas; RF-6.13 (tablón), RF-6.5 (ficha expandible), RF-7.7 (registro del cazador), RF-8.10 (Centro de control por pestañas) | Mockups aprobados; todas las vistas migradas; CA de §9.9, RF-6.13 y RF-8.10 |
-| **F11** Endurecimiento | **v1.0** | RNF de rendimiento, seguridad y accesibilidad; RF-6.9, 9.7; release descargable y guía de instalación (RNF-10.5–10.7) | Checklist §11.4 completo; benchmarks dentro de RNF-1 |
+| **F10** Rediseño: tablón de caza | Interfaz final | RNF-5.4, 5.9–5.14; §9.9 y §9.10 en todas las vistas; RF-6.13 (tablón), RF-6.5 (ficha expandible), RF-7.7 (registro del cazador con hitos), RF-8.10 (Centro de control por pestañas e instrumentos); M11 (manual integrado, RF-11.1–11.4) | Mockups aprobados; todas las vistas migradas; manual con las secciones mínimas; CA de §9.9, RF-6.13, RF-8.10 y M11 |
+| **F11** Endurecimiento | **v1.0** | RNF de rendimiento, seguridad y accesibilidad; RF-6.9, 9.7; release descargable y guía de instalación (RNF-10.5–10.7); **última tarea: auditoría total (§11.6)** | Checklist §11.4 completo; benchmarks dentro de RNF-1; informe de auditoría sin hallazgos altos abiertos |
 | **F12** v1.x | Evolución | RF-10.4, vista geográfica de regiones, EVE-Scout/Thera | Según priorización |
 
 
