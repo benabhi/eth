@@ -9,7 +9,8 @@
   <li><strong>Rango</strong>: resume el TVS en una letra (ver abajo).</li>
   <li><strong>Contrato</strong>: el objeto, la cantidad y el volumen que ocupa en tu bodega.</li>
   <li>
-    <strong>Ruta</strong>: origen y destino con el color de seguridad del cliente y los saltos.
+    <strong>Ruta</strong>: origen y destino con el color de seguridad del cliente y los saltos
+    (<code>24+10</code>: saltos hasta el origen + saltos hasta el destino).
   </li>
   <li>
     <strong>Peligro</strong>: el riesgo de la ruta según el radar (<.doc_link topic={:danger}>cómo se calcula</.doc_link>).
@@ -27,6 +28,24 @@
 <p>
   Tocá una fila para abrir su <strong>ficha</strong>: el cálculo con los números, el libro que se consume, el porqué del rango y las acciones.
 </p>
+
+<.section_title id="en-vivo">Actualización en vivo</.section_title>
+<ul>
+  <li>
+    Las filas <strong>nuevas</strong> se iluminan un momento en celeste; las que mejoraron, en
+    verde y las que empeoraron, en rojo.
+  </li>
+  <li>
+    Una fila que <strong>expiró</strong> (el contrato ya no está) queda tachada en su lugar un
+    segundo y medio antes de salir, para que veas qué se fue.
+  </li>
+  <li>
+    La grilla se <strong>congela</strong> sola mientras tenés una ficha abierta o el puntero del
+    mouse sobre la tabla: los cambios quedan como "pendientes" y se aplican al salir. También
+    podés congelarla a mano (botón Congelar o tecla F). El congelado con el puntero se apaga en
+    Ajustes → Motor.
+  </li>
+</ul>
 
 <.section_title id="rangos">Rangos</.section_title>
 <p>El rango es solo otra forma de mostrar el TVS; el número exacto siempre está en la ficha.</p>

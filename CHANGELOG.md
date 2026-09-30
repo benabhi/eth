@@ -8,6 +8,17 @@ migraciones (corren solas al arrancar) o cambios en `.env`.
 
 ### Agregado
 
+- **Glosario y ayudas (RF-11.2, RNF-5.14):** glosario único de siglas y términos; en las
+  pantallas, subrayado punteado con la definición al pasar el cursor. El menú "Manual" pasa a
+  "Documentación" y la búsqueda coincide por comienzo de palabra.
+- **Filas expiradas tachadas y congelado con el puntero (RF-6.3)** en las tres familias.
+- **Broker fee de estructuras en el motor (RF-9.4):** una estructura con broker propio se
+  usa para publicar órdenes en Estación, Listado y Compra por orden.
+- **Centro de control:** pipeline en vivo (RF-8.4), métricas de la última hora (RF-8.9) y
+  tendencia de los sistemas calientes del radar (RF-8.5).
+- **Ajustes → Motor (RF-9.5):** umbrales anti-scam, liquidez, TVS, tiempos por salto y la
+  matriz de vulnerabilidad, editables con explicación y rango; se incluyen en el respaldo.
+
 - **Distribución personal (RNF-10.5–10.7):** imagen de producción (`Dockerfile`) y
   `docker-compose.release.yml`: se levanta con un solo comando, las migraciones corren
   solas y los datos viven en volúmenes que sobreviven a las actualizaciones. Guía de
@@ -20,6 +31,11 @@ migraciones (corren solas al arrancar) o cambios en `.env`.
 
 ### Mejorado
 
+- La fila del tablón muestra siempre los saltos (`24+10`) y los ítems sin imagen (muchos
+  SKINs) tienen un ícono de respaldo.
+- Filtros más compactos en 1366–1600 px; "Requiere atención" agrupa las regiones y queda en
+  una línea; los tooltips que se salían de la pantalla se corren solos.
+- Dependencias: `dns_cluster` 0.3 y `phoenix_live_dashboard` 0.9 (A-11).
 - **Universo completo por defecto** (69 regiones, ~1,5 M órdenes), también en desarrollo.
 - **Rendimiento con el universo completo:** búsqueda con texto precalculado, consultas de
   Estación y Por órdenes repartidas entre los núcleos, intervalo mínimo entre evaluaciones

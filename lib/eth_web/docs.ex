@@ -72,6 +72,9 @@ defmodule EthWeb.Docs do
     history_queue: {"centro-de-control", "cola-de-historial"},
     radar_feed: {"centro-de-control", "feed-del-radar"},
     engine: {"centro-de-control", "motor"},
+    pipeline: {"centro-de-control", "pipeline"},
+    last_hour: {"centro-de-control", "ultima-hora"},
+    live_board: {"tablon", "en-vivo"},
     settings: {"ajustes", "ajustes"},
     esi_limits: {"esi", "limites"},
     privacy: {"esi", "privacidad"},
@@ -230,6 +233,16 @@ defmodule EthWeb.Docs do
       gettext(
         "Kills en vivo de zKillboard por su feed R2Z2; si se corta, el radar usa solo la línea base."
       )
+
+  def summary(:pipeline),
+    do: gettext("El camino de los datos: EVE, memoria, motor, oportunidades y tus pestañas.")
+
+  def summary(:last_hour),
+    do:
+      gettext("Un punto por minuto de los últimos 60: consultas, errores, tiempos y presupuesto.")
+
+  def summary(:live_board),
+    do: gettext("Filas nuevas, mejores, peores y expiradas; cuándo se congela la grilla.")
 
   def summary(:engine),
     do: gettext("Cuánto tardó cada etapa de la última evaluación del mercado.")

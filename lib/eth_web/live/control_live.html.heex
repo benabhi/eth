@@ -183,7 +183,7 @@
       </div>
 
       <%!-- Pipeline en vivo (RF-8.4): de EVE a las pestañas abiertas; la flecha late si pasan datos --%>
-      <.panel id="pipeline" title={gettext("Pipeline")} help={:engine}>
+      <.panel id="pipeline" title={gettext("Pipeline")} help={:pipeline}>
         <:help_body>
           {gettext(
             "Cómo viajan los datos: la app le pide el mercado a EVE, lo guarda en memoria, el motor busca trades y los muestra en cada pestaña abierta de la app. Cada flecha se anima mientras pasan datos por ella."
@@ -234,7 +234,7 @@
       </.panel>
 
       <%!-- Métricas de la última hora (RF-8.9): lo primero para ver si algo empeora --%>
-      <.panel id="last-hour" title={gettext("Última hora")} help={:control}>
+      <.panel id="last-hour" title={gettext("Última hora")} help={:last_hour}>
         <:help_body>
           {gettext(
             "Un punto por minuto de los últimos 60: consultas a EVE, errores, cuánto tardan, el motor y los tokens de mercado (la parte que queda del presupuesto de consultas de mercado que da EVE cada 15 minutos). Los contadores muestran el último minuto completo. Al reiniciar la aplicación la hora empieza vacía."
