@@ -47,6 +47,43 @@ defmodule EthWeb.Layouts do
     assigns = assign(assigns, :sections, sections())
 
     ~H"""
+    <%!-- Tooltips dentro de la pantalla: al abrirse se corren si se salían (RNF-5.14). --%>
+    <div id="tip-clamp" phx-hook=".TipClamp" hidden></div>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".TipClamp">
+      export default {
+        mounted() {
+          this.fit = (e) => {
+            const tip = e.target.closest && e.target.closest(".eth-tip")
+            const body = tip && tip.querySelector(":scope > .eth-tip-body")
+            if (!body) return
+            body.style.setProperty("--eth-tip-shift", "0px")
+            const r = body.getBoundingClientRect()
+            const margin = 8
+            // Límites: la ventana y el contenedor más cercano que recorta (overflow).
+            let min = margin, max = window.innerWidth - margin
+            for (let el = tip.parentElement; el && el !== document.body; el = el.parentElement) {
+              const cs = getComputedStyle(el)
+              if (cs.overflowX !== "visible" || cs.clipPath !== "none") {
+                const b = el.getBoundingClientRect()
+                min = Math.max(min, b.left + margin)
+                max = Math.min(max, b.right - margin)
+                break
+              }
+            }
+            let shift = 0
+            if (r.left < min) shift = min - r.left
+            else if (r.right > max) shift = max - r.right
+            body.style.setProperty("--eth-tip-shift", `${Math.round(shift)}px`)
+          }
+          document.addEventListener("pointerover", this.fit, true)
+          document.addEventListener("focusin", this.fit, true)
+        },
+        destroyed() {
+          document.removeEventListener("pointerover", this.fit, true)
+          document.removeEventListener("focusin", this.fit, true)
+        }
+      }
+    </script>
     <header class="sticky top-0 z-30 border-b border-base-300 bg-base-200/95 backdrop-blur">
       <div class="flex h-14 items-center gap-4 px-4 lg:gap-7 lg:px-7">
         <.link navigate={~p"/"} class="flex items-center gap-2.5" aria-label="EVE Trade Hunter">
