@@ -62,10 +62,10 @@ defmodule EthWeb.StationLiveTest do
     {:ok, view, _html} = live(conn, ~p"/station")
 
     assert has_element?(view, "#family-station[aria-current='page']")
-    assert has_element?(view, "#station-rows tr[id^='st-']", "Tritanium")
+    assert has_element?(view, "#station-rows [id^='st-'] > [data-head]", "Tritanium")
 
-    view |> element("#station-rows tr[id^='st-']") |> render_click()
-    assert has_element?(view, "#station-detail", "Tritanium")
+    view |> element("#station-rows [id^='st-'] > [data-head]") |> render_click()
+    assert has_element?(view, "#station-detail", "Precios sugeridos")
     assert has_element?(view, "#copy-buy-price[data-text='4.01']")
     assert has_element?(view, "#copy-sell-price[data-text='4.99']")
   end
@@ -76,7 +76,7 @@ defmodule EthWeb.StationLiveTest do
 
     view |> form("#station-filters", filters: %{min_margin: "90"}) |> render_change()
     assert_patch(view, ~p"/station?min_margin=90")
-    refute has_element?(view, "#station-rows tr[id^='st-']")
+    refute has_element?(view, "#station-rows [id^='st-'] > [data-head]")
   end
 
   test "parámetros: porcentajes, hubs válidos y listas cerradas" do

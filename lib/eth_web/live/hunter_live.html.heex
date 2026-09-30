@@ -41,74 +41,32 @@
     </:status>
   </.board_header>
 
-  <%!-- Filtros (RF-6.4) --%>
-  <.form
-    for={@form}
-    id="filters"
-    phx-change="filter"
-    phx-submit="filter"
-    class="eth-chamfer border border-base-300 bg-base-100 px-4 pt-3 pb-2"
+  <section
+    id="board"
+    aria-labelledby="opps-title"
+    class="eth-chamfer border border-base-300 bg-base-100"
+    phx-window-keydown="close_detail"
+    phx-key="Escape"
   >
-    <div class="grid grid-cols-2 gap-x-3 md:grid-cols-4 xl:grid-cols-9">
-      <div class="col-span-2 md:col-span-4 xl:col-span-2">
-        <.input
+    <%!-- Barra de filtros acoplada a la tabla (RF-6.4) --%>
+    <.form
+      for={@form}
+      id="filters"
+      phx-change="filter"
+      phx-submit="filter"
+      class="flex flex-col gap-2 border-b border-base-300 p-3"
+    >
+      <div class="flex flex-wrap items-center gap-2">
+        <h2 id="opps-title" class="sr-only">{gettext("Contratos")}</h2>
+        <.filter_search
           field={@form[:search]}
-          label={gettext("Buscar")}
           placeholder={gettext("Objeto, estación, sistema o región")}
-          phx-debounce="300"
+          class="min-w-56 flex-1"
         />
-      </div>
-      <.input
-        field={@form[:route_mode]}
-        type="select"
-        label={gettext("Ruta")}
-        options={[
-          {gettext("Segura (solo highsec)"), "secure"},
-          {gettext("Rápida"), "shortest"},
-          {gettext("Evasiva (esquiva amenazas)"), "evasive"}
-        ]}
-      />
-      <.input field={@form[:max_jumps]} type="number" min="0" label={gettext("Saltos máx.")} />
-      <.input
-        field={@form[:min_profit]}
-        label={gettext("Beneficio ≥")}
-        placeholder="1M"
-        phx-debounce="400"
-      />
-      <.input
-        field={@form[:min_roi]}
-        type="number"
-        min="0"
-        step="0.1"
-        label={gettext("ROI ≥ (%)")}
-      />
-      <.input
-        field={@form[:capital]}
-        label={gettext("Capital")}
-        placeholder={gettext("sin límite")}
-        phx-debounce="400"
-      />
-      <.input
-        field={@form[:cargo_m3]}
-        type="number"
-        min="0"
-        label={gettext("Bodega (m³)")}
-        placeholder={gettext("sin límite")}
-        phx-debounce="400"
-      />
-      <.input
-        field={@form[:accounting]}
-        type="select"
-        label={gettext("Accounting")}
-        options={for level <- 0..5, do: {"#{level}", "#{level}"}}
-      />
-    </div>
-    <div class="flex flex-wrap items-end gap-x-3">
-      <div class="w-48">
-        <.input
+        <.filter_field
           field={@form[:sort]}
           type="select"
-          label={gettext("Ordenar por")}
+          label={gettext("Orden")}
           options={[
             {"TVS", "tvs"},
             {gettext("Beneficio"), "profit"},
@@ -119,9 +77,79 @@
             {gettext("Frescura"), "age"}
           ]}
         />
+        <.filter_field
+          field={@form[:route_mode]}
+          type="select"
+          label={gettext("Ruta")}
+          options={[
+            {gettext("Segura"), "secure"},
+            {gettext("Rápida"), "shortest"},
+            {gettext("Evasiva"), "evasive"}
+          ]}
+        />
+        <span :if={@pending > 0} class="border border-warning/60 px-2 py-1 text-xs text-warning">
+          {ngettext("%{count} cambio pendiente", "%{count} cambios pendientes", @pending)}
+        </span>
+        <button
+          id="freeze"
+          type="button"
+          phx-click="toggle_freeze"
+          aria-pressed={to_string(@frozen)}
+          class={[
+            "btn btn-sm h-8 min-h-8",
+            if(@frozen, do: "btn-warning", else: "btn-ghost border-base-300")
+          ]}
+        >
+          <.icon name={if @frozen, do: "hero-play", else: "hero-pause"} class="size-4" />
+          {if @frozen, do: gettext("Aplicar y reanudar"), else: gettext("Congelar")}
+        </button>
       </div>
-      <div class="w-56">
-        <.input
+      <div class="flex flex-wrap items-center gap-2">
+        <.filter_field
+          field={@form[:max_jumps]}
+          type="number"
+          min="0"
+          label={gettext("Saltos ≤")}
+          class="w-32"
+        />
+        <.filter_field
+          field={@form[:min_profit]}
+          label={gettext("Beneficio ≥")}
+          placeholder="1M"
+          phx-debounce="400"
+          class="w-40"
+        />
+        <.filter_field
+          field={@form[:min_roi]}
+          type="number"
+          min="0"
+          step="0.1"
+          label={gettext("ROI ≥ %")}
+          class="w-32"
+        />
+        <.filter_field
+          field={@form[:capital]}
+          label={gettext("Capital")}
+          placeholder={gettext("sin límite")}
+          phx-debounce="400"
+          class="w-44"
+        />
+        <.filter_field
+          field={@form[:cargo_m3]}
+          type="number"
+          min="0"
+          label={gettext("Bodega m³")}
+          placeholder={gettext("sin límite")}
+          phx-debounce="400"
+          class="w-44"
+        />
+        <.filter_field
+          field={@form[:accounting]}
+          type="select"
+          label="Accounting"
+          options={for level <- 0..5, do: {"#{level}", "#{level}"}}
+        />
+        <.filter_field
           field={@form[:shield]}
           type="select"
           label={gettext("Anti-scam")}
@@ -131,370 +159,279 @@
             {gettext("Mostrar todo"), "all"}
           ]}
         />
+        <.filter_field field={@form[:liquid_only]} type="toggle" label={gettext("Solo líquidos")} />
+        <button
+          type="button"
+          phx-click="reset_filters"
+          class="btn btn-ghost btn-sm h-8 min-h-8 eth-muted"
+        >
+          <.icon name="hero-arrow-uturn-left" class="size-4" /> {gettext("Restablecer")}
+        </button>
       </div>
-      <div class="pb-2">
-        <.input field={@form[:liquid_only]} type="checkbox" label={gettext("Solo líquidos")} />
-      </div>
-      <button type="button" phx-click="reset_filters" class="btn btn-ghost btn-sm mb-2">
-        {gettext("Restablecer")}
-      </button>
-      <span id="filters-hint" class="mb-3 text-xs eth-faint">
-        <%= if @pilot do %>
-          {gettext(
-            "Accounting, capital y bodega de %{name}; distancias desde su sistema. Montos con sufijo: 5M, 1.5B.",
-            name: @pilot.name
-          )}
-        <% else %>
-          {gettext(
-            "Modo invitado: impuestos, capital y bodega manuales. Montos con sufijo: 5M, 1.5B."
-          )}
-        <% end %>
-      </span>
-    </div>
-  </.form>
+    </.form>
 
-  <div class="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_28rem]">
-    <section aria-labelledby="opps-title" class="border border-base-300 bg-base-100">
-      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-base-300 px-4 py-2.5">
-        <h2 id="opps-title" class="eth-kicker flex items-center gap-2">
-          {gettext("Contratos")}
-          <span class="normal-case tracking-normal font-sans text-xs eth-faint">
-            · {route_label(@query.route_mode)} · {gettext("máx. 200 filas")}
-          </span>
-        </h2>
-        <div class="flex items-center gap-2">
-          <span :if={@frozen and @pending > 0} class="badge badge-warning badge-sm">
-            {ngettext("%{count} cambio pendiente", "%{count} cambios pendientes", @pending)}
-          </span>
-          <button
-            id="freeze"
-            type="button"
-            phx-click="toggle_freeze"
-            aria-pressed={to_string(@frozen)}
+    <%!-- Encabezado de columnas --%>
+    <div class={[
+      grid_class(),
+      "border-b border-base-300 bg-base-200/60 py-2 eth-kicker text-[10px]"
+    ]}>
+      <span class="flex items-center gap-1">
+        {gettext("Rango")}
+        <.help topic={:rank} title={gettext("Rango")} align="start">
+          {gettext(
+            "El TVS del contrato en una letra: S ≥ 90, A ≥ 75, B ≥ 50, C ≥ 25; el resto, D."
+          )}
+        </.help>
+      </span>
+      <span>{gettext("Contrato")}</span>
+      <span class="hidden md:block">{gettext("Ruta")}</span>
+      <span class="hidden items-center gap-1 lg:flex">
+        {gettext("Peligro")}
+        <.help topic={:danger} title={gettext("Peligro")}>
+          {gettext(
+            "Riesgo de la ruta según el radar, tu nave y el valor de la carga (1 − Certeza de ruta)."
+          )}
+        </.help>
+      </span>
+      <span class="flex items-center justify-end gap-1">
+        {gettext("Recompensa")}
+        <.help topic={:profit} title={gettext("Recompensa")} align="end">
+          {gettext(
+            "Beneficio neto: lo que cobrás al vender, menos lo que pagás al comprar y el sales tax."
+          )}
+        </.help>
+      </span>
+      <span class="hidden items-center justify-end gap-1 md:flex">
+        ISK/h
+        <.help topic={:isk_per_hour} title="ISK/h" align="end">
+          {gettext("Beneficio por hora contando los saltos desde tu ubicación.")}
+        </.help>
+      </span>
+      <span class="flex items-center justify-end gap-1">
+        <span class="hidden md:inline">{gettext("Certeza")}</span>
+        <.help topic={:certainty} title={gettext("Certeza")} align="end">
+          {gettext("Qué tan probable es que el contrato salga como se calculó cuando llegues.")}
+        </.help>
+      </span>
+      <span class="hidden md:block"></span>
+    </div>
+
+    <div id="opportunities" phx-update="stream">
+      <div id="opportunities-empty" class="hidden px-4 py-12 text-center eth-muted only:block">
+        {gettext("Sin oportunidades con estos filtros. Probá bajar el beneficio mínimo o el ROI.")}
+      </div>
+      <div
+        :for={{dom_id, row} <- @streams.rows}
+        id={dom_id}
+        class={[
+          "border-b border-base-300/70 last:border-b-0",
+          @selected == row.id && "shadow-[inset_3px_0_0_var(--color-primary)]"
+        ]}
+      >
+        <div
+          data-head
+          role="button"
+          tabindex="0"
+          aria-expanded={to_string(@selected == row.id)}
+          phx-click="select"
+          phx-value-id={row.id}
+          class={[
+            grid_class(),
+            "cursor-pointer py-2.5 transition-colors hover:bg-primary/5",
+            @selected == row.id && "bg-primary/10"
+          ]}
+        >
+          <.rank_badge tvs={row.tvs} />
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <img
+                src={"https://images.evetech.net/types/#{row.opportunity.type_id}/icon?size=32"}
+                alt=""
+                width="24"
+                height="24"
+                loading="lazy"
+                class="bg-base-300"
+              />
+              <span class="truncate font-semibold eth-strong">{row.opportunity.type_name}</span>
+            </div>
+            <div class="mt-0.5 flex flex-wrap items-center gap-1">
+              <span class="font-mono text-xs eth-faint">
+                ×{Format.integer(row.quantity)} · {Format.integer(round(row.cargo_m3))} m³
+              </span>
+              <.seal
+                :if={row.route_alerts.count > 0}
+                kind={:risk}
+                label={threat_seal(row.route_alerts)}
+                title={row.route_alerts.worst.classification.description}
+              />
+              <.shield_seal shield={row.shield} />
+              <.seal
+                :if={row.illiquid}
+                kind={:illiquid}
+                title={
+                  gettext("%{days} días con operaciones en 30",
+                    days: row.history.destination.days_traded_30d
+                  )
+                }
+              />
+              <.seal :if={row.opportunity.remote_sale} kind={:range} />
+              <.seal
+                :if={row.opportunity.origin.structure or row.opportunity.destination.structure}
+                kind={:structure}
+                label={access_label(worst_access(row.access))}
+                title={access_title(row.access)}
+              />
+            </div>
+          </div>
+          <div class="hidden min-w-0 text-sm md:block">
+            <div class="truncate" title={row.opportunity.origin.name}>
+              <span style={sec_style(row.opportunity.origin.security)} class="font-mono">
+                {sec_label(row.opportunity.origin.security)}
+              </span>
+              {row.opportunity.origin.name}
+            </div>
+            <div class="truncate" title={row.opportunity.destination.name}>
+              →
+              <span style={sec_style(row.opportunity.destination.security)} class="font-mono">
+                {sec_label(row.opportunity.destination.security)}
+              </span>
+              {row.opportunity.destination.name}
+              <span class="font-mono text-xs eth-faint">
+                · {row.jumps_to_origin}+{row.jumps} {gettext("saltos")}
+              </span>
+            </div>
+          </div>
+          <div class="hidden lg:block">
+            <.danger_meter level={Grade.danger(row.breakdown.route_certainty)} />
+          </div>
+          <div class="text-right">
+            <div class="font-mono text-base font-medium text-accent">
+              {Format.compact(row.profit)}
+            </div>
+            <div class="font-mono text-xs eth-faint">
+              {Format.compact(row.cost)} · {pct(row.roi)}
+            </div>
+          </div>
+          <div class="hidden text-right md:block">
+            <div class="font-mono text-sm eth-strong">{Format.compact(row.isk_per_hour)}</div>
+            <div class="font-mono text-xs eth-faint">{Format.travel(row.seconds)}</div>
+          </div>
+          <div class="flex justify-end"><.certainty_ring value={row.certainty} /></div>
+          <div class="hidden justify-end md:flex">
+            <.icon
+              name="hero-chevron-down"
+              class={[
+                "size-4 eth-muted transition-transform duration-200",
+                @selected == row.id && "rotate-180 text-primary"
+              ]}
+            />
+          </div>
+        </div>
+
+        <%!-- Ficha del contrato bajo la fila (RF-6.5) --%>
+        <.row_detail
+          :if={@selected == row.id}
+          id="detail"
+          label={gettext("Ficha de %{name}", name: row.opportunity.type_name)}
+        >
+          <div
+            :if={row.shield.status != :ok}
+            id="shield-alert"
+            role={if scam?(row), do: "alert", else: "status"}
             class={[
-              "btn btn-sm",
-              if(@frozen, do: "btn-warning", else: "btn-ghost border-base-300")
+              "flex flex-wrap items-center gap-x-3 gap-y-1 border px-3 py-2 text-sm md:col-span-2 xl:col-span-4",
+              if(scam?(row),
+                do: "border-error/50 bg-error/10",
+                else: "border-warning/50 bg-warning/10"
+              )
             ]}
           >
-            {if @frozen, do: gettext("Aplicar y reanudar"), else: gettext("Congelar")}
-          </button>
-        </div>
-      </div>
-
-      <div class="overflow-x-auto">
-        <table class="table table-sm">
-          <thead>
-            <tr class="border-base-300">
-              <th class="eth-kicker w-14 text-[11px]">
-                <span class="flex items-center gap-1.5">
-                  {gettext("Rango")}
-                  <.help topic={:rank} title={gettext("Rango")} align="start">
-                    {gettext(
-                      "El TVS del contrato en una letra: S ≥ 90, A ≥ 75, B ≥ 50, C ≥ 25; el resto, D."
-                    )}
-                  </.help>
-                </span>
-              </th>
-              <th class="eth-kicker text-[11px]">{gettext("Contrato")}</th>
-              <th class="eth-kicker text-[11px]">{gettext("Ruta")}</th>
-              <th class="eth-kicker hidden text-[11px] lg:table-cell">
-                <span class="flex items-center gap-1.5">
-                  {gettext("Peligro")}
-                  <.help topic={:danger} title={gettext("Peligro")}>
-                    {gettext(
-                      "Riesgo de la ruta según el radar, tu nave y el valor de la carga (1 − Certeza de ruta)."
-                    )}
-                  </.help>
-                </span>
-              </th>
-              <th class="eth-kicker text-right text-[11px]">
-                <span class="flex items-center justify-end gap-1.5">
-                  {gettext("Recompensa")}
-                  <.help topic={:profit} title={gettext("Recompensa")} align="end">
-                    {gettext(
-                      "Beneficio neto: lo que cobrás al vender, menos lo que pagás al comprar y el sales tax."
-                    )}
-                  </.help>
-                </span>
-              </th>
-              <th class="eth-kicker hidden text-right text-[11px] md:table-cell">
-                <span class="flex items-center justify-end gap-1.5">
-                  ISK/h · ETA
-                  <.help topic={:isk_per_hour} title="ISK/h" align="end">
-                    {gettext("Beneficio por hora contando los saltos desde tu ubicación.")}
-                  </.help>
-                </span>
-              </th>
-              <th class="eth-kicker text-right text-[11px]">
-                <span class="flex items-center justify-end gap-1.5">
-                  {gettext("Certeza")}
-                  <.help topic={:certainty} title={gettext("Certeza")} align="end">
-                    {gettext(
-                      "Qué tan probable es que el contrato salga como se calculó cuando llegues."
-                    )}
-                  </.help>
-                </span>
-              </th>
-              <th class="w-10"><span class="sr-only">{gettext("Acciones")}</span></th>
-            </tr>
-          </thead>
-          <tbody id="opportunities" phx-update="stream">
-            <tr id="opportunities-empty" class="hidden only:table-row">
-              <td colspan="8" class="py-10 text-center eth-muted">
-                {gettext(
-                  "Sin oportunidades con estos filtros. Probá bajar el beneficio mínimo o el ROI."
-                )}
-              </td>
-            </tr>
-            <tr
-              :for={{dom_id, row} <- @streams.rows}
-              id={dom_id}
-              phx-click="select"
-              phx-value-id={row.id}
-              class={[
-                "eth-enter cursor-pointer border-base-300/60 align-middle transition-colors hover:bg-primary/5",
-                @selected == row.id && "bg-primary/10"
-              ]}
+            <span class={["font-semibold", if(scam?(row), do: "text-error", else: "text-warning")]}>
+              <%= if scam?(row) do %>
+                {gettext("SCAM ALERT · acciones bloqueadas")}
+              <% else %>
+                {shield_label(row.shield.status)}
+              <% end %>
+            </span>
+            <span class="text-xs eth-muted">{Enum.join(row.shield.reasons, " · ")}</span>
+            <button
+              :if={row.shield.status in [:scam, :suspicious]}
+              id="report-false-positive"
+              type="button"
+              phx-click="report_false_positive"
+              class="btn btn-ghost btn-xs ml-auto"
             >
-              <td><.rank_badge tvs={row.tvs} /></td>
-              <td class="max-w-64">
-                <div class="flex items-center gap-2">
-                  <img
-                    src={"https://images.evetech.net/types/#{row.opportunity.type_id}/icon?size=32"}
-                    alt=""
-                    width="24"
-                    height="24"
-                    loading="lazy"
-                    class="bg-base-300"
-                  />
-                  <span class="truncate font-semibold eth-strong">
-                    {row.opportunity.type_name}
-                  </span>
-                </div>
-                <div class="mt-0.5 flex flex-wrap items-center gap-1">
-                  <span class="font-mono text-xs eth-faint">
-                    ×{Format.integer(row.quantity)} · {Format.integer(round(row.cargo_m3))} m³
-                  </span>
-                  <.seal
-                    :if={row.route_alerts.count > 0}
-                    kind={:risk}
-                    label={threat_seal(row.route_alerts)}
-                    title={row.route_alerts.worst.classification.description}
-                  />
-                  <.shield_seal shield={row.shield} />
-                  <.seal
-                    :if={row.illiquid}
-                    kind={:illiquid}
-                    title={
-                      gettext("%{days} días con operaciones en 30",
-                        days: row.history.destination.days_traded_30d
-                      )
-                    }
-                  />
-                  <.seal :if={row.opportunity.remote_sale} kind={:range} />
-                  <.seal
-                    :if={
-                      row.opportunity.origin.structure or row.opportunity.destination.structure
-                    }
-                    kind={:structure}
-                    label={access_label(worst_access(row.access))}
-                    title={access_title(row.access)}
-                  />
-                </div>
-              </td>
-              <td class="max-w-80 text-sm">
-                <div class="truncate" title={row.opportunity.origin.name}>
-                  <span style={sec_style(row.opportunity.origin.security)} class="font-mono">
-                    {sec_label(row.opportunity.origin.security)}
-                  </span>
-                  {row.opportunity.origin.name}
-                </div>
-                <div class="truncate" title={row.opportunity.destination.name}>
-                  →
-                  <span style={sec_style(row.opportunity.destination.security)} class="font-mono">
-                    {sec_label(row.opportunity.destination.security)}
-                  </span>
-                  {row.opportunity.destination.name}
-                  <span class="font-mono text-xs eth-faint">
-                    · {row.jumps_to_origin}+{row.jumps} {gettext("saltos")}
-                  </span>
-                </div>
-              </td>
-              <td class="hidden w-32 lg:table-cell">
-                <.danger_meter level={Grade.danger(row.breakdown.route_certainty)} />
-              </td>
-              <td class="text-right">
-                <div class="font-mono text-base font-medium text-accent">
-                  {Format.compact(row.profit)}
-                </div>
-                <div class="font-mono text-xs eth-faint">
-                  {gettext("inv.")} {Format.compact(row.cost)} · {pct(row.roi)}
-                </div>
-              </td>
-              <td class="hidden text-right md:table-cell">
-                <div class="font-mono text-sm eth-strong">{Format.compact(row.isk_per_hour)}</div>
-                <div class="font-mono text-xs eth-faint">{Format.travel(row.seconds)}</div>
-              </td>
-              <td class="text-right">
-                <div class="flex justify-end">
-                  <.certainty_ring value={row.certainty} />
-                </div>
-              </td>
-              <td>
-                <span :if={scam?(row)} class="text-xs text-error">{gettext("bloqueada")}</span>
-                <button
-                  :if={not scam?(row)}
-                  id={"copy-#{row.id}"}
-                  type="button"
-                  phx-hook=".Clipboard"
-                  data-text={multibuy(row)}
-                  class="btn btn-ghost btn-xs"
-                  title={gettext("Copiar Multibuy")}
-                >
-                  <.icon name="hero-clipboard-document" class="size-4" />
-                  <span class="sr-only">{gettext("Copiar Multibuy")}</span>
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <%!-- Ficha del contrato: detalle y explicabilidad (RF-6.5) --%>
-    <aside
-      id="detail"
-      aria-labelledby="detail-title"
-      class="eth-chamfer h-fit border border-base-300 bg-base-100 p-4 2xl:sticky 2xl:top-20"
-    >
-      <%= cond do %>
-        <% @detail_loading -> %>
-          <h2 id="detail-title" class="sr-only">{gettext("Ficha del contrato")}</h2>
-          <div id="detail-loading" class="flex flex-col gap-4 py-2">
-            <.spinner
-              label={gettext("Recalculando la ficha…")}
-              hint={gettext("Libro, ruta y radar para tu nave")}
-            />
-            <.skeleton rows={3} />
+              {gettext("Reportar falso positivo")}
+            </button>
           </div>
-        <% @selected_row -> %>
-          <div :for={r <- [@selected_row]} id="detail-body">
-            <div class="flex items-start gap-3">
-              <.rank_badge tvs={r.tvs} size="lg" />
-              <div class="min-w-0">
-                <h2 id="detail-title" class="font-display text-lg font-semibold eth-strong">
-                  {r.opportunity.type_name}
-                </h2>
-                <p class="text-sm eth-muted">
-                  {r.opportunity.origin.name}<br />→ {r.opportunity.destination.name}
-                </p>
-              </div>
-            </div>
-            <p class="mt-1 text-xs eth-faint">
-              {route_label(@query.route_mode)} · {r.jumps_to_origin} {gettext("saltos al origen")} + {r.jumps} {gettext(
-                "al destino"
-              )} · ETA {Format.travel(r.seconds)}
-            </p>
 
-            <div
-              :if={r.shield.status != :ok}
-              id="shield-alert"
-              role={if scam?(r), do: "alert", else: "status"}
-              class={[
-                "mt-3 flex flex-col items-start gap-1 border px-3 py-2 text-sm",
-                if(scam?(r),
-                  do: "border-error/50 bg-error/10",
-                  else: "border-warning/50 bg-warning/10"
-                )
-              ]}
-            >
-              <div class={["font-semibold", if(scam?(r), do: "text-error", else: "text-warning")]}>
-                <%= if scam?(r) do %>
-                  {gettext("SCAM ALERT · acciones bloqueadas")}
-                <% else %>
-                  {shield_label(r.shield.status)}
-                <% end %>
-              </div>
-              <ul class="text-xs eth-muted">
-                <li :for={reason <- r.shield.reasons}>{reason}</li>
-              </ul>
-              <button
-                :if={r.shield.status in [:scam, :suspicious]}
-                id="report-false-positive"
-                type="button"
-                phx-click="report_false_positive"
-                class="btn btn-ghost btn-xs"
-              >
-                {gettext("Reportar falso positivo")}
-              </button>
-            </div>
-
-            <h3 class="eth-kicker mt-4 mb-1.5 flex items-center gap-2 text-[11px] text-primary">
-              {gettext("Cálculo")} <.help topic={:profit} title={gettext("Cálculo")} />
-            </h3>
+          <.detail_col title={gettext("Cálculo")} topic={:profit}>
             <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm tabular-nums">
               <dt class="eth-muted">{gettext("Cantidad")}</dt>
-              <dd class="font-mono">
-                {Format.integer(r.quantity)} ({Format.integer(round(r.cargo_m3))} m³)
+              <dd class="text-right font-mono">
+                {Format.integer(row.quantity)} ({Format.integer(round(row.cargo_m3))} m³)
               </dd>
               <dt class="eth-muted">{gettext("Compra promedio")}</dt>
-              <dd class="font-mono">{Format.compact(r.avg_buy)}</dd>
+              <dd class="text-right font-mono">{Format.compact(row.avg_buy)}</dd>
               <dt class="eth-muted">{gettext("Venta promedio")}</dt>
-              <dd class="font-mono">{Format.compact(r.avg_sell)}</dd>
+              <dd class="text-right font-mono">{Format.compact(row.avg_sell)}</dd>
               <dt class="eth-muted">{gettext("Inversión")}</dt>
-              <dd class="font-mono">{Format.compact(r.cost)}</dd>
+              <dd class="text-right font-mono">{Format.compact(row.cost)}</dd>
               <dt class="eth-muted">{gettext("Sales tax")}</dt>
-              <dd class="font-mono">
+              <dd class="text-right font-mono">
                 <.tip title={gettext("Sales tax")} topic={:sales_tax} align="end">
-                  {Format.compact(r.tax)} ({pct(r.tax_rate)})
+                  {Format.compact(row.tax)} ({pct(row.tax_rate)})
                   <:body>{gettext("Impuesto al vender, según tu nivel de Accounting.")}</:body>
                   <:formula>
-                    {Format.compact(r.revenue + r.tax)} × {pct(r.tax_rate)} = {Format.compact(
-                      r.tax
+                    {Format.compact(row.revenue + row.tax)} × {pct(row.tax_rate)} = {Format.compact(
+                      row.tax
                     )}
                   </:formula>
                 </.tip>
               </dd>
               <dt class="eth-muted">{gettext("Ingreso neto")}</dt>
-              <dd class="font-mono">{Format.compact(r.revenue)}</dd>
-              <dt class="eth-muted">{gettext("Beneficio")}</dt>
-              <dd class="font-mono font-semibold text-accent">
-                {Format.compact(r.profit)} (ROI {pct(r.roi)})
+              <dd class="text-right font-mono">{Format.compact(row.revenue)}</dd>
+              <dt class="mt-1 border-t border-base-300 pt-1 eth-muted">{gettext("Beneficio")}</dt>
+              <dd class="mt-1 border-t border-base-300 pt-1 text-right font-mono font-semibold text-accent">
+                {Format.compact(row.profit)} · {pct(row.roi)}
               </dd>
               <dt class="eth-muted">ISK/h</dt>
-              <dd class="font-mono">{Format.compact(r.isk_per_hour)}</dd>
+              <dd class="text-right font-mono">
+                {Format.compact(row.isk_per_hour)}
+                <span class="eth-faint">· ETA {Format.travel(row.seconds)}</span>
+              </dd>
             </dl>
+          </.detail_col>
 
-            <h3 class="eth-kicker mt-4 mb-1.5 flex items-center gap-2 text-[11px] text-primary">
-              {gettext("Libro consumido")}
-              <.help topic={:walk} title={gettext("Libro consumido")} />
-            </h3>
-            <div class="grid grid-cols-2 gap-2 font-mono text-xs">
+          <.detail_col title={gettext("Libro consumido")} topic={:walk}>
+            <div class="grid grid-cols-2 gap-3 font-mono text-xs">
               <div>
-                <div class="eth-faint">{gettext("Compra (ventas)")}</div>
-                <div :for={{price, qty} <- r.asks_used}>
+                <div class="mb-0.5 font-sans eth-faint">{gettext("Compra (ventas)")}</div>
+                <div :for={{price, qty} <- row.asks_used}>
                   {Format.compact(price)} × {Format.integer(qty)}
                 </div>
               </div>
               <div>
-                <div class="eth-faint">{gettext("Venta (compras)")}</div>
-                <div :for={{price, qty, min_volume} <- r.bids_used}>
+                <div class="mb-0.5 font-sans eth-faint">{gettext("Venta (compras)")}</div>
+                <div :for={{price, qty, min_volume} <- row.bids_used}>
                   {Format.compact(price)} × {Format.integer(qty)}<span :if={min_volume > 1}> (mín. {min_volume})</span>
                 </div>
               </div>
             </div>
 
-            <h3 class="eth-kicker mt-4 mb-1.5 flex items-center gap-2 text-[11px] text-primary">
-              {gettext("Historial (destino, 30 días)")}
-              <.help topic={:liquidity} title={gettext("Historial")} />
+            <h3 class="eth-kicker mt-4 mb-2 flex items-center gap-2 text-[11px] text-primary">
+              {gettext("Historial del destino")}
+              <.help topic={:liquidity} title={gettext("Historial")}>
+                {gettext("Precio y volumen de los últimos 30 días en la región de destino.")}
+              </.help>
             </h3>
-            <%= if h = r.history.destination do %>
-              <div id="history" class="text-sm">
+            <%= if h = row.history.destination do %>
+              <div id="history" class="text-xs">
                 <svg
                   :if={sparkline(h.daily_avg)}
                   viewBox="0 0 120 32"
                   preserveAspectRatio="none"
-                  class="h-10 w-full text-primary"
+                  class="h-9 w-full text-primary"
                   role="img"
                   aria-label={gettext("Precio promedio diario de los últimos 30 días")}
                 >
@@ -506,26 +443,28 @@
                     vector-effect="non-scaling-stroke"
                   />
                 </svg>
-                <dl class="grid grid-cols-[auto_1fr] gap-x-3 tabular-nums">
+                <dl class="mt-1 grid grid-cols-[auto_1fr] gap-x-3 tabular-nums">
                   <dt class="eth-muted">{gettext("Mediana 7 d")}</dt>
-                  <dd class="font-mono">{(h.median_7d && Format.compact(h.median_7d)) || "—"}</dd>
+                  <dd class="text-right font-mono">
+                    {(h.median_7d && Format.compact(h.median_7d)) || "—"}
+                  </dd>
                   <dt class="eth-muted">{gettext("Mediana 30 d")}</dt>
-                  <dd class="font-mono">
+                  <dd class="text-right font-mono">
                     {(h.median_30d && Format.compact(h.median_30d)) || "—"}
                   </dd>
                   <dt class="eth-muted">{gettext("Volumen diario 7 d")}</dt>
-                  <dd class="font-mono">{Format.integer(round(h.volume_avg_7d))}</dd>
+                  <dd class="text-right font-mono">{Format.integer(round(h.volume_avg_7d))}</dd>
                   <dt class="eth-muted">{gettext("Días operados")}</dt>
-                  <dd class="font-mono">{h.days_traded_30d} / 30</dd>
-                  <dt :if={r.history.origin} class="eth-muted">
+                  <dd class="text-right font-mono">{h.days_traded_30d} / 30</dd>
+                  <dt :if={row.history.origin} class="eth-muted">
                     {gettext("Mediana 7 d origen")}
                   </dt>
-                  <dd :if={r.history.origin} class="font-mono">
-                    {(r.history.origin.median_7d && Format.compact(r.history.origin.median_7d)) ||
+                  <dd :if={row.history.origin} class="text-right font-mono">
+                    {(row.history.origin.median_7d && Format.compact(row.history.origin.median_7d)) ||
                       "—"}
                   </dd>
                 </dl>
-                <p class="text-xs eth-faint">
+                <p class="mt-1 eth-faint">
                   {gettext(
                     "Datos hasta el %{date} (ESI publica un día por vez, después del downtime).",
                     date: Calendar.strftime(h.as_of, "%d/%m")
@@ -539,177 +478,207 @@
                 )}
               </p>
             <% end %>
+          </.detail_col>
 
-            <%!-- Ruta (RF-6.5): sistemas del camino, seguridad y amenazas del radar --%>
-            <h3 class="eth-kicker mt-4 mb-1.5 flex items-center gap-2 text-[11px] text-primary">
-              {gettext("Ruta (%{mode})", mode: route_label(@query.route_mode))}
-              <.help topic={:radar} title={gettext("Ruta")} />
-            </h3>
-            <div :if={d = @route_details} id="route" class="text-xs">
-              <div class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono">
-                <span
-                  :for={{s, i} <- Enum.with_index(d.to_origin ++ tl(d.route))}
-                  title={"#{s.name} · #{pct(s.probability)}"}
-                  class={[
-                    "whitespace-nowrap",
-                    s.type && "bg-error px-1 text-error-content",
-                    i == length(d.to_origin) - 1 && "font-bold underline"
-                  ]}
-                >
-                  <span style={sec_style(s.security)}>{sec_label(s.security)}</span> {s.name}
-                </span>
-              </div>
-              <p class="mt-1 eth-faint">
-                {gettext(
-                  "En negrita, el origen (se compra ahí). Pasá el mouse para ver el riesgo."
-                )}
-              </p>
-              <ul :if={Enum.any?(d.to_origin ++ d.route, & &1.type)} class="mt-1 space-y-0.5">
-                <li
-                  :for={
-                    s <-
-                      Enum.uniq_by(Enum.filter(d.to_origin ++ d.route, & &1.type), & &1.system_id)
-                  }
-                  class="text-error"
-                >
-                  {s.name}: {s.description} · {gettext("riesgo")} {pct(s.probability)}
-                </li>
-              </ul>
-            </div>
+          <%!-- Ruta: sistemas del camino, seguridad y amenazas del radar --%>
+          <.detail_col
+            title={gettext("Ruta (%{mode})", mode: route_label(@query.route_mode))}
+            topic={:radar}
+            help={
+              gettext("En negrita, el origen (se compra ahí). Pasá el mouse para ver el riesgo.")
+            }
+          >
+            <p class="mb-2 font-mono text-xs eth-faint">
+              {row.jumps_to_origin} {gettext("saltos al origen")} + {row.jumps} {gettext(
+                "al destino"
+              )}
+            </p>
+            <%= cond do %>
+              <% @route_loading -> %>
+                <.spinner
+                  id="route-loading"
+                  size={18}
+                  label={gettext("Calculando la ruta…")}
+                  hint={gettext("Sistemas, seguridad y amenazas del radar")}
+                />
+              <% @route_details -> %>
+                <div :for={d <- [@route_details]} id="route" class="text-xs">
+                  <div class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono">
+                    <span
+                      :for={{s, i} <- Enum.with_index(d.to_origin ++ tl(d.route))}
+                      title={"#{s.name} · #{pct(s.probability)}"}
+                      class={[
+                        "whitespace-nowrap",
+                        s.type && "bg-error px-1 text-error-content",
+                        i == length(d.to_origin) - 1 && "font-bold underline"
+                      ]}
+                    >
+                      <span style={sec_style(s.security)}>{sec_label(s.security)}</span> {s.name}
+                    </span>
+                  </div>
+                  <ul :if={Enum.any?(d.to_origin ++ d.route, & &1.type)} class="mt-2 space-y-0.5">
+                    <li
+                      :for={
+                        s <-
+                          Enum.uniq_by(
+                            Enum.filter(d.to_origin ++ d.route, & &1.type),
+                            & &1.system_id
+                          )
+                      }
+                      class="text-error"
+                    >
+                      {s.name}: {s.description} · {gettext("riesgo")} {pct(s.probability)}
+                    </li>
+                  </ul>
+                </div>
+              <% true -> %>
+                <p class="text-xs eth-faint">{gettext("Sin ruta disponible.")}</p>
+            <% end %>
+          </.detail_col>
 
-            <h3 class="eth-kicker mt-4 mb-1.5 flex items-center gap-2 text-[11px] text-primary">
-              {gettext("¿Por qué TVS %{tvs}?", tvs: r.tvs)}
-              <.help topic={:tvs} title="TVS" />
-            </h3>
+          <.detail_col title={gettext("¿Por qué TVS %{tvs}?", tvs: row.tvs)} topic={:tvs}>
             <p class="eth-formula">
-              {gettext("utilidad")} {:erlang.float_to_binary(r.utility, decimals: 2)} × {gettext(
+              {gettext("utilidad")} {:erlang.float_to_binary(row.utility, decimals: 2)} × {gettext(
                 "certeza"
-              )} {:erlang.float_to_binary(r.certainty, decimals: 2)} = {r.tvs} → {Grade.rank(
-                r.tvs
+              )} {:erlang.float_to_binary(row.certainty, decimals: 2)} = {row.tvs} → {Grade.rank(
+                row.tvs
               )}
             </p>
             <ul class="mt-2 space-y-0.5 text-xs tabular-nums">
               <li class="flex justify-between gap-3">
                 <span class="eth-muted">{gettext("Órdenes vigentes al llegar")}</span>
-                <span class="font-mono">{pct(r.breakdown.order_certainty)}</span>
+                <span class="font-mono">{pct(row.breakdown.order_certainty)}</span>
               </li>
               <li class="flex justify-between gap-3">
                 <span class="eth-muted">{gettext("Frescura de datos")}</span>
-                <span class="font-mono">{pct(r.breakdown.data_certainty)}</span>
+                <span class="font-mono">{pct(row.breakdown.data_certainty)}</span>
               </li>
               <li class="flex justify-between gap-3">
                 <span class="eth-muted">
-                  {gettext("Anti-scam (%{status})", status: shield_label(r.shield.status))}
+                  {gettext("Anti-scam (%{status})", status: shield_label(row.shield.status))}
                 </span>
-                <span class="font-mono">{pct(r.breakdown.scam_certainty)}</span>
+                <span class="font-mono">{pct(row.breakdown.scam_certainty)}</span>
               </li>
               <li class="flex justify-between gap-3">
                 <span class="eth-muted">{gettext("Acceso")}</span>
-                <span class="font-mono">{pct(r.breakdown.access_certainty)}</span>
+                <span class="font-mono">{pct(row.breakdown.access_certainty)}</span>
               </li>
               <li class="flex justify-between gap-3">
                 <span class="eth-muted">
                   {gettext("Ruta (amenazas y riesgo base)")}
                   <span :if={@radar_degraded} class="text-warning">
-                    · {gettext("radar degradado: solo línea base")}
+                    · {gettext("radar degradado")}
                   </span>
                 </span>
-                <span class="font-mono">{pct(r.breakdown.route_certainty)}</span>
+                <span class="font-mono">{pct(row.breakdown.route_certainty)}</span>
               </li>
               <li class="flex justify-between gap-3">
                 <span class="eth-muted">
-                  <%= if r.history.destination do %>
+                  <%= if row.history.destination do %>
                     {gettext("Liquidez")}
                   <% else %>
                     {gettext("Liquidez (neutra hasta tener historial)")}
                   <% end %>
                 </span>
-                <span class="font-mono">{pct(r.breakdown.liquidity)}</span>
+                <span class="font-mono">{pct(row.breakdown.liquidity)}</span>
               </li>
             </ul>
+          </.detail_col>
 
-            <div class="mt-5 flex flex-col gap-2">
-              <span title={start_run_blocked(@pilot, r)}>
-                <button
-                  id="start-run"
-                  type="button"
-                  phx-click="start_run"
-                  disabled={start_run_blocked(@pilot, r) != nil}
-                  class="eth-chamfer-sm btn btn-accent w-full font-display tracking-wide"
-                >
-                  <.icon name="hero-rocket-launch" class="size-4" /> {gettext("Iniciar viaje")}
-                </button>
-              </span>
-              <div class="grid grid-cols-3 gap-2">
-                <%= if scam?(r) do %>
-                  <button id="copy-detail" type="button" disabled class="btn btn-sm">
-                    <.icon name="hero-no-symbol" class="size-4" /> {gettext("Multibuy bloqueado")}
-                  </button>
-                <% else %>
-                  <button
-                    id="copy-detail"
-                    type="button"
-                    phx-hook=".Clipboard"
-                    data-text={multibuy(r)}
-                    class="btn btn-sm btn-primary btn-outline"
-                  >
-                    <.icon name="hero-clipboard-document" class="size-4" /> {gettext("Multibuy")}
-                  </button>
-                <% end %>
-                <span title={
-                  if scam?(r),
-                    do: gettext("Bloqueada: SCAM"),
-                    else: action_blocked(@pilot, :waypoint)
-                }>
-                  <button
-                    id="set-route"
-                    type="button"
-                    phx-click="set_route"
-                    disabled={scam?(r) or action_blocked(@pilot, :waypoint) != nil}
-                    class="btn btn-sm w-full phx-click-loading:opacity-70"
-                  >
-                    <.icon name="hero-map" class="size-4 phx-click-loading:hidden" />
-                    <span class="hidden phx-click-loading:inline"><.spinner
-                      size={14}
-                      class="text-current"
-                    /></span>
-                    {gettext("Fijar ruta")}
-                  </button>
-                </span>
-                <span title={action_blocked(@pilot, :market)}>
-                  <button
-                    id="open-market"
-                    type="button"
-                    phx-click="open_market"
-                    disabled={action_blocked(@pilot, :market) != nil}
-                    class="btn btn-sm w-full"
-                  >
-                    <.icon name="hero-building-storefront" class="size-4" /> {gettext("Mercado")}
-                  </button>
-                </span>
-              </div>
-            </div>
-            <p :if={@pilot} class="mt-2 text-xs eth-faint">
-              {gettext(
-                "El autopiloto usa su propia preferencia de ruta (ESI no permite leerla ni cambiarla)."
-              )}
-            </p>
-          </div>
-        <% true -> %>
-          <h2 id="detail-title" class="eth-kicker">{gettext("Ficha del contrato")}</h2>
-          <p class="mt-2 text-sm eth-muted">
-            {gettext(
-              "Elegí una oportunidad para ver el cálculo, el libro consumido y el porqué de su TVS."
-            )}
-          </p>
-          <p class="mt-3 text-xs eth-faint">
-            <.link href={EthWeb.Docs.href(:board)} class="link link-primary">
-              {gettext("Cómo leer el tablón")}
-            </.link>
-          </p>
-      <% end %>
-    </aside>
-  </div>
+          <:footer>
+            <span title={start_run_blocked(@pilot, row)}>
+              <button
+                id="start-run"
+                type="button"
+                phx-click="start_run"
+                disabled={start_run_blocked(@pilot, row) != nil}
+                class="eth-chamfer-sm btn btn-accent btn-sm px-5 font-display tracking-wide"
+              >
+                <.icon name="hero-rocket-launch" class="size-4" /> {gettext("Iniciar viaje")}
+              </button>
+            </span>
+            <%= if scam?(row) do %>
+              <button id="copy-detail" type="button" disabled class="btn btn-sm">
+                <.icon name="hero-no-symbol" class="size-4" /> {gettext("Multibuy bloqueado")}
+              </button>
+            <% else %>
+              <button
+                id="copy-detail"
+                type="button"
+                phx-hook=".Clipboard"
+                data-text={multibuy(row)}
+                class="btn btn-outline btn-primary btn-sm"
+              >
+                <.icon name="hero-clipboard-document" class="size-4" /> {gettext(
+                  "Copiar Multibuy"
+                )}
+              </button>
+            <% end %>
+            <span title={
+              if scam?(row),
+                do: gettext("Bloqueada: SCAM"),
+                else: action_blocked(@pilot, :waypoint)
+            }>
+              <button
+                id="set-route"
+                type="button"
+                phx-click="set_route"
+                disabled={scam?(row) or action_blocked(@pilot, :waypoint) != nil}
+                class="btn btn-sm"
+              >
+                <.icon name="hero-map" class="size-4" /> {gettext("Fijar ruta")}
+              </button>
+            </span>
+            <span title={action_blocked(@pilot, :market)}>
+              <button
+                id="open-market"
+                type="button"
+                phx-click="open_market"
+                disabled={action_blocked(@pilot, :market) != nil}
+                class="btn btn-sm"
+              >
+                <.icon name="hero-building-storefront" class="size-4" /> {gettext("Abrir mercado")}
+              </button>
+            </span>
+            <span :if={@pilot} class="text-xs eth-faint">
+              {gettext("El autopiloto usa su propia preferencia de ruta.")}
+            </span>
+            <button
+              id="close-detail"
+              type="button"
+              phx-click="close_detail"
+              class="btn btn-ghost btn-sm ml-auto eth-muted"
+            >
+              <.icon name="hero-chevron-up" class="size-4" /> {gettext("Cerrar")}
+              <kbd class="kbd kbd-xs">Esc</kbd>
+            </button>
+          </:footer>
+        </.row_detail>
+      </div>
+    </div>
+
+    <%!-- Pie de la tabla --%>
+    <div class="flex flex-wrap items-center justify-between gap-2 border-t border-base-300 px-4 py-2 text-xs eth-faint">
+      <span id="filters-hint">
+        <%= if @pilot do %>
+          {gettext(
+            "Accounting, capital y bodega de %{name}; distancias desde su sistema. Montos con sufijo: 5M, 1.5B.",
+            name: @pilot.name
+          )}
+        <% else %>
+          {gettext(
+            "Modo invitado: impuestos, capital y bodega manuales. Montos con sufijo: 5M, 1.5B."
+          )}
+        <% end %>
+      </span>
+      <span>
+        {route_label(@query.route_mode)} · {gettext("máx. 200 filas")} ·
+        <.link href={EthWeb.Docs.href(:board)} class="link link-primary">
+          {gettext("Cómo leer el tablón")}
+        </.link>
+      </span>
+    </div>
+  </section>
 
   <script :type={Phoenix.LiveView.ColocatedHook} name=".Clipboard">
     export default {

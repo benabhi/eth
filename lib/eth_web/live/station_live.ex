@@ -14,8 +14,9 @@ defmodule EthWeb.StationLive do
     "Copiar precio" y "Abrir mercado" (la orden se publica en el cliente: ESI no permite
     crearla, D-12).
 
-  - Diseño F10 (§9.5): cabecera del tablón, sellos, anillo de Certeza, ficha con "?" al
-    manual y anillo de órdenes usadas frente al límite.
+  - Diseño F10 (§9.5): cabecera del tablón, filtros acoplados a la tabla, sellos, anillo
+    de Certeza, ficha que se despliega bajo la fila (RF-6.5) y anillo de órdenes usadas
+    frente al límite.
 
   Implementa: RF-4.16, RF-4.17, RF-6.4, RF-6.12, RF-6.13, RF-11.2.
   """
@@ -41,6 +42,7 @@ defmodule EthWeb.StationLive do
      |> assign(:selected, nil)
      |> assign(:selected_row, nil)
      |> assign(:total, 0)
+     |> assign(:pending, 0)
      |> assign(:reward, 0.0)
      |> assign(:url_params, %{})
      |> assign(:hubs, hubs())
@@ -68,14 +70,14 @@ defmodule EthWeb.StationLive do
   def handle_event("reset_filters", _params, socket),
     do: {:noreply, push_patch(socket, to: ~p"/station")}
 
+  # Clic en una fila: abre su ficha debajo, o la cierra si ya estaba abierta (RF-6.5).
   def handle_event("select", %{"id" => id}, socket) do
-    selected = if socket.assigns.selected == id, do: nil, else: id
-
-    {:noreply,
-     socket
-     |> assign(:selected, selected)
-     |> assign(:selected_row, selected_row(selected, socket.assigns.query))}
+    if socket.assigns.selected == id,
+      do: {:noreply, close_detail(socket)},
+      else: {:noreply, open_detail(socket, id)}
   end
+
+  def handle_event("close_detail", _params, socket), do: {:noreply, close_detail(socket)}
 
   def handle_event("copied", _params, socket),
     do: {:noreply, put_flash(socket, :info, gettext("Precio copiado al portapapeles"))}
@@ -101,8 +103,8 @@ defmodule EthWeb.StationLive do
     do: {:noreply, put_flash(socket, :error, gettext("No se pudo abrir el mercado en el juego"))}
 
   @impl true
-  def handle_info({:opportunities_updated, _meta}, socket), do: {:noreply, load_rows(socket)}
-  def handle_info({:history_updated, _count}, socket), do: {:noreply, load_rows(socket)}
+  def handle_info({:opportunities_updated, _meta}, socket), do: {:noreply, refresh(socket)}
+  def handle_info({:history_updated, _count}, socket), do: {:noreply, refresh(socket)}
 
   # `EthWeb.PilotHook` ya actualizó @pilot; solo se recalcula si cambió lo que usa la consulta.
   def handle_info({:character, _id, _event, _public}, socket) do
@@ -118,6 +120,42 @@ defmodule EthWeb.StationLive do
 
   defp overrides(nil), do: %{}
   defp overrides(pilot), do: Pilot.station_overrides(pilot)
+
+  ## Ficha bajo la fila (RF-6.5)
+
+  # Con una ficha abierta la grilla se congela: los cambios quedan pendientes (RF-6.3).
+  defp refresh(%{assigns: %{selected: nil}} = socket), do: load_rows(socket)
+  defp refresh(socket), do: update(socket, :pending, &(&1 + 1))
+
+  # La fila se reinserta en el stream para que se dibuje abierta; la anterior, cerrada.
+  defp open_detail(socket, id) do
+    case selected_row(id, socket.assigns.query) do
+      nil ->
+        socket
+
+      row ->
+        previous = socket.assigns.selected_row
+
+        socket
+        |> assign(selected: id, selected_row: row)
+        |> reinsert(previous)
+        |> stream_insert(:rows, row)
+    end
+  end
+
+  defp close_detail(%{assigns: %{selected: nil}} = socket), do: socket
+
+  defp close_detail(socket) do
+    previous = socket.assigns.selected_row
+    socket = socket |> assign(selected: nil, selected_row: nil) |> reinsert(previous)
+
+    if socket.assigns.pending > 0,
+      do: socket |> assign(:pending, 0) |> load_rows(),
+      else: socket
+  end
+
+  defp reinsert(socket, nil), do: socket
+  defp reinsert(socket, row), do: stream_insert(socket, :rows, row)
 
   # Defaults = modo invitado + piloto; la URL tiene prioridad. Los standings no son un
   # filtro: vienen siempre del piloto.
@@ -197,6 +235,11 @@ defmodule EthWeb.StationLive do
   end
 
   ## Presentación
+
+  # Columnas de la grilla, iguales en el encabezado y en cada fila (RNF-5.9).
+  @grid "grid items-center gap-x-4 px-4 grid-cols-[minmax(0,1fr)_6.5rem_2.75rem] md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_9rem_4.5rem_7rem_4.5rem_1.25rem] lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_9rem_4.5rem_5.5rem_7rem_4.5rem_1.25rem]"
+
+  defp grid_class, do: @grid
 
   @doc false
   # Precio para pegar en la ventana de orden del cliente: sin separadores de miles.

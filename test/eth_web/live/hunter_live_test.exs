@@ -41,7 +41,7 @@ defmodule EthWeb.HunterLiveTest do
     publish_market()
     {:ok, view, _html} = live(conn, ~p"/")
 
-    assert has_element?(view, "#opportunities tr[id^='opp-']", "Tritanium")
+    assert has_element?(view, "#opportunities [id^='opp-'] > [data-head]", "Tritanium")
     assert has_element?(view, "#hunter-status", "1 oportunidades")
     # Bodega por defecto 38.500 m³: 3.850.000 unidades de 0,01 m³.
     assert has_element?(view, "#opportunities", "3,850,000")
@@ -53,18 +53,18 @@ defmodule EthWeb.HunterLiveTest do
 
     view |> form("#filters", filters: %{search: "amarr"}) |> render_change()
     assert_patch(view, ~p"/?search=amarr")
-    refute has_element?(view, "#opportunities tr[id^='opp-']")
+    refute has_element?(view, "#opportunities [id^='opp-'] > [data-head]")
 
     # La URL restaura la vista.
     {:ok, view, _html} = live(conn, ~p"/?search=perimeter&cargo_m3=100&min_profit=1k")
-    assert has_element?(view, "#opportunities tr[id^='opp-']", "10,000")
+    assert has_element?(view, "#opportunities [id^='opp-'] > [data-head]", "10,000")
   end
 
   test "el detalle explica el cálculo y ofrece Multibuy", %{conn: conn} do
     publish_market()
     {:ok, view, _html} = live(conn, ~p"/")
 
-    view |> element("#opportunities tr[id^='opp-']") |> render_click()
+    view |> element("#opportunities [id^='opp-'] > [data-head]") |> render_click()
     render_async(view)
     assert has_element?(view, "#detail", "Libro consumido")
     assert has_element?(view, "#detail", "¿Por qué TVS")
@@ -81,6 +81,31 @@ defmodule EthWeb.HunterLiveTest do
 
     view |> element("#freeze") |> render_click()
     refute render(view) =~ "cambio pendiente"
+  end
+
+  test "la ficha se despliega bajo la fila, congela la grilla y se cierra (RF-6.5)", %{conn: conn} do
+    publish_market()
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    view |> element("#opportunities [id^='opp-'] > [data-head]") |> render_click()
+    render_async(view)
+    assert has_element?(view, "#opportunities [id^='opp-'] #detail")
+    assert has_element?(view, "[data-head][aria-expanded='true']")
+
+    # Mientras está abierta, los cambios quedan pendientes.
+    publish_market(6.0)
+    assert render(view) =~ "1 cambio pendiente"
+
+    # Al cerrarla se aplican.
+    view |> element("#close-detail") |> render_click()
+    refute has_element?(view, "#detail")
+    refute render(view) =~ "cambio pendiente"
+
+    # Otro clic en la misma fila la abre y la cierra.
+    view |> element("#opportunities [id^='opp-'] > [data-head]") |> render_click()
+    assert has_element?(view, "#detail")
+    view |> element("#opportunities [id^='opp-'] > [data-head]") |> render_click()
+    refute has_element?(view, "#detail")
   end
 
   describe "anti-scam (RF-4.8)" do
@@ -105,12 +130,12 @@ defmodule EthWeb.HunterLiveTest do
          %{conn: conn} do
       publish_market(50.0)
       {:ok, view, _html} = live(conn, ~p"/")
-      refute has_element?(view, "#opportunities tr[id^='opp-']")
+      refute has_element?(view, "#opportunities [id^='opp-'] > [data-head]")
 
       {:ok, view, _html} = live(conn, ~p"/?shield=all")
       assert has_element?(view, "#opportunities", "Scam · bloqueado")
 
-      view |> element("#opportunities tr[id^='opp-']") |> render_click()
+      view |> element("#opportunities [id^='opp-'] > [data-head]") |> render_click()
       render_async(view)
       assert has_element?(view, "#shield-alert", "SCAM ALERT")
       assert has_element?(view, "#shield-alert", "Compra a 11,1× la mediana de 7 días")
@@ -129,7 +154,7 @@ defmodule EthWeb.HunterLiveTest do
       publish_market(4.8)
       {:ok, view, _html} = live(conn, ~p"/?min_profit=1k")
 
-      view |> element("#opportunities tr[id^='opp-']") |> render_click()
+      view |> element("#opportunities [id^='opp-'] > [data-head]") |> render_click()
       render_async(view)
       refute has_element?(view, "#shield-alert")
       assert has_element?(view, "#history svg polyline")
@@ -170,7 +195,7 @@ defmodule EthWeb.HunterLiveTest do
         {:ok, view, _html} = live(conn, ~p"/?route_mode=#{mode}")
         assert has_element?(view, "#opportunities", "Gatecamp")
 
-        view |> element("#opportunities tr[id^='opp-']") |> render_click()
+        view |> element("#opportunities [id^='opp-'] > [data-head]") |> render_click()
         render_async(view)
         assert has_element?(view, "#route", "Perimeter: Gatecamp en el gate a Jita")
         assert has_element?(view, "#detail", "Ruta (amenazas y riesgo base)")

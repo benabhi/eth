@@ -140,7 +140,7 @@ defmodule EthWeb.PilotLiveTest do
   end
 
   defp select_first_row(view) do
-    view |> element("#opportunities tr[id^='opp-']") |> render_click()
+    view |> element("#opportunities [id^='opp-'] > [data-head]") |> render_click()
     render_async(view)
   end
 

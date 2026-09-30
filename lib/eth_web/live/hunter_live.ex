@@ -19,7 +19,11 @@ defmodule EthWeb.HunterLive do
   - Historial (RF-1.12, RF-6.5): sparkline de 30 días, mediana, volumen y liquidez; las
     estadísticas nuevas se reflejan en vivo (`market:history`).
   - Diseño F10 (§9.5): rango por TVS, sellos, medidor de peligro, anillo de Certeza y "?"
-    con enlace al manual; la ficha se recalcula en segundo plano con un spinner (RNF-5.15).
+    con enlace al manual; filtros acoplados a la tabla.
+  - La ficha se despliega bajo la fila (RF-6.5): una sola abierta, se cierra con otro
+    clic, `Esc` o al abrir otra; mientras está abierta la grilla se congela y los cambios
+    quedan pendientes. La ruta con el radar se calcula en segundo plano con un spinner
+    (RNF-5.15).
 
   Implementa: RF-4.7, RF-4.8, RF-5.9, RF-6.2, RF-6.3, RF-6.4, RF-6.5, RF-6.6, RF-6.7,
   RF-6.10, RF-11.2, RNF-5.15.
@@ -47,7 +51,7 @@ defmodule EthWeb.HunterLive do
       |> assign(:pending, 0)
       |> assign(:selected, nil)
       |> assign(:route_details, nil)
-      |> assign(:detail_loading, false)
+      |> assign(:route_loading, false)
       |> assign(:total, 0)
       |> assign(:reward, 0.0)
       |> assign(:meta, Engine.meta())
@@ -79,21 +83,14 @@ defmodule EthWeb.HunterLive do
     {:noreply, push_patch(socket, to: ~p"/")}
   end
 
-  # La ficha (personalización + ruta con radar) puede tardar: se calcula en una tarea y
-  # mientras tanto se muestra el spinner (RNF-5.15).
+  # Clic en una fila: abre su ficha debajo, o la cierra si ya estaba abierta (RF-6.5).
   def handle_event("select", %{"id" => id}, socket) do
-    if socket.assigns.selected == id do
-      {:noreply,
-       assign(socket, selected: nil, selected_row: nil, route_details: nil, detail_loading: false)}
-    else
-      query = socket.assigns.query
-
-      {:noreply,
-       socket
-       |> assign(selected: id, detail_loading: true)
-       |> start_async(:detail, fn -> {id, detail(id, query)} end)}
-    end
+    if socket.assigns.selected == id,
+      do: {:noreply, close_detail(socket)},
+      else: {:noreply, open_detail(socket, id)}
   end
+
+  def handle_event("close_detail", _params, socket), do: {:noreply, close_detail(socket)}
 
   def handle_event("toggle_freeze", _params, socket) do
     if socket.assigns.frozen do
@@ -185,18 +182,22 @@ defmodule EthWeb.HunterLive do
   end
 
   @impl true
-  def handle_async(:detail, {:ok, {id, {row, route}}}, %{assigns: %{selected: id}} = socket) do
-    {:noreply, assign(socket, selected_row: row, route_details: route, detail_loading: false)}
-  end
-
-  # Resultado de una selección anterior: ya se eligió otra fila.
-  def handle_async(:detail, {:ok, _stale}, socket), do: {:noreply, socket}
-
-  def handle_async(:detail, {:exit, _reason}, socket) do
+  def handle_async(:route, {:ok, {id, route}}, %{assigns: %{selected: id}} = socket) do
     {:noreply,
      socket
-     |> assign(detail_loading: false)
-     |> put_flash(:error, gettext("No se pudo calcular la ficha del contrato"))}
+     |> assign(route_details: route, route_loading: false)
+     |> reinsert_selected()}
+  end
+
+  # Resultado de una ficha anterior: ya se abrió otra o se cerró.
+  def handle_async(:route, {:ok, _stale}, socket), do: {:noreply, socket}
+
+  def handle_async(:route, {:exit, _reason}, socket) do
+    {:noreply,
+     socket
+     |> assign(route_loading: false)
+     |> reinsert_selected()
+     |> put_flash(:error, gettext("No se pudo calcular la ruta del contrato"))}
   end
 
   def handle_async(:ingame, {:ok, {action, :ok}}, socket) do
@@ -218,26 +219,14 @@ defmodule EthWeb.HunterLive do
   end
 
   @impl true
-  def handle_info({:opportunities_updated, _meta}, %{assigns: %{frozen: true}} = socket) do
-    {:noreply, update(socket, :pending, &(&1 + 1))}
-  end
-
-  def handle_info({:opportunities_updated, _meta}, socket), do: {:noreply, load_rows(socket)}
+  def handle_info({:opportunities_updated, _meta}, socket), do: {:noreply, refresh(socket)}
 
   # Estadísticas de historial nuevas (RF-1.12): cambian anti-scam, liquidez y TVS.
-  def handle_info({:history_updated, _count}, %{assigns: %{frozen: true}} = socket) do
-    {:noreply, update(socket, :pending, &(&1 + 1))}
-  end
-
-  def handle_info({:history_updated, _count}, socket), do: {:noreply, load_rows(socket)}
+  def handle_info({:history_updated, _count}, socket), do: {:noreply, refresh(socket)}
 
   # Cambió el mapa de calor (RF-3.3): cambian el riesgo de ruta, la Certeza y el TVS.
   # `EthWeb.RadarHook` ya actualizó la cabecera.
-  def handle_info({:heatmap, _version}, %{assigns: %{frozen: true}} = socket) do
-    {:noreply, update(socket, :pending, &(&1 + 1))}
-  end
-
-  def handle_info({:heatmap, _version}, socket), do: {:noreply, load_rows(socket)}
+  def handle_info({:heatmap, _version}, socket), do: {:noreply, refresh(socket)}
 
   # `EthWeb.PilotHook` ya actualizó @pilot; solo se recalcula si cambió lo que usa el motor.
   def handle_info({:character, _id, _event, _public}, socket) do
@@ -247,7 +236,7 @@ defmodule EthWeb.HunterLive do
       overrides == socket.assigns.pilot_overrides ->
         {:noreply, socket}
 
-      socket.assigns.frozen ->
+      held?(socket) ->
         {:noreply,
          socket
          |> assign(:pilot_overrides, overrides)
@@ -261,6 +250,56 @@ defmodule EthWeb.HunterLive do
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}
+
+  # Con la grilla congelada o una ficha abierta, los cambios quedan pendientes (RF-6.3).
+  defp held?(socket), do: socket.assigns.frozen or socket.assigns.selected != nil
+
+  defp refresh(socket) do
+    if held?(socket), do: update(socket, :pending, &(&1 + 1)), else: load_rows(socket)
+  end
+
+  ## Ficha bajo la fila (RF-6.5)
+
+  # La fila se reinserta en el stream para que se dibuje abierta; la anterior, cerrada.
+  # La personalización es rápida; la ruta con el radar va en segundo plano.
+  defp open_detail(socket, id) do
+    query = socket.assigns.query
+
+    case selected_row(id, query) do
+      nil ->
+        socket
+
+      row ->
+        previous = socket.assigns.selected_row
+
+        socket
+        |> assign(selected: id, selected_row: row, route_details: nil, route_loading: true)
+        |> reinsert(previous)
+        |> stream_insert(:rows, row)
+        |> start_async(:route, fn -> {id, route_details(row, query)} end)
+    end
+  end
+
+  # Al cerrar se aplican los cambios que quedaron pendientes mientras estaba abierta.
+  defp close_detail(%{assigns: %{selected: nil}} = socket), do: socket
+
+  defp close_detail(socket) do
+    previous = socket.assigns.selected_row
+
+    socket =
+      socket
+      |> assign(selected: nil, selected_row: nil, route_details: nil, route_loading: false)
+      |> reinsert(previous)
+
+    if socket.assigns.pending > 0 and not socket.assigns.frozen,
+      do: socket |> assign(:pending, 0) |> load_rows(),
+      else: socket
+  end
+
+  defp reinsert_selected(socket), do: reinsert(socket, socket.assigns.selected_row)
+
+  defp reinsert(socket, nil), do: socket
+  defp reinsert(socket, row), do: stream_insert(socket, :rows, row)
 
   # Defaults del formulario = modo invitado + datos del piloto; la URL tiene prioridad.
   defp apply_filters(socket) do
@@ -299,11 +338,6 @@ defmodule EthWeb.HunterLive do
     assign(socket, :route_details, route_details(row, query))
   end
 
-  defp detail(id, query) do
-    row = selected_row(id, query)
-    {row, route_details(row, query)}
-  end
-
   defp route_details(nil, _query), do: nil
 
   defp route_details(row, query) do
@@ -319,6 +353,12 @@ defmodule EthWeb.HunterLive do
       opp -> Query.personalize(opp, Map.merge(Query.defaults(), query), Clock.utc_now())
     end
   end
+
+  # Columnas de la grilla, iguales en el encabezado y en cada fila; las ocultas en
+  # pantallas chicas no ocupan pista (RNF-5.9).
+  @grid "grid items-center gap-x-4 px-4 grid-cols-[2.5rem_minmax(0,1fr)_6.5rem_2.75rem] md:grid-cols-[4rem_minmax(0,1.2fr)_minmax(0,1.4fr)_7rem_6.5rem_4.5rem_1.25rem] lg:grid-cols-[4rem_minmax(0,1.2fr)_minmax(0,1.4fr)_7.5rem_7rem_6.5rem_4.5rem_1.25rem]"
+
+  defp grid_class, do: @grid
 
   ## Acciones in-game (RF-6.7)
 

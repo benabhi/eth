@@ -148,69 +148,39 @@
     </div>
   </.panel>
 
-  <%!-- Filtros (RF-6.4) --%>
-  <.form
-    for={@form}
-    id="station-filters"
-    phx-change="filter"
-    phx-submit="filter"
-    class="eth-chamfer border border-base-300 bg-base-100 px-4 pt-3 pb-2"
+  <section
+    id="station-board"
+    aria-labelledby="station-title"
+    class="eth-chamfer border border-base-300 bg-base-100"
+    phx-window-keydown="close_detail"
+    phx-key="Escape"
   >
-    <div class="grid grid-cols-2 gap-x-3 md:grid-cols-4 xl:grid-cols-8">
-      <div class="col-span-2">
-        <.input
+    <%!-- Barra de filtros acoplada a la tabla (RF-6.4) --%>
+    <.form
+      for={@form}
+      id="station-filters"
+      phx-change="filter"
+      phx-submit="filter"
+      class="flex flex-col gap-2 border-b border-base-300 p-3"
+    >
+      <div class="flex flex-wrap items-center gap-2">
+        <h2 id="station-title" class="sr-only">{gettext("Oportunidades en estación")}</h2>
+        <.filter_search
           field={@form[:search]}
-          label={gettext("Buscar")}
           placeholder={gettext("Objeto o estación")}
-          phx-debounce="300"
+          class="min-w-56 flex-1"
         />
-      </div>
-      <.input
-        field={@form[:location_id]}
-        type="select"
-        label={gettext("Hub")}
-        options={[{gettext("Todos los hubs"), ""} | @hubs]}
-      />
-      <.input
-        field={@form[:min_margin]}
-        type="number"
-        min="0"
-        step="0.5"
-        label={gettext("Margen ≥ (%)")}
-        phx-debounce="400"
-      />
-      <.input
-        field={@form[:min_daily_volume]}
-        type="number"
-        min="0"
-        label={gettext("Volumen/día ≥")}
-        phx-debounce="400"
-      />
-      <.input
-        field={@form[:capital]}
-        label={gettext("Capital")}
-        placeholder={gettext("sin límite")}
-        phx-debounce="400"
-      />
-      <.input
-        field={@form[:accounting]}
-        type="select"
-        label={gettext("Accounting")}
-        options={for level <- 0..5, do: {"#{level}", "#{level}"}}
-      />
-      <.input
-        field={@form[:broker_relations]}
-        type="select"
-        label={gettext("Broker Relations")}
-        options={for level <- 0..5, do: {"#{level}", "#{level}"}}
-      />
-    </div>
-    <div class="flex flex-wrap items-end gap-x-3">
-      <div class="w-56">
-        <.input
+        <.filter_field
+          field={@form[:location_id]}
+          type="select"
+          label={gettext("Hub")}
+          options={[{gettext("Todos los hubs"), ""} | @hubs]}
+          class="max-w-80"
+        />
+        <.filter_field
           field={@form[:sort]}
           type="select"
-          label={gettext("Ordenar por")}
+          label={gettext("Orden")}
           options={[
             {gettext("Beneficio × Certeza"), "score"},
             {gettext("Beneficio por día"), "profit_day"},
@@ -219,9 +189,48 @@
             {gettext("Frescura"), "age"}
           ]}
         />
+        <span :if={@pending > 0} class="border border-warning/60 px-2 py-1 text-xs text-warning">
+          {ngettext("%{count} cambio pendiente", "%{count} cambios pendientes", @pending)}
+        </span>
       </div>
-      <div class="w-56">
-        <.input
+      <div class="flex flex-wrap items-center gap-2">
+        <.filter_field
+          field={@form[:min_margin]}
+          type="number"
+          min="0"
+          step="0.5"
+          label={gettext("Margen ≥ %")}
+          phx-debounce="400"
+          class="w-36"
+        />
+        <.filter_field
+          field={@form[:min_daily_volume]}
+          type="number"
+          min="0"
+          label={gettext("Volumen/día ≥")}
+          phx-debounce="400"
+          class="w-44"
+        />
+        <.filter_field
+          field={@form[:capital]}
+          label={gettext("Capital")}
+          placeholder={gettext("sin límite")}
+          phx-debounce="400"
+          class="w-44"
+        />
+        <.filter_field
+          field={@form[:accounting]}
+          type="select"
+          label="Accounting"
+          options={for level <- 0..5, do: {"#{level}", "#{level}"}}
+        />
+        <.filter_field
+          field={@form[:broker_relations]}
+          type="select"
+          label="Broker Relations"
+          options={for level <- 0..5, do: {"#{level}", "#{level}"}}
+        />
+        <.filter_field
           field={@form[:shield]}
           type="select"
           label={gettext("Anti-scam")}
@@ -231,317 +240,318 @@
             {gettext("Mostrar todo"), "all"}
           ]}
         />
+        <button
+          type="button"
+          phx-click="reset_filters"
+          class="btn btn-ghost btn-sm h-8 min-h-8 eth-muted"
+        >
+          <.icon name="hero-arrow-uturn-left" class="size-4" /> {gettext("Restablecer")}
+        </button>
       </div>
-      <button type="button" phx-click="reset_filters" class="btn btn-ghost btn-sm mb-2">
-        {gettext("Restablecer")}
-      </button>
-      <span id="station-hint" class="mb-3 text-xs eth-faint">
-        {gettext(
-          "Comprás con una orden de compra y vendés con una de venta en la misma estación. El beneficio por día es una estimación: depende de la competencia."
-        )}
+    </.form>
+
+    <%!-- Encabezado de columnas --%>
+    <div class={[
+      grid_class(),
+      "border-b border-base-300 bg-base-200/60 py-2 eth-kicker text-[10px]"
+    ]}>
+      <span>{gettext("Objeto")}</span>
+      <span class="hidden md:block">{gettext("Estación")}</span>
+      <span class="hidden items-center justify-end gap-1 md:flex">
+        {gettext("Compra → Venta")}
+        <.help topic={:station} title={gettext("Precios sugeridos")}>
+          {gettext(
+            "Tu orden de compra supera a la mejor compra y tu orden de venta a la mejor venta, con precios legales."
+          )}
+        </.help>
       </span>
+      <span class="hidden text-right md:block">{gettext("Margen")}</span>
+      <span class="hidden items-center justify-end gap-1 lg:flex">
+        {gettext("Vol./día")}
+        <.help topic={:liquidity} title={gettext("Volumen")} align="end">
+          {gettext("Unidades operadas por día en la región (promedio de 7 días).")}
+        </.help>
+      </span>
+      <span class="text-right">{gettext("Beneficio/día")}</span>
+      <span class="flex items-center justify-end gap-1">
+        <span class="hidden md:inline">{gettext("Certeza")}</span>
+        <.help topic={:competition} title={gettext("Certeza")} align="end">
+          {gettext("Baja con la competencia cerca del precio, los datos viejos y el escudo.")}
+        </.help>
+      </span>
+      <span class="hidden md:block"></span>
     </div>
-  </.form>
 
-  <div class="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_28rem]">
-    <section aria-labelledby="station-title" class="border border-base-300 bg-base-100">
-      <div class="border-b border-base-300 px-4 py-2.5">
-        <h2 id="station-title" class="eth-kicker flex items-center gap-2">
-          {gettext("Oportunidades en estación")}
-          <span class="font-sans text-xs normal-case tracking-normal eth-faint">
-            · {gettext("máx. 200 filas")}
-          </span>
-        </h2>
+    <div id="station-rows" phx-update="stream">
+      <div id="station-empty" class="hidden px-4 py-12 text-center eth-muted only:block">
+        {gettext(
+          "Sin oportunidades con estos filtros. El historial de los hubs se descarga de a poco: puede tardar unos minutos en aparecer."
+        )}
       </div>
-
-      <div class="overflow-x-auto">
-        <table class="table table-sm">
-          <thead>
-            <tr class="border-base-300">
-              <th class="eth-kicker text-[11px]">{gettext("Objeto")}</th>
-              <th class="eth-kicker text-[11px]">{gettext("Estación")}</th>
-              <th class="eth-kicker text-right text-[11px]">
-                <span class="flex items-center justify-end gap-1.5">
-                  {gettext("Compra → Venta")}
-                  <.help topic={:station} title={gettext("Precios sugeridos")}>
-                    {gettext(
-                      "Tu orden de compra supera a la mejor compra y tu orden de venta a la mejor venta, con precios legales."
-                    )}
-                  </.help>
-                </span>
-              </th>
-              <th class="eth-kicker text-right text-[11px]">{gettext("Margen")}</th>
-              <th class="eth-kicker hidden text-right text-[11px] md:table-cell">
-                <span class="flex items-center justify-end gap-1.5">
-                  {gettext("Volumen/día")}
-                  <.help topic={:liquidity} title={gettext("Volumen")} align="end">
-                    {gettext("Unidades operadas por día en la región (promedio de 7 días).")}
-                  </.help>
-                </span>
-              </th>
-              <th class="eth-kicker text-right text-[11px]">{gettext("Beneficio/día")}</th>
-              <th class="eth-kicker text-right text-[11px]">
-                <span class="flex items-center justify-end gap-1.5">
-                  {gettext("Certeza")}
-                  <.help topic={:competition} title={gettext("Certeza")} align="end">
-                    {gettext(
-                      "Baja con la competencia cerca del precio, los datos viejos y el escudo."
-                    )}
-                  </.help>
-                </span>
-              </th>
-            </tr>
-          </thead>
-          <tbody id="station-rows" phx-update="stream">
-            <tr id="station-empty" class="hidden only:table-row">
-              <td colspan="7" class="py-10 text-center eth-muted">
-                {gettext(
-                  "Sin oportunidades con estos filtros. El historial de los hubs se descarga de a poco: puede tardar unos minutos en aparecer."
-                )}
-              </td>
-            </tr>
-            <tr
-              :for={{dom_id, row} <- @streams.rows}
-              id={dom_id}
-              phx-click="select"
-              phx-value-id={row.id}
-              class={[
-                "eth-enter cursor-pointer border-base-300/60 align-middle transition-colors hover:bg-primary/5",
-                @selected == row.id && "bg-primary/10"
-              ]}
-            >
-              <td class="max-w-64">
-                <div class="flex items-center gap-2">
-                  <img
-                    src={"https://images.evetech.net/types/#{row.opportunity.type_id}/icon?size=32"}
-                    alt=""
-                    width="24"
-                    height="24"
-                    loading="lazy"
-                    class="bg-base-300"
-                  />
-                  <span class="truncate font-semibold eth-strong">
-                    {row.opportunity.type_name}
-                  </span>
-                </div>
-                <div class="mt-0.5 flex flex-wrap gap-1">
-                  <.seal kind={:order} />
-                  <.shield_seal shield={row.shield} />
-                </div>
-              </td>
-              <td class="text-sm" title={row.opportunity.location.name}>
-                {short_name(row.opportunity.location.name)}
-              </td>
-              <td class="text-right">
-                <div class="font-mono text-sm">
-                  {Format.compact(row.quote.buy_price)} → {Format.compact(row.quote.sell_price)}
-                </div>
-                <div class="font-mono text-xs eth-faint">
-                  {gettext("competencia %{bids}/%{asks}",
-                    bids: row.quote.competition.bids,
-                    asks: row.quote.competition.asks
-                  )}
-                </div>
-              </td>
-              <td class="text-right font-mono font-medium eth-strong">{pct(row.margin_pct)}</td>
-              <td class="hidden text-right font-mono md:table-cell">
-                {Format.compact(row.daily_volume)}
-              </td>
-              <td class="text-right">
-                <div class="font-mono text-base font-medium text-accent">
-                  {Format.compact(row.profit_day)}
-                </div>
-                <div class="font-mono text-xs eth-faint">
-                  {gettext("inv.")} {Format.compact(row.cost)}
-                </div>
-              </td>
-              <td>
-                <div class="flex justify-end"><.certainty_ring value={row.certainty} /></div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <%!-- Ficha (RF-6.5, RF-6.12) --%>
-    <aside
-      id="station-detail"
-      aria-labelledby="station-detail-title"
-      class="eth-chamfer h-fit border border-base-300 bg-base-100 p-4 2xl:sticky 2xl:top-20"
-    >
-      <%= if @selected_row do %>
-        <div :for={r <- [@selected_row]} id="station-detail-body">
-          <div class="flex items-start gap-3">
-            <img
-              src={"https://images.evetech.net/types/#{r.opportunity.type_id}/icon?size=64"}
-              alt=""
-              width="48"
-              height="48"
-              class="bg-base-300"
-            />
-            <div class="min-w-0">
-              <h2 id="station-detail-title" class="font-display text-lg font-semibold eth-strong">
-                {r.opportunity.type_name}
-              </h2>
-              <p class="text-sm eth-muted">{r.opportunity.location.name}</p>
+      <div
+        :for={{dom_id, row} <- @streams.rows}
+        id={dom_id}
+        class={[
+          "border-b border-base-300/70 last:border-b-0",
+          @selected == row.id && "shadow-[inset_3px_0_0_var(--color-primary)]"
+        ]}
+      >
+        <div
+          data-head
+          role="button"
+          tabindex="0"
+          aria-expanded={to_string(@selected == row.id)}
+          phx-click="select"
+          phx-value-id={row.id}
+          class={[
+            grid_class(),
+            "cursor-pointer py-2.5 transition-colors hover:bg-primary/5",
+            @selected == row.id && "bg-primary/10"
+          ]}
+        >
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <img
+                src={"https://images.evetech.net/types/#{row.opportunity.type_id}/icon?size=32"}
+                alt=""
+                width="24"
+                height="24"
+                loading="lazy"
+                class="bg-base-300"
+              />
+              <span class="truncate font-semibold eth-strong">{row.opportunity.type_name}</span>
+            </div>
+            <div class="mt-0.5 flex flex-wrap gap-1">
+              <.seal kind={:order} />
+              <.shield_seal shield={row.shield} />
             </div>
           </div>
+          <div class="hidden truncate text-sm md:block" title={row.opportunity.location.name}>
+            {short_name(row.opportunity.location.name)}
+          </div>
+          <div class="hidden text-right md:block">
+            <div class="font-mono text-sm">
+              {Format.compact(row.quote.buy_price)} → {Format.compact(row.quote.sell_price)}
+            </div>
+            <div class="font-mono text-xs eth-faint">
+              {gettext("competencia %{bids}/%{asks}",
+                bids: row.quote.competition.bids,
+                asks: row.quote.competition.asks
+              )}
+            </div>
+          </div>
+          <div class="hidden text-right font-mono font-medium eth-strong md:block">
+            {pct(row.margin_pct)}
+          </div>
+          <div class="hidden text-right font-mono text-sm lg:block">
+            {Format.compact(row.daily_volume)}
+          </div>
+          <div class="text-right">
+            <div class="font-mono text-base font-medium text-accent">
+              {Format.compact(row.profit_day)}
+            </div>
+            <div class="font-mono text-xs eth-faint">
+              {gettext("inv.")} {Format.compact(row.cost)}
+            </div>
+          </div>
+          <div class="flex justify-end"><.certainty_ring value={row.certainty} /></div>
+          <div class="hidden justify-end md:flex">
+            <.icon
+              name="hero-chevron-down"
+              class={[
+                "size-4 eth-muted transition-transform duration-200",
+                @selected == row.id && "rotate-180 text-primary"
+              ]}
+            />
+          </div>
+        </div>
 
+        <%!-- Ficha bajo la fila (RF-6.5, RF-6.12) --%>
+        <.row_detail
+          :if={@selected == row.id}
+          id="station-detail"
+          label={gettext("Ficha de %{name}", name: row.opportunity.type_name)}
+        >
           <div
-            :if={r.shield.status != :ok}
+            :if={row.shield.status != :ok}
             id="station-shield-alert"
-            role={if r.shield.status == :scam, do: "alert", else: "status"}
+            role={if row.shield.status == :scam, do: "alert", else: "status"}
             class={[
-              "mt-3 border px-3 py-2 text-sm",
-              if(r.shield.status == :scam,
+              "border px-3 py-2 text-sm md:col-span-2 xl:col-span-4",
+              if(row.shield.status == :scam,
                 do: "border-error/50 bg-error/10 text-error",
                 else: "border-warning/50 bg-warning/10 text-warning"
               )
             ]}
           >
-            <span class="font-semibold">{shield_label(r.shield.status)}</span>
-            <span class="eth-muted">· {Enum.join(r.shield.reasons, " · ")}</span>
+            <span class="font-semibold">{shield_label(row.shield.status)}</span>
+            <span class="eth-muted">· {Enum.join(row.shield.reasons, " · ")}</span>
           </div>
 
-          <.detail_heading
+          <.detail_col
+            title={gettext("Precios sugeridos")}
             topic={:station}
             help={gettext("Precios legales de 4 cifras significativas que te ponen primero.")}
           >
-            {gettext("Precios sugeridos")}
-          </.detail_heading>
-          <div class="grid grid-cols-2 gap-2">
-            <div class="eth-chamfer-sm border border-base-300 bg-base-200 p-2.5">
-              <div class="eth-kicker text-[10px]">{gettext("Orden de compra")}</div>
-              <div class="font-mono text-lg eth-strong">{price_text(r.quote.buy_price)}</div>
-              <button
-                id="copy-buy-price"
-                type="button"
-                phx-hook=".CopyPrice"
-                data-text={price_text(r.quote.buy_price)}
-                class="btn btn-ghost btn-xs -ml-2"
-              >
-                <.icon name="hero-clipboard-document" class="size-4" /> {gettext("Copiar precio")}
-              </button>
+            <p class="mb-2 text-xs eth-muted">{row.opportunity.location.name}</p>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="eth-chamfer-sm border border-base-300 bg-base-100 p-2.5">
+                <div class="eth-kicker text-[10px]">{gettext("Orden de compra")}</div>
+                <div class="font-mono text-base eth-strong">
+                  {price_text(row.quote.buy_price)}
+                </div>
+                <button
+                  id="copy-buy-price"
+                  type="button"
+                  phx-hook=".CopyPrice"
+                  data-text={price_text(row.quote.buy_price)}
+                  class="btn btn-ghost btn-xs -ml-2"
+                >
+                  <.icon name="hero-clipboard-document" class="size-4" /> {gettext("Copiar")}
+                </button>
+              </div>
+              <div class="eth-chamfer-sm border border-base-300 bg-base-100 p-2.5">
+                <div class="eth-kicker text-[10px]">{gettext("Orden de venta")}</div>
+                <div class="font-mono text-base eth-strong">
+                  {price_text(row.quote.sell_price)}
+                </div>
+                <button
+                  id="copy-sell-price"
+                  type="button"
+                  phx-hook=".CopyPrice"
+                  data-text={price_text(row.quote.sell_price)}
+                  class="btn btn-ghost btn-xs -ml-2"
+                >
+                  <.icon name="hero-clipboard-document" class="size-4" /> {gettext("Copiar")}
+                </button>
+              </div>
             </div>
-            <div class="eth-chamfer-sm border border-base-300 bg-base-200 p-2.5">
-              <div class="eth-kicker text-[10px]">{gettext("Orden de venta")}</div>
-              <div class="font-mono text-lg eth-strong">{price_text(r.quote.sell_price)}</div>
-              <button
-                id="copy-sell-price"
-                type="button"
-                phx-hook=".CopyPrice"
-                data-text={price_text(r.quote.sell_price)}
-                class="btn btn-ghost btn-xs -ml-2"
-              >
-                <.icon name="hero-clipboard-document" class="size-4" /> {gettext("Copiar precio")}
-              </button>
-            </div>
-          </div>
-          <p class="mt-1.5 text-xs eth-faint">
-            {gettext(
-              "Superan a la mejor compra (%{bid}) y a la mejor venta (%{ask}) con precios legales de 4 cifras significativas.",
-              bid: Format.compact(r.quote.best_bid),
-              ask: Format.compact(r.quote.best_ask)
-            )}
-          </p>
+            <p class="mt-1.5 text-xs eth-faint">
+              {gettext("Superan a la mejor compra (%{bid}) y a la mejor venta (%{ask}).",
+                bid: Format.compact(row.quote.best_bid),
+                ask: Format.compact(row.quote.best_ask)
+              )}
+            </p>
+          </.detail_col>
 
-          <.detail_heading topic={:broker}>{gettext("Cálculo por unidad")}</.detail_heading>
-          <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm tabular-nums">
-            <dt class="eth-muted">{gettext("Broker fee")}</dt>
-            <dd class="font-mono">
-              <.tip title={gettext("Broker fee")} topic={:broker} align="end">
-                {pct2(r.broker_rate)}
-                <:body>
-                  {gettext(
-                    "Se paga al publicar cada orden (la de compra y la de venta). Baja con Broker Relations y los standings."
-                  )}
-                </:body>
-              </.tip>
-              <span class="eth-faint">{gettext("(en las dos órdenes)")}</span>
-            </dd>
-            <dt class="eth-muted">{gettext("Sales tax")}</dt>
-            <dd class="font-mono">
-              {pct2(r.tax_rate)} <span class="eth-faint">{gettext("(al vender)")}</span>
-            </dd>
-            <dt class="eth-muted">{gettext("Costo")}</dt>
-            <dd class="font-mono">{Format.compact(r.quote.unit_cost)}</dd>
-            <dt class="eth-muted">{gettext("Ingreso neto")}</dt>
-            <dd class="font-mono">{Format.compact(r.quote.unit_revenue)}</dd>
-            <dt class="eth-muted">{gettext("Margen")}</dt>
-            <dd class="font-mono font-semibold text-accent">
-              {Format.compact(r.quote.unit_margin)} ({pct(r.margin_pct)})
-            </dd>
-          </dl>
+          <.detail_col title={gettext("Cálculo por unidad")} topic={:broker}>
+            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm tabular-nums">
+              <dt class="eth-muted">{gettext("Broker fee")}</dt>
+              <dd class="text-right font-mono">
+                <.tip title={gettext("Broker fee")} topic={:broker} align="end">
+                  {pct2(row.broker_rate)}
+                  <:body>
+                    {gettext(
+                      "Se paga al publicar cada orden (la de compra y la de venta). Baja con Broker Relations y los standings."
+                    )}
+                  </:body>
+                </.tip>
+                <span class="eth-faint">×2</span>
+              </dd>
+              <dt class="eth-muted">{gettext("Sales tax")}</dt>
+              <dd class="text-right font-mono">{pct2(row.tax_rate)}</dd>
+              <dt class="eth-muted">{gettext("Costo")}</dt>
+              <dd class="text-right font-mono">{Format.compact(row.quote.unit_cost)}</dd>
+              <dt class="eth-muted">{gettext("Ingreso neto")}</dt>
+              <dd class="text-right font-mono">{Format.compact(row.quote.unit_revenue)}</dd>
+              <dt class="mt-1 border-t border-base-300 pt-1 eth-muted">{gettext("Margen")}</dt>
+              <dd class="mt-1 border-t border-base-300 pt-1 text-right font-mono font-semibold text-accent">
+                {Format.compact(row.quote.unit_margin)} · {pct(row.margin_pct)}
+              </dd>
+            </dl>
+          </.detail_col>
 
-          <.detail_heading
+          <.detail_col
+            title={gettext("Plan diario")}
             topic={:station}
             help={gettext("Lo que podés mover en un día sin llevarte todo el volumen.")}
           >
-            {gettext("Plan diario (estimación)")}
-          </.detail_heading>
-          <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm tabular-nums">
-            <dt class="eth-muted">{gettext("Volumen diario (7 d)")}</dt>
-            <dd class="font-mono">{Format.integer(round(r.daily_volume))}</dd>
-            <dt class="eth-muted">{gettext("Cantidad objetivo")}</dt>
-            <dd class="font-mono">{Format.integer(r.plan.quantity)}</dd>
-            <dt class="eth-muted">{gettext("ISK inmovilizado")}</dt>
-            <dd class="font-mono">{Format.compact(r.plan.cost)}</dd>
-            <dt class="eth-muted">{gettext("Beneficio por día")}</dt>
-            <dd class="font-mono font-semibold text-accent">{Format.compact(r.profit_day)}</dd>
-          </dl>
+            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm tabular-nums">
+              <dt class="eth-muted">{gettext("Volumen diario (7 d)")}</dt>
+              <dd class="text-right font-mono">{Format.integer(round(row.daily_volume))}</dd>
+              <dt class="eth-muted">{gettext("Cantidad objetivo")}</dt>
+              <dd class="text-right font-mono">{Format.integer(row.plan.quantity)}</dd>
+              <dt class="eth-muted">{gettext("ISK inmovilizado")}</dt>
+              <dd class="text-right font-mono">{Format.compact(row.plan.cost)}</dd>
+              <dt class="mt-1 border-t border-base-300 pt-1 eth-muted">
+                {gettext("Beneficio por día")}
+              </dt>
+              <dd class="mt-1 border-t border-base-300 pt-1 text-right font-mono font-semibold text-accent">
+                {Format.compact(row.profit_day)}
+              </dd>
+            </dl>
+            <p class="mt-1.5 text-xs eth-faint">
+              {gettext("Estimación: depende de la competencia.")}
+            </p>
+          </.detail_col>
 
-          <.detail_heading topic={:competition}>
-            {gettext("¿Por qué Certeza %{c}?", c: pct(r.certainty))}
-          </.detail_heading>
-          <ul class="space-y-0.5 text-xs tabular-nums">
-            <li class="flex justify-between gap-3">
-              <span class="eth-muted">
-                {gettext("Competencia (%{bids} compras y %{asks} ventas cerca del precio)",
-                  bids: r.quote.competition.bids,
-                  asks: r.quote.competition.asks
-                )}
-              </span>
-              <span class="font-mono">{pct(r.breakdown.competition_certainty)}</span>
-            </li>
-            <li class="flex justify-between gap-3">
-              <span class="eth-muted">{gettext("Frescura de datos")}</span>
-              <span class="font-mono">{pct(r.breakdown.data_certainty)}</span>
-            </li>
-            <li class="flex justify-between gap-3">
-              <span class="eth-muted">{gettext("Anti-scam")}</span>
-              <span class="font-mono">{pct(r.breakdown.scam_certainty)}</span>
-            </li>
-          </ul>
-
-          <button
-            id="station-open-market"
-            type="button"
-            phx-click="open_market"
-            disabled={is_nil(@pilot)}
-            class="eth-chamfer-sm btn btn-accent mt-5 w-full font-display tracking-wide"
+          <.detail_col
+            title={gettext("¿Por qué Certeza %{c}?", c: pct(row.certainty))}
+            topic={:competition}
           >
-            <.icon name="hero-building-storefront" class="size-4" /> {gettext("Abrir mercado")}
-          </button>
-          <p class="mt-2 text-xs eth-faint">
-            {gettext(
-              "ESI no permite publicar órdenes: la aplicación sugiere los precios y la orden la publicás vos en el juego."
-            )}
-          </p>
-        </div>
-      <% else %>
-        <.detail_placeholder
-          id="station-detail-title"
-          topic={:station}
-          link={gettext("Cómo funciona el station trading")}
-        >
-          {gettext(
-            "Elegí una oportunidad para ver los precios sugeridos, las comisiones y el plan diario."
-          )}
-        </.detail_placeholder>
-      <% end %>
-    </aside>
-  </div>
+            <ul class="space-y-0.5 text-xs tabular-nums">
+              <li class="flex justify-between gap-3">
+                <span class="eth-muted">
+                  {gettext("Competencia (%{bids} compras y %{asks} ventas cerca)",
+                    bids: row.quote.competition.bids,
+                    asks: row.quote.competition.asks
+                  )}
+                </span>
+                <span class="font-mono">{pct(row.breakdown.competition_certainty)}</span>
+              </li>
+              <li class="flex justify-between gap-3">
+                <span class="eth-muted">{gettext("Frescura de datos")}</span>
+                <span class="font-mono">{pct(row.breakdown.data_certainty)}</span>
+              </li>
+              <li class="flex justify-between gap-3">
+                <span class="eth-muted">{gettext("Anti-scam")}</span>
+                <span class="font-mono">{pct(row.breakdown.scam_certainty)}</span>
+              </li>
+            </ul>
+          </.detail_col>
+
+          <:footer>
+            <button
+              id="station-open-market"
+              type="button"
+              phx-click="open_market"
+              disabled={is_nil(@pilot)}
+              class="eth-chamfer-sm btn btn-accent btn-sm px-5 font-display tracking-wide"
+            >
+              <.icon name="hero-building-storefront" class="size-4" /> {gettext("Abrir mercado")}
+            </button>
+            <span class="text-xs eth-faint">
+              {gettext(
+                "ESI no permite publicar órdenes: la aplicación sugiere los precios y la orden la publicás vos en el juego."
+              )}
+            </span>
+            <button
+              type="button"
+              phx-click="close_detail"
+              class="btn btn-ghost btn-sm ml-auto eth-muted"
+            >
+              <.icon name="hero-chevron-up" class="size-4" /> {gettext("Cerrar")}
+              <kbd class="kbd kbd-xs">Esc</kbd>
+            </button>
+          </:footer>
+        </.row_detail>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center justify-between gap-2 border-t border-base-300 px-4 py-2 text-xs eth-faint">
+      <span id="station-hint">
+        {gettext(
+          "Comprás con una orden de compra y vendés con una de venta en la misma estación. El beneficio por día es una estimación: depende de la competencia."
+        )}
+      </span>
+      <span>
+        {gettext("máx. 200 filas")} ·
+        <.link href={EthWeb.Docs.href(:station)} class="link link-primary">
+          {gettext("Cómo funciona el station trading")}
+        </.link>
+      </span>
+    </div>
+  </section>
 
   <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyPrice">
     export default {

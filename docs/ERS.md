@@ -890,7 +890,7 @@ Al hacer clic en una fila, **la propia fila se despliega** hacia abajo y muestra
 - **Historial:** sparkline de 30 días, mediana, volumen y resultado anti-scam. *(F5: implementado como secciones "Anti-scam" e "Historial" del panel actual, que todavía no usa pestañas; las pestañas llegan con el rediseño de F10.)*
 - **Ruta:** sistemas con su seguridad, kills/h, amenaza y gates acampados.
 
-*Implementación actual (F3–F7): panel lateral con secciones. F10 lo reemplaza por la ficha expandible con pestañas; las acciones (Multibuy, Fijar ruta, Abrir mercado, Reportar falso positivo) viven en el pie de la ficha.*
+*Implementación (F10): la ficha se despliega bajo la fila con un desenrollado suave y se desplaza a la vista si hace falta; en lugar de pestañas, las secciones van **en columnas lado a lado** (Cálculo · Libro e Historial · Ruta · ¿Por qué TVS?; en pantallas medianas, dos por fila; en móvil, una debajo de otra), a pedido del usuario, para ver todo sin clics extra. Las acciones (Iniciar viaje, Multibuy, Fijar ruta, Abrir mercado, Reportar falso positivo) y "Cerrar (Esc)" viven en el pie. La ruta con el radar se calcula en segundo plano con un spinner (RNF-5.15). Lo mismo vale para las familias Estación y Por órdenes (RF-6.12). Los filtros (RF-6.4) forman una barra acoplada arriba de la tabla, con campos compactos de etiqueta como prefijo.*
 
 #### RF-6.13 · Lenguaje de tablón de caza — S · F10
 
