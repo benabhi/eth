@@ -35,7 +35,7 @@ defmodule EthWeb.HunterLive do
   alias Eth.{Characters, Clock, Engine, Market, Sde, Tracking}
   alias Eth.Characters.Pilot
   alias Eth.Engine.{Grade, Query}
-  alias EthWeb.{Format, HunterParams}
+  alias EthWeb.{Format, HunterParams, RowChanges}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -53,6 +53,7 @@ defmodule EthWeb.HunterLive do
       |> assign(:route_details, nil)
       |> assign(:route_loading, false)
       |> assign(:total, 0)
+      |> assign(known: nil, flashes: %{})
       |> assign(:reward, 0.0)
       |> assign(:meta, Engine.meta())
       |> assign(:now, Clock.utc_now())
@@ -312,7 +313,9 @@ defmodule EthWeb.HunterLive do
       |> HunterParams.to_query()
       |> Map.merge(Map.take(overrides, [:base_system_id, :ship_class, :character_id]))
 
+    # Filtros o piloto nuevos: la tabla siguiente no se compara con la anterior (RF-6.3).
     socket
+    |> assign(:known, nil)
     |> assign(:form_defaults, defaults)
     |> assign(:form, to_form(form, as: :filters))
     |> assign(:query, query)
@@ -323,8 +326,10 @@ defmodule EthWeb.HunterLive do
 
   defp load_rows(socket) do
     {rows, total} = Engine.query(socket.assigns.query)
+    {flashes, known} = RowChanges.diff(socket.assigns.known, rows, & &1.profit)
 
     socket
+    |> assign(flashes: flashes, known: known)
     |> assign(total: total, meta: Engine.meta(), now: Clock.utc_now(), empty?: rows == [])
     |> assign(:reward, Enum.reduce(rows, 0.0, &(&1.profit + &2)))
     |> assign(:selected_row, selected_row(socket.assigns[:selected], socket.assigns.query))

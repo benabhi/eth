@@ -317,9 +317,14 @@ body {
 @keyframes eth-flash-down {
   from { background-color: color-mix(in oklab, var(--color-error) 22%, transparent); }
 }
+@keyframes eth-flash-new {
+  from { background-color: color-mix(in oklab, var(--color-primary) 20%, transparent); }
+}
 .eth-enter { animation: eth-enter 180ms ease-out; }
-.eth-flash-up { animation: eth-flash-up 900ms ease-out; }
-.eth-flash-down { animation: eth-flash-down 900ms ease-out; }
+/* Filas nuevas y cambiadas (RF-6.3): el fondo se desvanece solo en ~2,4 s. */
+.eth-flash-new { animation: eth-flash-new 2400ms ease-out; }
+.eth-flash-up { animation: eth-flash-up 2400ms ease-out; }
+.eth-flash-down { animation: eth-flash-down 2400ms ease-out; }
 
 /* Ficha que se despliega bajo la fila (RF-6.5): se desenrolla de arriba hacia abajo. */
 @keyframes eth-unfold {
@@ -407,7 +412,7 @@ body {
 .eth-pulse-ring { animation: eth-pulse 1.6s ease-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .eth-spin, .eth-skel, .eth-enter, .eth-unfold, .eth-pulse-bar, .eth-flash-up, .eth-flash-down, .eth-pulse-ring {
+  .eth-spin, .eth-skel, .eth-enter, .eth-unfold, .eth-pulse-bar, .eth-flash-new, .eth-flash-up, .eth-flash-down, .eth-pulse-ring {
     animation: none;
   }
   .eth-tip-body { transition: none; }

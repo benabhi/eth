@@ -27,7 +27,7 @@ defmodule EthWeb.StationLive do
   alias Eth.{Characters, Clock, Engine, GameRules, Market, Sde}
   alias Eth.Characters.Pilot
   alias Eth.Engine.{OwnOrders, StationQuery}
-  alias EthWeb.{Format, StationParams}
+  alias EthWeb.{Format, RowChanges, StationParams}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -42,6 +42,7 @@ defmodule EthWeb.StationLive do
      |> assign(:selected, nil)
      |> assign(:selected_row, nil)
      |> assign(:total, 0)
+     |> assign(known: nil, flashes: %{})
      |> assign(:pending, 0)
      |> assign(:reward, 0.0)
      |> assign(:url_params, %{})
@@ -169,7 +170,9 @@ defmodule EthWeb.StationLive do
       |> StationParams.to_query()
       |> Map.merge(Map.take(overrides, [:standings, :own_order_ids]))
 
+    # Filtros o piloto nuevos: la tabla siguiente no se compara con la anterior (RF-6.3).
     socket
+    |> assign(:known, nil)
     |> assign(:form_defaults, defaults)
     |> assign(:form, to_form(form, as: :filters))
     |> assign(:query, query)
@@ -177,9 +180,11 @@ defmodule EthWeb.StationLive do
 
   defp load_rows(socket) do
     {rows, total} = Engine.station_query(socket.assigns.query)
+    {flashes, known} = RowChanges.diff(socket.assigns.known, rows, & &1.profit_day)
 
     socket
     |> assign_my_orders()
+    |> assign(flashes: flashes, known: known)
     |> assign(total: total, meta: Engine.meta(), now: Clock.utc_now())
     |> assign(:reward, Enum.reduce(rows, 0.0, &(&1.profit_day + &2)))
     |> assign(:selected_row, selected_row(socket.assigns.selected, socket.assigns.query))

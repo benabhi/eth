@@ -108,6 +108,18 @@ defmodule EthWeb.HunterLiveTest do
     refute has_element?(view, "#detail")
   end
 
+  test "las filas que cambian se resaltan un momento (RF-6.3)", %{conn: conn} do
+    publish_market()
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    # Primera carga: nada resaltado.
+    refute has_element?(view, "#opportunities [class*='eth-flash-']")
+
+    # Otra evaluación con otro precio: la fila cambia y se resalta.
+    publish_market(6.0)
+    assert has_element?(view, "#opportunities [id^='opp-'][class*='eth-flash-']")
+  end
+
   test "los atajos de teclado tienen su hook y sus destinos marcados (RF-6.9)", %{conn: conn} do
     publish_market()
     {:ok, view, _html} = live(conn, ~p"/")

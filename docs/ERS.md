@@ -870,7 +870,7 @@ Selector del personaje activo en la cabecera; los personajes no activos mantiene
 - **Congelar:** automático mientras haya una fila expandida o el puntero esté sobre la grilla (*configurable*) y manual (tecla `F`), con un contador "N cambios pendientes · Aplicar". Evita que las filas "salten" mientras se leen.
 - Las acciones sobre una fila congelada se revalidan contra la versión vigente antes de ejecutarse.
 
-*Pendiente (F11, pedido del usuario):* el resaltado de filas nuevas y cambiadas todavía no está conectado (hoy todas las filas entran igual en cada actualización). Al llegar una versión nueva, las filas que no estaban se marcan con un fondo que se desvanece en unos segundos y las que cambiaron de beneficio, en verde o rojo; las que siguen igual no se animan.
+*Implementación (F11, pedido del usuario):* `EthWeb.RowChanges` compara cada versión con la anterior en las tres familias: las filas nuevas se marcan con un fondo celeste y las que cambiaron su valor principal más de 1 % (beneficio; beneficio por día en Estación), en verde o rojo; el fondo se desvanece en ~2,4 s y las demás no se animan. La primera carga y los cambios de filtros o de piloto no se comparan (no se ilumina toda la tabla). Las filas expiradas tachadas antes de salir quedan para F12.
 
 #### RF-6.4 · Búsqueda, filtros y presets — M · F3
 
