@@ -68,7 +68,7 @@
   --color-primary-content: #ffffff;
   --color-secondary: #6a4fc8;
   --color-secondary-content: #ffffff;
-  --color-accent: #b36a00;
+  --color-accent: #a26000; /* AA 4.6:1 sobre base-200 (RNF-5.2) */
   --color-accent-content: #ffffff;
   --color-neutral: #dde5ee;
   --color-neutral-content: #1b2735;
@@ -135,7 +135,7 @@
   --eth-surface-hi: #ffffff;
   --eth-grid: rgba(10, 111, 163, 0.04);
   --eth-muted: #536579;
-  --eth-faint: #7a8ba0;
+  --eth-faint: #647183; /* AA 4.6:1 sobre base-200 (RNF-5.2) */
   --eth-strong: #0e1b29;
   --eth-line: #dde5ee;
   --eth-shadow: 0 14px 32px rgba(14, 27, 41, 0.14);
