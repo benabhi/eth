@@ -42,6 +42,24 @@ defmodule EthWeb.ControlLiveTest do
     )
   end
 
+  test "muestra las métricas de la última hora (RF-8.9)", %{conn: conn} do
+    start_supervised!(Eth.Metrics)
+
+    :telemetry.execute([:eth, :esi, :request], %{duration_ms: 120}, %{
+      path: "/x",
+      status: 200,
+      group: nil,
+      not_modified: false
+    })
+
+    {:ok, view, _html} = live(conn, ~p"/control")
+    # Los contadores muestran el último minuto completo; el de ahora recién empieza.
+    assert has_element?(view, "#metric-requests", "0")
+    assert has_element?(view, "#metric-latency", "120 ms")
+    assert has_element?(view, "#spark-requests polyline")
+    assert has_element?(view, "#metric-evaluate", "—")
+  end
+
   test "sin mercado corriendo muestra el estado vacío", %{conn: conn} do
     {:ok, _view, html} = live(conn, ~p"/control")
 

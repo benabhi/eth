@@ -25,7 +25,7 @@ defmodule EthWeb.ControlLive do
   import EthWeb.TradingComponents, only: [row_detail: 1, detail_col: 1]
 
   alias Eth.Characters.Sessions
-  alias Eth.{Clock, Engine, Events, Market, Sde, Threat}
+  alias Eth.{Clock, Engine, Events, Market, Metrics, Sde, Threat}
   alias Eth.Esi.{Budget, ServerStatus}
   alias EthWeb.Format
 
@@ -421,8 +421,70 @@ defmodule EthWeb.ControlLive do
       market_budget: Budget.group(Eth.GameRules.get(:market_budget_group)),
       history: Market.history_status(),
       memory: %{total: :erlang.memory(:total), ets: :erlang.memory(:ets)},
-      next_downtime: ServerStatus.next_downtime(now)
+      next_downtime: ServerStatus.next_downtime(now),
+      metrics: Metrics.series()
     )
+  end
+
+  # Mosaicos de la última hora (RF-8.9): título, valor del último minuto con datos y serie.
+  defp metric_tiles(s) do
+    [
+      %{
+        id: "requests",
+        title: gettext("Consultas a EVE / min"),
+        values: s.requests,
+        value: last_complete(s.requests),
+        class: "text-primary"
+      },
+      %{
+        id: "errors",
+        title: gettext("Errores / min"),
+        values: s.errors,
+        value: last_complete(s.errors),
+        class: "text-error"
+      },
+      %{
+        id: "latency",
+        title: gettext("Latencia de EVE"),
+        values: s.latency_ms,
+        value: last(s.latency_ms, &"#{round(&1)} ms"),
+        class: "text-info"
+      },
+      %{
+        id: "evaluate",
+        title: gettext("Evaluación del motor"),
+        values: s.evaluate_ms,
+        value: last(s.evaluate_ms, &"#{Float.round(&1 / 1000, 1)} s"),
+        class: "text-accent"
+      },
+      %{
+        id: "query",
+        title: gettext("Consulta del tablón"),
+        values: s.query_ms,
+        value: last(s.query_ms, &"#{round(&1)} ms"),
+        class: "text-secondary"
+      },
+      %{
+        id: "tokens",
+        title: gettext("Tokens de mercado"),
+        values: s.market_tokens,
+        value: last(s.market_tokens, &"#{round(&1 * 100)} %"),
+        class: "text-success"
+      }
+    ]
+  end
+
+  # Contadores por minuto: el último minuto completo (el actual recién empieza).
+  defp last_complete(values) when length(values) >= 2,
+    do: values |> Enum.at(-2) |> Format.integer()
+
+  defp last_complete(_values), do: "—"
+
+  defp last(values, format) do
+    case values |> Enum.reject(&is_nil/1) |> List.last() do
+      nil -> "—"
+      value -> format.(value)
+    end
   end
 
   @doc false
