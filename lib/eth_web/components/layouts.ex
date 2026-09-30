@@ -49,7 +49,7 @@ defmodule EthWeb.Layouts do
     ~H"""
     <header class="sticky top-0 z-30 border-b border-base-300 bg-base-200/95 backdrop-blur">
       <div class="flex h-14 items-center gap-4 px-4 lg:gap-7 lg:px-7">
-        <a href={~p"/"} class="flex items-center gap-2.5" aria-label="EVE Trade Hunter">
+        <.link navigate={~p"/"} class="flex items-center gap-2.5" aria-label="EVE Trade Hunter">
           <svg width="24" height="24" viewBox="0 0 26 26" aria-hidden="true" class="text-primary">
             <path
               d="M13 2 L24 8 L24 18 L13 24 L2 18 L2 8 Z"
@@ -62,11 +62,11 @@ defmodule EthWeb.Layouts do
           <span class="hidden font-display text-[15px] font-bold tracking-[0.14em] eth-strong sm:inline">
             TRADE HUNTER
           </span>
-        </a>
+        </.link>
         <nav aria-label={gettext("Navegación principal")} class="hidden h-14 md:flex">
           <%= for {id, label, path} <- @sections do %>
-            <a
-              href={path}
+            <.link
+              navigate={path}
               aria-current={@active == id && "page"}
               class={[
                 "flex items-center border-b-2 px-3 font-display text-[13px] tracking-[0.12em] uppercase transition-colors lg:px-4",
@@ -77,21 +77,21 @@ defmodule EthWeb.Layouts do
               ]}
             >
               {label}
-            </a>
+            </.link>
           <% end %>
         </nav>
         <div class="flex-1"></div>
-        <a
+        <.link
           :if={@radar_degraded}
           id="radar-degraded"
-          href={~p"/control"}
+          navigate={~p"/control/radar"}
           class="hidden items-center gap-1.5 border border-warning/60 px-2 py-1 text-xs text-warning sm:flex"
           title={
             gettext("Sin kills del feed en vivo: el riesgo de ruta usa solo la línea base horaria")
           }
         >
           <.icon name="hero-signal-slash" class="size-3.5" /> {gettext("Radar degradado")}
-        </a>
+        </.link>
         <.character_menu pilot={@pilot} characters={@characters} />
         <.theme_toggle />
       </div>
@@ -111,9 +111,9 @@ defmodule EthWeb.Layouts do
       aria-label={gettext("Navegación principal")}
       class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-base-300 bg-base-200/95 backdrop-blur md:hidden"
     >
-      <a
+      <.link
         :for={{id, label, path} <- @sections}
-        href={path}
+        navigate={path}
         aria-current={@active == id && "page"}
         class={[
           "flex h-16 flex-col items-center justify-center gap-1.5 text-[11px]",
@@ -122,7 +122,7 @@ defmodule EthWeb.Layouts do
       >
         <span class={["h-0.5 w-5", if(@active == id, do: "bg-primary", else: "bg-transparent")]}></span>
         {label}
-      </a>
+      </.link>
     </nav>
 
     <.flash_group flash={@flash} />
