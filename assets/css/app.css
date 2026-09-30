@@ -318,6 +318,25 @@ body {
 }
 .eth-unfold { animation: eth-unfold 280ms cubic-bezier(0.2, 0.8, 0.2, 1); }
 
+/* Fila que se está abriendo (RNF-5.15): barra indeterminada bajo la fila mientras el
+   servidor responde; aparece al instante con la clase `phx-click-loading`. */
+@keyframes eth-indeterminate {
+  from { translate: -100% 0; }
+  to { translate: 250% 0; }
+}
+.eth-row-loading { overflow: hidden; background: color-mix(in oklab, var(--color-primary) 18%, transparent); }
+.eth-row-loading::after {
+  content: "";
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: var(--color-primary);
+  animation: eth-indeterminate 0.9s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .eth-row-loading::after { animation: none; width: 100%; opacity: 0.6; }
+}
+
 /* Barra de filtros acoplada a la tabla (RF-6.4): campo compacto con la etiqueta como prefijo. */
 .eth-filter {
   display: flex;
