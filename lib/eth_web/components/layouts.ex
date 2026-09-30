@@ -155,11 +155,14 @@ defmodule EthWeb.Layouts do
         navigate={path}
         aria-current={@active == id && "page"}
         class={[
-          "flex h-16 flex-col items-center justify-center gap-1.5 text-[11px]",
-          if(@active == id, do: "eth-strong", else: "eth-muted")
+          "flex h-16 flex-col items-center justify-center gap-1 text-[11px] transition-colors",
+          if(@active == id, do: "bg-primary/10 eth-strong", else: "eth-muted hover:text-base-content")
         ]}
       >
-        <span class={["h-0.5 w-5", if(@active == id, do: "bg-primary", else: "bg-transparent")]}></span>
+        <.icon
+          name={section_icon(id)}
+          class={["size-5", if(@active == id, do: "text-primary", else: "opacity-70")]}
+        />
         {label}
       </.link>
     </nav>
@@ -581,6 +584,13 @@ defmodule EthWeb.Layouts do
   end
 
   # Secciones de la navegación (ERS §9.2).
+  # Íconos del menú inferior de pantalla chica.
+  defp section_icon(:hunter), do: "hero-rectangle-stack"
+  defp section_icon(:run), do: "hero-rocket-launch"
+  defp section_icon(:control), do: "hero-cpu-chip"
+  defp section_icon(:settings), do: "hero-cog-6-tooth"
+  defp section_icon(:docs), do: "hero-book-open"
+
   defp sections do
     [
       {:hunter, gettext("Tablón"), ~p"/"},
