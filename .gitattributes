@@ -6,3 +6,7 @@
 *.jpg binary
 *.ico binary
 *.woff2 binary
+
+# Scripts de Windows: CRLF (cmd y Windows PowerShell los esperan así).
+*.bat text eol=crlf
+*.ps1 text eol=crlf

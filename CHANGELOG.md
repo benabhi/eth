@@ -8,6 +8,9 @@ migraciones (corren solas al arrancar) o cambios en `.env`.
 
 ### Agregado
 
+- **Arranque en un paso:** `iniciar.bat` (Windows) e `iniciar.sh` (macOS/Linux) verifican
+  Docker, crean `.env` la primera vez (con `ETH_VAULT_KEY` generada), levantan la app y
+  abren el navegador; `detener.bat` / `detener.sh` la apagan.
 - **Glosario y ayudas (RF-11.2, RNF-5.14):** glosario único de siglas y términos; en las
   pantallas, subrayado punteado con la definición al pasar el cursor. El menú "Manual" pasa a
   "Documentación" y la búsqueda coincide por comienzo de palabra.

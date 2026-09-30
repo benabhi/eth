@@ -21,6 +21,21 @@ sale de tu máquina salvo las consultas a los servicios oficiales de EVE y a zKi
 
 ## Instalación
 
+### Arranque rápido
+
+Con [Docker Desktop](https://www.docker.com/products/docker-desktop/) abierto y tu aplicación
+de EVE registrada (paso 3), clonar y ejecutar:
+
+- **Windows:** doble clic en `iniciar.bat`.
+- **macOS / Linux:** `./iniciar.sh`.
+
+La primera vez pide el Client ID, el Secret y tu email, crea `.env` y genera
+`ETH_VAULT_KEY` (guardá la copia que muestra). Después construye la imagen, espera a que la
+app responda y abre <http://localhost:4000>. Las veces siguientes es doble clic y listo.
+Para apagarla: `detener.bat` o `./detener.sh` (guarda el mercado en disco).
+
+Los pasos de abajo explican lo mismo a mano.
+
 ### 1. Requisitos
 
 - **Docker Desktop** (Windows o macOS) o Docker Engine con Compose (Linux).
@@ -140,6 +155,9 @@ corriendo). Las fórmulas muestran los valores vigentes de tu instalación:
 | [CHANGELOG](CHANGELOG.md) | Cambios por versión. |
 
 ## Uso diario
+
+Con los scripts: `iniciar.bat` / `./iniciar.sh` para arrancar y `detener.bat` /
+`./detener.sh` para detener. A mano:
 
 ```bash
 docker compose -f docker-compose.release.yml up -d     # arrancar
