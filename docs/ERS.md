@@ -870,6 +870,8 @@ Selector del personaje activo en la cabecera; los personajes no activos mantiene
 - **Congelar:** automático mientras haya una fila expandida o el puntero esté sobre la grilla (*configurable*) y manual (tecla `F`), con un contador "N cambios pendientes · Aplicar". Evita que las filas "salten" mientras se leen.
 - Las acciones sobre una fila congelada se revalidan contra la versión vigente antes de ejecutarse.
 
+*Pendiente (F11, pedido del usuario):* el resaltado de filas nuevas y cambiadas todavía no está conectado (hoy todas las filas entran igual en cada actualización). Al llegar una versión nueva, las filas que no estaban se marcan con un fondo que se desvanece en unos segundos y las que cambiaron de beneficio, en verde o rojo; las que siguen igual no se animan.
+
 #### RF-6.4 · Búsqueda, filtros y presets — M · F3
 
 - **Búsqueda de texto** (objeto, estación, sistema, región) por prefijo o contenido, sin distinguir mayúsculas ni acentos.
@@ -1130,6 +1132,8 @@ Regiones habilitadas y su nivel; estructuras seguidas y acceso por personaje.
 #### RF-9.7 · Exportar/importar configuración — C · F11
 
 Archivo JSON sin secretos ni tokens.
+
+*Implementación (F11):* `Eth.ConfigTransfer` exporta `{app, format, exported_at, game_rules, radar, notifications, ship_profiles, structures}` (solo estructuras seguidas o con broker propio) y lo descarga `GET /settings/export`; Ajustes → Respaldo importa el archivo (hasta 1 MB): reemplaza cada sección presente, valida con las APIs de cada contexto y muestra lo aplicado y lo descartado. Personajes y tokens nunca se exportan.
 
 ### M10 · Notificaciones
 

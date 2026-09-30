@@ -34,7 +34,11 @@ defmodule EthWeb.Router do
       live "/settings/markets", SettingsLive, :markets
       live "/settings/notifications", SettingsLive, :notifications
       live "/settings/setup", SettingsLive, :setup
+      live "/settings/backup", SettingsLive, :backup
     end
+
+    # Exportar la configuración (RF-9.7): descarga JSON sin secretos.
+    get "/settings/export", ConfigController, :export
   end
 
   # EVE SSO (RF-5.1) y personaje activo (RF-5.10)

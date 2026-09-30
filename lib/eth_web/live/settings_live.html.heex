@@ -588,6 +588,78 @@
     </.panel>
   </section>
 
+  <%!-- Respaldo (RF-9.7) --%>
+  <section :if={@live_action == :backup} id="settings-backup" class="grid gap-4 lg:grid-cols-2">
+    <.panel id="export-panel" title={gettext("Exportar")}>
+      <p class="text-sm eth-muted">
+        {gettext(
+          "Descarga un archivo JSON con tus ajustes: reglas, radar, alertas, perfiles de nave y estructuras seguidas. No incluye personajes, tokens ni claves: en otra instalación volvés a iniciar sesión con EVE."
+        )}
+      </p>
+      <a
+        id="config-export"
+        href={~p"/settings/export"}
+        download
+        class="btn btn-primary btn-sm mt-4"
+      >
+        <.icon name="hero-arrow-down-tray" class="size-4" /> {gettext("Descargar configuración")}
+      </a>
+    </.panel>
+
+    <.panel id="import-panel" title={gettext("Importar")}>
+      <p class="text-sm eth-muted">
+        {gettext(
+          "Reemplaza cada sección que trae el archivo; lo que no viene queda como está. Los valores se validan igual que en cada pestaña."
+        )}
+      </p>
+      <.form
+        for={%{}}
+        id="config-import"
+        phx-change="validate_import"
+        phx-submit="import"
+        class="mt-4 flex flex-wrap items-center gap-2"
+      >
+        <label class="eth-filter min-w-60 flex-1 cursor-pointer">
+          <span class="eth-filter-label">{gettext("Archivo")}</span>
+          <.live_file_input
+            upload={@uploads.config}
+            class="file-input file-input-ghost file-input-xs w-full"
+          />
+        </label>
+        <button
+          type="submit"
+          class="btn btn-sm h-8 min-h-8"
+          disabled={@uploads.config.entries == []}
+          phx-disable-with={gettext("Importando…")}
+        >
+          <.icon name="hero-arrow-up-tray" class="size-4" /> {gettext("Importar")}
+        </button>
+      </.form>
+      <p
+        :for={entry <- @uploads.config.entries}
+        :if={upload_errors(@uploads.config, entry) != []}
+        class="mt-2 text-xs text-error"
+      >
+        {gettext("Solo archivos .json de hasta 1 MB.")}
+      </p>
+
+      <div :if={@import_result} id="import-result" class="mt-4 text-sm">
+        <%= case @import_result do %>
+          <% {:ok, summary} -> %>
+            <div class="border border-success/50 bg-success/10 px-3 py-2">
+              <div class="font-semibold text-success">{gettext("Configuración importada")}</div>
+              <div class="eth-muted">{Enum.join(summary.applied, " · ")}</div>
+              <div :if={summary.skipped != []} class="mt-1 text-xs text-warning">
+                {gettext("Descartados:")} {Enum.join(summary.skipped, ", ")}
+              </div>
+            </div>
+          <% {:error, message} -> %>
+            <div class="border border-error/50 bg-error/10 px-3 py-2 text-error">{message}</div>
+        <% end %>
+      </div>
+    </.panel>
+  </section>
+
   <%!-- Primer arranque (RF-9.1) --%>
   <section :if={@live_action == :setup} id="settings-setup" class="space-y-3">
     <% done = Enum.count(@checks, fn {_id, _title, ok, _hint} -> ok end) %>
