@@ -7,10 +7,13 @@ defmodule EthWeb.RunLive do
   - Amenazas en la ruta restante (RF-7.4) con la ruta evasiva aplicable con un clic.
   - Acciones: fijar la ruta, confirmar compra o venta a mano y abortar.
   - Historial de viajes (RF-7.6): proyectado frente a real, desvío e ISK/h real.
+  - Registro del cazador (RF-7.7): rango con su progreso, estadísticas por período
+    (semana, mes, histórico) del piloto o de todos sus personajes, e hitos con el
+    momento y el viaje en que se lograron.
 
   Se actualiza con `run:<personaje>` y un tick que refresca el estado en vivo del monitor.
 
-  Implementa: RF-7.1, RF-7.2, RF-7.3, RF-7.4, RF-7.5, RF-7.6.
+  Implementa: RF-7.1, RF-7.2, RF-7.3, RF-7.4, RF-7.5, RF-7.6, RF-7.7.
   """
   use EthWeb, :live_view
 
@@ -36,11 +39,12 @@ defmodule EthWeb.RunLive do
      |> assign(:page_title, gettext("Viaje activo"))
      |> assign(:steps, @steps)
      |> assign(:alerts, [])
+     |> assign(log_period: "all", log_scope: "me")
      |> load()}
   end
 
   defp load(%{assigns: %{pilot: nil}} = socket),
-    do: assign(socket, run: nil, live: nil, history: [])
+    do: assign(socket, run: nil, live: nil, history: [], log: nil)
 
   defp load(socket) do
     id = socket.assigns.pilot.id
@@ -50,7 +54,15 @@ defmodule EthWeb.RunLive do
     |> assign(:run, run)
     |> assign(:live, run && RunMonitor.live(run.id))
     |> assign(:history, Tracking.history(id))
+    |> assign(:log, Tracking.hunter_log(log_characters(socket)))
   end
+
+  # Registro del piloto activo o de todos los personajes del operador (RF-7.7).
+  defp log_characters(%{assigns: %{log_scope: "all", characters: characters}})
+       when characters != [],
+       do: Enum.map(characters, & &1.id)
+
+  defp log_characters(socket), do: socket.assigns.pilot.id
 
   @impl true
   def handle_info(:tick, socket) do
@@ -82,6 +94,13 @@ defmodule EthWeb.RunLive do
          put_flash(socket, :error, gettext("Esa confirmación no corresponde a la etapa actual"))}
     end
   end
+
+  def handle_event("log_period", %{"period" => period}, socket)
+      when period in ~w(week month all),
+      do: {:noreply, assign(socket, :log_period, period)}
+
+  def handle_event("log_scope", %{"scope" => scope}, socket) when scope in ~w(me all),
+    do: {:noreply, socket |> assign(:log_scope, scope) |> load()}
 
   def handle_event("abort", _params, socket) do
     if run = socket.assigns.run, do: Tracking.abort(run)
@@ -139,6 +158,14 @@ defmodule EthWeb.RunLive do
   end
 
   defp label(status), do: Tracking.status_label(status)
+
+  defp period_stats(log, "week"), do: log.week
+  defp period_stats(log, "month"), do: log.month
+  defp period_stats(log, _all), do: log.all
+
+  defp status_seal("closed"), do: :improved
+  defp status_seal("aborted"), do: :expired
+  defp status_seal(_active), do: :new
 
   defp deviation(%{result: %{"deviation" => d}}) when is_number(d),
     do: "#{if d >= 0, do: "+", else: ""}#{round(d * 100)} %"

@@ -284,6 +284,8 @@ defmodule EthWeb.PilotLiveTest do
       {:ok, run_view, _html} = live(conn, ~p"/run")
       assert has_element?(run_view, "#run", "Tritanium")
       assert has_element?(run_view, "#run-steps li[data-state=current]", "planificado")
+      assert has_element?(run_view, "#hunter-rank", "I")
+      assert has_element?(run_view, "#hunter-milestones li[data-achieved=false]")
 
       run_view |> element("#run-set-route") |> render_click()
       assert_receive {:ui, "/ui/autopilot/waypoint", _params}, 2_000

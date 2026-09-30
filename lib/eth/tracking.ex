@@ -4,14 +4,18 @@ defmodule Eth.Tracking do
   alertar amenazas, cerrar y reconciliar con la billetera. API pública para la web
   (RNF-7.3); cada viaje activo tiene un `Eth.Tracking.RunMonitor`.
 
-  Implementa: RF-7.1, RF-7.2, RF-7.5, RF-7.6.
+  El registro del cazador (RF-7.7) se arma con `hunter_log/2` sobre los viajes
+  reconciliados; al guardar un resultado que logra un hito nuevo se avisa con un toast
+  discreto (`Eth.Notifications`).
+
+  Implementa: RF-7.1, RF-7.2, RF-7.5, RF-7.6, RF-7.7.
   """
 
   import Ecto.Query
 
   alias Eth.Characters.Sessions
-  alias Eth.{Clock, Events, Repo}
-  alias Eth.Tracking.{Run, RunMonitor, Stages, WalletTransaction}
+  alias Eth.{Clock, Events, Notifications, Repo}
+  alias Eth.Tracking.{HunterLog, Run, RunMonitor, Stages, WalletTransaction}
 
   @doc "Tópico con los cambios de los viajes de un personaje (`{:run, run}`)."
   @spec topic(pos_integer()) :: String.t()
@@ -112,6 +116,24 @@ defmodule Eth.Tracking do
     )
   end
 
+  @doc """
+  Registro del cazador (RF-7.7) de uno o varios personajes: estadísticas por período,
+  racha, rango e hitos, solo con viajes cerrados y reconciliados.
+  """
+  @spec hunter_log(pos_integer() | [pos_integer()], DateTime.t()) :: HunterLog.t()
+  def hunter_log(character_ids, now \\ Clock.utc_now()) do
+    character_ids |> List.wrap() |> reconciled_runs() |> HunterLog.build(now)
+  end
+
+  defp reconciled_runs(character_ids) do
+    Repo.all(
+      from r in Run,
+        where:
+          r.character_id in ^character_ids and r.status == "closed" and
+            not is_nil(r.realized_profit)
+    )
+  end
+
   @doc "Viaje por ID."
   @spec get(pos_integer()) :: Run.t() | nil
   def get(id), do: Repo.get(Run, id)
@@ -173,6 +195,7 @@ defmodule Eth.Tracking do
   @spec put_result(Run.t(), map()) :: Run.t()
   def put_result(%Run{} = run, result) do
     result = Map.new(result, fn {k, v} -> {Atom.to_string(k), v} end)
+    before = run.character_id |> reconciled_runs_of() |> HunterLog.milestones()
 
     {1, [run]} =
       Repo.update_all(from(r in Run, where: r.id == ^run.id, select: r),
@@ -184,8 +207,49 @@ defmodule Eth.Tracking do
       )
 
     broadcast(run)
+    notify_milestones(run, before)
     run
   end
+
+  defp reconciled_runs_of(character_id), do: reconciled_runs([character_id])
+
+  # Aviso discreto por cada hito nuevo (RF-7.7): nunca bloquea ni interrumpe.
+  defp notify_milestones(%Run{} = run, before) do
+    known = HunterLog.achieved_keys(before)
+
+    run.character_id
+    |> reconciled_runs_of()
+    |> HunterLog.milestones()
+    |> Enum.filter(&(&1.achieved_at && not MapSet.member?(known, &1.key)))
+    |> Enum.each(fn milestone ->
+      Events.emit(:info, "Viajes", "Hito logrado: #{milestone_title(milestone)}")
+
+      Notifications.notify(%{
+        key: "milestone:#{run.character_id}:#{milestone.key}",
+        level: :info,
+        title: "Hito logrado",
+        body: milestone_title(milestone),
+        url: "/run"
+      })
+    end)
+  end
+
+  @doc "Título de un hito del registro del cazador, en español."
+  @spec milestone_title(HunterLog.milestone()) :: String.t()
+  def milestone_title(%{kind: :first}), do: "Primer contrato completado"
+
+  def milestone_title(%{kind: :reward, target: target}),
+    do: "Recompensa acumulada de #{short_isk(target)}"
+
+  def milestone_title(%{kind: :s_contracts, target: 1}), do: "Primer contrato de rango S"
+  def milestone_title(%{kind: :s_contracts, target: n}), do: "#{n} contratos de rango S"
+  def milestone_title(%{kind: :streak, target: n}), do: "Racha de #{n} días con contratos"
+
+  def milestone_title(%{kind: :accuracy, target: min}),
+    do: "Precisión sostenida ≥ #{round(min * 100)} %"
+
+  defp short_isk(v) when v >= 1_000_000_000, do: "#{div(round(v), 1_000_000_000)}B"
+  defp short_isk(v), do: "#{div(round(v), 1_000_000)}M"
 
   @doc "Guarda transacciones de ESI (idempotente por `transaction_id`)."
   @spec store_transactions(pos_integer(), [map()]) :: :ok

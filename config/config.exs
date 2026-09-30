@@ -234,6 +234,15 @@ config :eth, Eth.GameRules,
     {"VI", 25_000_000_000},
     {"VII", 50_000_000_000}
   ],
+  # Hitos del registro del cazador (RF-7.7), siempre sobre viajes reconciliados:
+  # recompensa acumulada (ISK), contratos de rango S, racha de días con contratos
+  # cerrados y precisión sostenida (1 − desvío medio en los últimos `window` viajes).
+  hunter_milestones: %{
+    reward: [100_000_000, 1_000_000_000, 10_000_000_000, 100_000_000_000],
+    s_contracts: [1, 10, 50],
+    streak_days: [3, 7, 30],
+    accuracy: %{min: 0.9, window: 10}
+  },
   tvs_refs: %{isk_per_hour: 150_000_000, profit: 100_000_000, roi: 0.25},
   order_tau_min: 180,
   # Liquidez neutra mientras no hay historial del tipo (RF-4.7).

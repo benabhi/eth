@@ -1010,6 +1010,8 @@ Perfil de caza del piloto a partir de los viajes cerrados (RF-7.5): contratos co
 - **Rango del cazador:** nivel según la recompensa real acumulada (escala *calibrable*), con la barra de progreso al siguiente nivel.
 - Un aviso discreto (toast) al lograr un hito; nunca bloquea ni interrumpe la búsqueda de trades.
 
+*Implementación (F10):* `Eth.Tracking.HunterLog` (funciones puras) arma el registro con los viajes `closed` que tienen `realized_profit`; precisión de un viaje = 1 − |real − proyectado| / |proyectado| (entre 0 y 1); ISK/h = recompensa total / horas de viaje (mínimo 1 minuto por viaje); racha = días UTC seguidos con cierres que terminan hoy o ayer; "rango S" usa el TVS congelado en el plan del viaje. El registro está arriba de `/run`, con selector de período (semana, mes, histórico) y de personajes (el activo o todos). El toast sale al guardar el resultado de la reconciliación (`Tracking.put_result/2`) y solo por hitos nuevos. Parámetros en B.7 (`hunter_ranks`, `hunter_milestones`).
+
 ### M8 · Centro de control (monitor del sistema)
 
 Rediseño del "monitor de GenServers": en lugar de una tabla, un **tablero operativo** en cinco zonas (wireframe en §9.6): salud global, mapa de regiones en mosaico, pipeline en vivo, radar y personajes, y registro de eventos. Está pensado para ver ~70 regiones de un vistazo y actuar con un clic. Una tabla escala mal a 70 filas y oculta lo importante: el mosaico hace saltar a la vista lo que está en rojo.
@@ -2378,6 +2380,10 @@ Aproximación de la escala del cliente. En el tema claro se usan como fondo de i
 | `dogma_capacity_attribute_id` / `dogma_skill_level_attribute_id` | 38 / 280 | Atributos dogma de capacidad y nivel de habilidad (RF-5.8) |
 | `fitted_location_flag_prefixes` | HiSlot, MedSlot, LoSlot, RigSlot, SubSystemSlot | Módulos montados en `/assets` (RF-5.8) |
 | `ship_group_evasion_classes` | 31 Shuttle · 1202 BR · 380 DST · 28 Industrial · 513 y 902 Freighter · resto Otras | Clase sugerida por grupo del SDE (RF-5.8) |
+| `contract_ranks` | S ≥ 90 · A ≥ 75 · B ≥ 50 · C ≥ 25 · resto D | Rango del contrato por TVS (RF-6.13) |
+| `danger_levels` | bajo ≤ 5 % · moderado ≤ 15 % · alto ≤ 35 % · resto extremo | Peligro de ruta = 1 − Certeza de ruta (RF-6.13) |
+| `hunter_ranks` | I 0 · II 500M · III 2B · IV 5B · V 10B · VI 25B · VII 50B | Rango del cazador por recompensa real acumulada (RF-7.7) |
+| `hunter_milestones` | recompensa 100M · 1B · 10B · 100B · rango S 1 · 10 · 50 · racha 3 · 7 · 30 días · precisión ≥ 90 % en 10 viajes | Hitos del registro del cazador (RF-7.7) |
 
 ### B.8 Matriz de vulnerabilidad (calibrable)
 

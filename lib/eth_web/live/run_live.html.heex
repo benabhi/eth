@@ -2,186 +2,457 @@
   flash={@flash}
   radar_degraded={@radar_degraded}
   active={:run}
+  wide
   pilot={@pilot}
   characters={@characters}
   ship_form={@ship_form}
 >
-  <h1 class="text-2xl font-bold">{gettext("Viaje activo")}</h1>
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h1 class="flex items-center gap-3 font-display text-2xl font-semibold eth-strong sm:text-[26px]">
+      {gettext("Viaje")}
+      <.help topic={:run} title={gettext("Viaje activo")} align="start">
+        {gettext(
+          "El contrato que estás cazando: etapas, revalidación en vivo, amenazas y cierre con la billetera."
+        )}
+      </.help>
+    </h1>
+  </div>
 
-  <%= cond do %>
-    <% is_nil(@pilot) -> %>
-      <p id="run-guest" class="text-base-content/70">
-        {gettext(
-          "Iniciá sesión con EVE para seguir un viaje: hace falta tu ubicación y tu billetera."
-        )}
-      </p>
-    <% is_nil(@run) -> %>
-      <p id="run-empty" class="text-base-content/70">
-        {gettext(
-          "No tenés un viaje en curso. Elegí una oportunidad en el Cazador y tocá \"Iniciar viaje\"."
-        )}
-      </p>
-    <% true -> %>
-      <section id="run" class="card border border-base-300 p-4 space-y-4">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <div>
-            <h2 class="text-lg font-semibold">
-              {@run.plan["type_name"]} ×{Format.integer(@run.plan["quantity"])}
-            </h2>
-            <p class="text-sm">
-              {@run.plan["origin_name"]}<br />→ {@run.plan["destination_name"]}
-            </p>
+  <%= if is_nil(@pilot) do %>
+    <.empty_state id="run-guest" title={gettext("Iniciá sesión con EVE para seguir un viaje")}>
+      {gettext(
+        "Hace falta tu ubicación y tu billetera para seguir las etapas y cerrar el viaje con el resultado real."
+      )}
+    </.empty_state>
+  <% else %>
+    <%!-- Registro del cazador (RF-7.7) --%>
+    <section
+      id="hunter-log"
+      aria-labelledby="hunter-log-title"
+      class="eth-chamfer border border-base-300 bg-base-100"
+    >
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 px-4 py-2.5">
+        <h2 id="hunter-log-title" class="eth-kicker flex items-center gap-2">
+          {gettext("Registro del cazador")}
+          <.help topic={:hunter_log} title={gettext("Registro del cazador")}>
+            {gettext(
+              "Solo viajes cerrados y reconciliados con la billetera: datos reales, sin puntos inventados. Es personal y nunca se publica."
+            )}
+          </.help>
+        </h2>
+        <div class="flex flex-wrap items-center gap-2">
+          <div
+            :if={length(@characters) > 1}
+            class="join"
+            role="group"
+            aria-label={gettext("Personajes")}
+          >
+            <button
+              :for={{value, text} <- [{"me", @pilot.name}, {"all", gettext("Todos")}]}
+              id={"log-scope-#{value}"}
+              type="button"
+              phx-click="log_scope"
+              phx-value-scope={value}
+              aria-pressed={to_string(@log_scope == value)}
+              class={[
+                "btn join-item btn-xs",
+                if(@log_scope == value, do: "btn-primary", else: "btn-ghost border-base-300")
+              ]}
+            >
+              {text}
+            </button>
           </div>
-          <div class="text-right tabular-nums">
-            <div class="text-xs text-base-content/60">{gettext("Beneficio proyectado")}</div>
-            <div class="text-xl font-semibold">{Format.compact(@run.predicted_profit)}</div>
-            <div :if={@live && @live.revalidation} id="run-now" class="text-sm">
+          <div class="join" role="group" aria-label={gettext("Período")}>
+            <button
+              :for={
+                {value, text} <- [
+                  {"week", gettext("Semana")},
+                  {"month", gettext("Mes")},
+                  {"all", gettext("Histórico")}
+                ]
+              }
+              id={"log-period-#{value}"}
+              type="button"
+              phx-click="log_period"
+              phx-value-period={value}
+              aria-pressed={to_string(@log_period == value)}
+              class={[
+                "btn join-item btn-xs",
+                if(@log_period == value, do: "btn-primary", else: "btn-ghost border-base-300")
+              ]}
+            >
+              {text}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid gap-6 p-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
+        <%!-- Rango del cazador --%>
+        <div id="hunter-rank" class="flex items-center gap-4">
+          <div class="eth-chamfer flex size-20 shrink-0 flex-col items-center justify-center border-2 border-accent bg-accent/10">
+            <span class="text-[9px] uppercase tracking-[0.2em] text-accent">{gettext("Rango")}</span>
+            <span class="font-display text-3xl font-bold text-accent">{@log.rank.rank}</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="font-mono text-lg text-accent">{Format.compact(@log.all.reward)} ISK</div>
+            <div class="text-xs eth-faint">{gettext("recompensa real acumulada")}</div>
+            <%= if @log.rank.next do %>
+              <div
+                class="mt-2 h-1.5 w-full bg-base-300"
+                role="progressbar"
+                aria-valuenow={round(@log.rank.progress * 100)}
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-label={gettext("Progreso al rango %{rank}", rank: @log.rank.next)}
+              >
+                <div class="h-full bg-accent" style={"width: #{round(@log.rank.progress * 100)}%"}>
+                </div>
+              </div>
+              <div class="mt-1 flex justify-between font-mono text-[11px] eth-faint">
+                <span>{round(@log.rank.progress * 100)} %</span>
+                <span>
+                  {gettext("rango %{rank} a los %{isk}",
+                    rank: @log.rank.next,
+                    isk: Format.compact(@log.rank.ceiling)
+                  )}
+                </span>
+              </div>
+            <% else %>
+              <div class="mt-2 text-xs text-accent">{gettext("Rango máximo")}</div>
+            <% end %>
+          </div>
+        </div>
+
+        <%!-- Estadísticas del período --%>
+        <% stats = period_stats(@log, @log_period) %>
+        <dl
+          id="hunter-stats"
+          class="grid grid-cols-2 gap-px bg-base-300 sm:grid-cols-3 xl:grid-cols-6 [&>div]:bg-base-100 [&>div]:px-3 [&>div]:py-2"
+        >
+          <div>
+            <dt class="eth-kicker text-[10px]">{gettext("Contratos")}</dt>
+            <dd class="font-mono text-lg eth-strong">{stats.contracts}</dd>
+          </div>
+          <div>
+            <dt class="eth-kicker text-[10px]">{gettext("Recompensa")}</dt>
+            <dd class="font-mono text-lg text-accent">{Format.compact(stats.reward)}</dd>
+          </div>
+          <div>
+            <dt class="eth-kicker text-[10px]">ISK/h</dt>
+            <dd class="font-mono text-lg eth-strong">
+              {(stats.isk_per_hour && Format.compact(stats.isk_per_hour)) || "—"}
+            </dd>
+          </div>
+          <div>
+            <dt class="eth-kicker flex items-center gap-1 text-[10px]">
+              {gettext("Precisión")}
+              <.help topic={:hunter_log} title={gettext("Precisión")}>
+                {gettext("1 − desvío medio entre el beneficio proyectado y el real.")}
+              </.help>
+            </dt>
+            <dd class="font-mono text-lg eth-strong">
+              {(stats.accuracy && "#{round(stats.accuracy * 100)} %") || "—"}
+            </dd>
+          </div>
+          <div>
+            <dt class="eth-kicker text-[10px]">{gettext("Racha")}</dt>
+            <dd class="font-mono text-lg eth-strong">
+              {ngettext("%{count} día", "%{count} días", @log.streak)}
+            </dd>
+          </div>
+          <div class="min-w-0">
+            <dt class="eth-kicker text-[10px]">{gettext("Mejor contrato")}</dt>
+            <dd :if={stats.best} class="min-w-0">
+              <div class="font-mono text-lg text-accent">
+                {Format.compact(stats.best.realized_profit)}
+              </div>
+              <div class="truncate text-xs eth-faint">{stats.best.plan["type_name"]}</div>
+            </dd>
+            <dd :if={!stats.best} class="font-mono text-lg eth-faint">—</dd>
+          </div>
+        </dl>
+      </div>
+
+      <%!-- Hitos --%>
+      <div class="border-t border-base-300 px-4 py-3">
+        <h3 class="eth-kicker mb-2 text-[11px] text-primary">{gettext("Hitos")}</h3>
+        <ol
+          id="hunter-milestones"
+          class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6"
+        >
+          <li
+            :for={m <- @log.milestones}
+            id={"milestone-#{String.replace(m.key, ~r/[^a-z0-9]+/, "-")}"}
+            data-achieved={to_string(not is_nil(m.achieved_at))}
+            class={[
+              "eth-chamfer-sm border px-3 py-2",
+              if(m.achieved_at,
+                do: "border-accent/60 bg-accent/5",
+                else: "border-base-300 bg-base-200/60"
+              )
+            ]}
+          >
+            <div class={[
+              "text-xs font-semibold",
+              if(m.achieved_at, do: "text-accent", else: "eth-muted")
+            ]}>
+              {Tracking.milestone_title(m)}
+            </div>
+            <%= if m.achieved_at do %>
+              <div class="mt-0.5 truncate text-[11px] eth-faint">
+                {Calendar.strftime(m.achieved_at, "%d/%m/%Y")} · {m.run.plan["type_name"]}
+              </div>
+            <% else %>
+              <div class="mt-1.5 h-1 w-full bg-base-300">
+                <div class="h-full bg-primary/70" style={"width: #{round(m.progress * 100)}%"}>
+                </div>
+              </div>
+            <% end %>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <%= if is_nil(@run) do %>
+      <.empty_state id="run-empty" title={gettext("No tenés un viaje en curso")}>
+        {gettext("Elegí una oportunidad en el Tablón y tocá \"Iniciar viaje\".")}
+        <:actions>
+          <.link navigate={~p"/"} class="btn btn-primary btn-sm">{gettext("Ir al Tablón")}</.link>
+        </:actions>
+      </.empty_state>
+    <% else %>
+      <%!-- Viaje en curso (RF-7.2 a RF-7.4) --%>
+      <section
+        id="run"
+        aria-labelledby="run-title"
+        class="eth-chamfer border border-accent/40 bg-base-100"
+      >
+        <div class="flex flex-wrap items-start justify-between gap-4 border-b border-base-300 p-4">
+          <div class="flex min-w-0 items-start gap-3">
+            <img
+              :if={@run.plan["type_id"]}
+              src={"https://images.evetech.net/types/#{@run.plan["type_id"]}/icon?size=64"}
+              alt=""
+              width="48"
+              height="48"
+              class="bg-base-300"
+            />
+            <div class="min-w-0">
+              <div class="eth-kicker text-[10px] text-accent">{gettext("Contrato en curso")}</div>
+              <h2 id="run-title" class="font-display text-xl font-semibold eth-strong">
+                {@run.plan["type_name"]}
+                <span class="font-mono text-base eth-muted">
+                  ×{Format.integer(@run.plan["quantity"])}
+                </span>
+              </h2>
+              <p class="text-sm eth-muted">
+                {@run.plan["origin_name"]}<br />→ {@run.plan["destination_name"]}
+              </p>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="eth-kicker text-[10px]">{gettext("Beneficio proyectado")}</div>
+            <div class="font-mono text-2xl text-accent">
+              {Format.compact(@run.predicted_profit)}
+            </div>
+            <div
+              :if={@live && @live.revalidation}
+              id="run-now"
+              class="font-mono text-sm eth-muted"
+            >
               {gettext("ahora")} {Format.compact(@live.revalidation.profit)}
             </div>
           </div>
         </div>
 
-        <%!-- Etapas (RF-7.2) --%>
-        <ol id="run-steps" class="steps steps-horizontal w-full text-xs">
-          <li
-            :for={step <- @steps}
-            class={["step", step_state(@run, step) in [:done, :current] && "step-primary"]}
-            data-state={step_state(@run, step)}
-          >
-            <span>{label(step)}</span>
-            <span :if={step_time(@run, step)} class="text-base-content/60">
-              {step_time(@run, step)}
+        <div class="space-y-4 p-4">
+          <%!-- Etapas (RF-7.2) --%>
+          <ol id="run-steps" class="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+            <li
+              :for={step <- @steps}
+              data-state={step_state(@run, step)}
+              class="flex flex-col gap-1.5"
+            >
+              <span class={[
+                "h-1.5",
+                case step_state(@run, step) do
+                  :done -> "bg-success"
+                  :current -> "bg-accent eth-pulse-bar"
+                  _ -> "bg-base-300"
+                end
+              ]}></span>
+              <span class={[
+                "text-xs",
+                if(step_state(@run, step) == :current,
+                  do: "font-semibold eth-strong",
+                  else: "eth-muted"
+                )
+              ]}>
+                {label(step)}
+              </span>
+              <span :if={step_time(@run, step)} class="font-mono text-[11px] eth-faint">
+                {step_time(@run, step)}
+              </span>
+            </li>
+          </ol>
+
+          <p id="run-location" class="flex flex-wrap items-center gap-2 text-sm eth-muted">
+            <.icon name="hero-map-pin" class="size-4 text-primary" />
+            {location_label(@live && @live.location)}
+            <span :if={@live && @live.wallet} class="font-mono">
+              · {gettext("billetera")} {Format.compact(@live.wallet)}
             </span>
-          </li>
-        </ol>
+          </p>
 
-        <p id="run-location" class="text-sm text-base-content/70">
-          {location_label(@live && @live.location)}
-          <span :if={@live && @live.wallet}>
-            · {gettext("billetera")} {Format.compact(@live.wallet)}
-          </span>
-        </p>
-
-        <%!-- Revalidación (RF-7.3) --%>
-        <div :if={@live && @live.revalidation} id="run-revalidation" class="space-y-1">
-          <div :for={alert <- @live.revalidation.alerts} class="alert alert-warning py-2 text-sm">
-            {alert}
+          <%!-- Revalidación (RF-7.3) --%>
+          <div :if={@live && @live.revalidation} id="run-revalidation" class="space-y-1.5">
+            <div
+              :for={alert <- @live.revalidation.alerts}
+              class="border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning"
+            >
+              {alert}
+            </div>
+            <div
+              :if={s = @live.revalidation.suggestion}
+              class="border border-info/50 bg-info/10 px-3 py-2 text-sm text-info"
+            >
+              {gettext("Mejor destino: %{name} (+%{gain}, %{jumps} saltos desde el destino)",
+                name: s.name,
+                gain: Format.compact(s.gain),
+                jumps: s.extra_jumps
+              )}
+            </div>
           </div>
-          <div :if={s = @live.revalidation.suggestion} class="alert alert-info py-2 text-sm">
-            {gettext("Mejor destino: %{name} (+%{gain}, %{jumps} saltos desde el destino)",
-              name: s.name,
-              gain: Format.compact(s.gain),
-              jumps: s.extra_jumps
+
+          <%!-- Amenazas en la ruta restante (RF-7.4) --%>
+          <div
+            :if={@live && @live.threats != []}
+            id="run-threats"
+            role="alert"
+            class="space-y-1 border border-error/50 bg-error/10 px-3 py-2 text-sm"
+          >
+            <div :for={t <- @live.threats} class="text-error">
+              {t.name}: {t.description} · {gettext("a %{n} saltos", n: t.jumps_away)}
+            </div>
+            <button
+              :if={@live.evasive}
+              id="apply-evasive"
+              type="button"
+              phx-click="apply_evasive"
+              class="btn btn-error btn-outline btn-sm"
+            >
+              <.icon name="hero-shield-exclamation" class="size-4" />
+              {gettext("Aplicar ruta evasiva (+%{n} saltos, fija waypoints)",
+                n: @live.evasive.extra_jumps
+              )}
+            </button>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 border-t border-base-300 pt-3">
+            <button
+              id="run-set-route"
+              type="button"
+              phx-click="set_route"
+              class="eth-chamfer-sm btn btn-accent btn-sm px-5 font-display tracking-wide"
+            >
+              <.icon name="hero-map" class="size-4" /> {gettext("Fijar ruta")}
+            </button>
+            <button
+              :if={@run.status in ["planned", "to_origin"]}
+              id="run-confirm-bought"
+              type="button"
+              phx-click="confirm"
+              phx-value-action="bought"
+              class="btn btn-sm"
+            >
+              <.icon name="hero-shopping-cart" class="size-4" /> {gettext("Ya compré")}
+            </button>
+            <button
+              :if={@run.status in ["bought", "in_transit", "at_destination"]}
+              id="run-confirm-sold"
+              type="button"
+              phx-click="confirm"
+              phx-value-action="sold"
+              class="btn btn-sm"
+            >
+              <.icon name="hero-banknotes" class="size-4" /> {gettext("Ya vendí")}
+            </button>
+            <button
+              id="run-abort"
+              type="button"
+              phx-click="abort"
+              data-confirm={gettext("¿Abortar el viaje?")}
+              class="btn btn-ghost btn-sm ml-auto eth-muted"
+            >
+              {gettext("Abortar")}
+            </button>
+          </div>
+          <p class="text-xs eth-faint">
+            {gettext(
+              "Las etapas avanzan solas con tu ubicación y tu billetera; el P&L exacto llega con las transacciones de ESI (hasta 1 h de demora)."
             )}
-          </div>
+          </p>
         </div>
-
-        <%!-- Amenazas en la ruta restante (RF-7.4) --%>
-        <div
-          :if={@live && @live.threats != []}
-          id="run-threats"
-          class="alert alert-error flex-col items-start py-2 text-sm"
-        >
-          <div :for={t <- @live.threats}>
-            ▲ {t.name}: {t.description} · {gettext("a %{n} saltos", n: t.jumps_away)}
-          </div>
-          <button
-            :if={@live.evasive}
-            id="apply-evasive"
-            type="button"
-            phx-click="apply_evasive"
-            class="btn btn-sm"
-          >
-            {gettext("Aplicar ruta evasiva (+%{n} saltos, fija waypoints)",
-              n: @live.evasive.extra_jumps
-            )}
-          </button>
-        </div>
-
-        <div class="flex flex-wrap gap-2">
-          <button
-            id="run-set-route"
-            type="button"
-            phx-click="set_route"
-            class="btn btn-sm btn-primary"
-          >
-            {gettext("Fijar ruta")}
-          </button>
-          <button
-            :if={@run.status in ["planned", "to_origin"]}
-            id="run-confirm-bought"
-            type="button"
-            phx-click="confirm"
-            phx-value-action="bought"
-            class="btn btn-sm"
-          >
-            {gettext("Ya compré")}
-          </button>
-          <button
-            :if={@run.status in ["bought", "in_transit", "at_destination"]}
-            id="run-confirm-sold"
-            type="button"
-            phx-click="confirm"
-            phx-value-action="sold"
-            class="btn btn-sm"
-          >
-            {gettext("Ya vendí")}
-          </button>
-          <button
-            id="run-abort"
-            type="button"
-            phx-click="abort"
-            data-confirm={gettext("¿Abortar el viaje?")}
-            class="btn btn-sm btn-ghost"
-          >
-            {gettext("Abortar")}
-          </button>
-        </div>
-        <p class="text-xs text-base-content/60">
-          {gettext(
-            "Las etapas avanzan solas con tu ubicación y tu billetera; el P&L exacto llega con las transacciones de ESI (hasta 1 h de demora)."
-          )}
-        </p>
       </section>
-  <% end %>
+    <% end %>
 
-  <%!-- Historial (RF-7.6) --%>
-  <section :if={@history != []} id="run-history" class="card border border-base-300 p-4">
-    <h2 class="font-semibold">{gettext("Historial de viajes")}</h2>
-    <div class="overflow-x-auto">
-      <table class="table table-sm tabular-nums">
-        <thead>
-          <tr>
-            <th>{gettext("Inicio")}</th>
-            <th>{gettext("Objeto")}</th>
-            <th>{gettext("Estado")}</th>
-            <th class="text-right">{gettext("Proyectado")}</th>
-            <th class="text-right">{gettext("Real")}</th>
-            <th class="text-right">{gettext("Desvío")}</th>
-            <th class="text-right">{gettext("ISK/h real")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr :for={r <- @history} id={"run-#{r.id}"}>
-            <td>{Calendar.strftime(r.started_at, "%d/%m %H:%M")}</td>
-            <td>{r.plan["type_name"]} ×{Format.integer(r.plan["quantity"])}</td>
-            <td>{label(r.status)}</td>
-            <td class="text-right">{Format.compact(r.predicted_profit)}</td>
-            <td class="text-right">
-              <%= cond do %>
-                <% r.realized_profit -> %>
-                  {Format.compact(r.realized_profit)}
-                <% r.status == "closed" -> %>
-                  <span class="text-base-content/50">{gettext("reconciliando")}</span>
-                <% true -> %>
-                  —
-              <% end %>
-            </td>
-            <td class="text-right">{deviation(r)}</td>
-            <td class="text-right">{real_isk_per_hour(r)}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
+    <%!-- Historial (RF-7.6) --%>
+    <.panel
+      :if={@history != []}
+      id="run-history"
+      title={gettext("Historial de viajes")}
+      help={:run}
+    >
+      <:help_body>
+        {gettext("Proyectado frente a real: el desvío muestra qué tan bien estimó la aplicación.")}
+      </:help_body>
+      <div class="-mx-4 -mb-4 overflow-x-auto">
+        <table class="table table-sm">
+          <thead>
+            <tr class="border-base-300">
+              <th class="eth-kicker text-[10px]">{gettext("Inicio")}</th>
+              <th class="eth-kicker text-[10px]">{gettext("Objeto")}</th>
+              <th class="eth-kicker text-[10px]">{gettext("Estado")}</th>
+              <th class="eth-kicker text-right text-[10px]">{gettext("Proyectado")}</th>
+              <th class="eth-kicker text-right text-[10px]">{gettext("Real")}</th>
+              <th class="eth-kicker text-right text-[10px]">{gettext("Desvío")}</th>
+              <th class="eth-kicker text-right text-[10px]">{gettext("ISK/h real")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr :for={r <- @history} id={"run-#{r.id}"} class="border-base-300/60">
+              <td class="font-mono text-xs eth-muted">
+                {Calendar.strftime(r.started_at, "%d/%m %H:%M")}
+              </td>
+              <td class="font-semibold eth-strong">
+                {r.plan["type_name"]}
+                <span class="font-mono text-xs font-normal eth-faint">
+                  ×{Format.integer(r.plan["quantity"])}
+                </span>
+              </td>
+              <td><.seal kind={status_seal(r.status)} label={label(r.status)} /></td>
+              <td class="text-right font-mono">{Format.compact(r.predicted_profit)}</td>
+              <td class="text-right font-mono">
+                <%= cond do %>
+                  <% r.realized_profit -> %>
+                    <span class={
+                      if(r.realized_profit >= 0, do: "text-accent", else: "text-error")
+                    }>
+                      {Format.compact(r.realized_profit)}
+                    </span>
+                  <% r.status == "closed" -> %>
+                    <span class="text-xs eth-faint">{gettext("reconciliando")}</span>
+                  <% true -> %>
+                    —
+                <% end %>
+              </td>
+              <td class="text-right font-mono">{deviation(r)}</td>
+              <td class="text-right font-mono">{real_isk_per_hour(r)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </.panel>
+  <% end %>
 </Layouts.app>

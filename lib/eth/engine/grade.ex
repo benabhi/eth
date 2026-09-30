@@ -18,6 +18,14 @@ defmodule Eth.Engine.Grade do
 
   @type danger :: :low | :moderate | :high | :extreme
 
+  @type hunter_rank :: %{
+          rank: String.t(),
+          next: String.t() | nil,
+          floor: number(),
+          ceiling: number() | nil,
+          progress: float()
+        }
+
   @doc "Rango del contrato para un TVS (0–100)."
   @spec rank(number()) :: String.t()
   def rank(tvs) do
@@ -49,13 +57,7 @@ defmodule Eth.Engine.Grade do
   Rango del cazador por la recompensa real acumulada: `%{rank, next, floor, ceiling,
   progress}` (`next` y `ceiling` son `nil` en el último rango; `progress` entre 0 y 1).
   """
-  @spec hunter_rank(number()) :: %{
-          rank: String.t(),
-          next: String.t() | nil,
-          floor: number(),
-          ceiling: number() | nil,
-          progress: float()
-        }
+  @spec hunter_rank(number()) :: hunter_rank()
   def hunter_rank(total) do
     ranks = GameRules.get(:hunter_ranks)
     index = ranks |> Enum.take_while(fn {_rank, min} -> total >= min end) |> length() |> max(1)

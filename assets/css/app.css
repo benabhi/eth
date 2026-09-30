@@ -360,6 +360,13 @@ body {
 .eth-filter-toggle:has(input:checked) { border-color: var(--color-primary); }
 .eth-filter-toggle:has(input:checked) > .eth-filter-label { color: var(--color-primary); }
 
+/* Etapa en curso del viaje (RF-7.2): late suave para indicar actividad real. */
+@keyframes eth-pulse-bar {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.eth-pulse-bar { animation: eth-pulse-bar 1.8s ease-in-out infinite; }
+
 /* Pulso del radar: late con cada dato nuevo. */
 @keyframes eth-pulse {
   0% { opacity: 0.8; r: 8; }
@@ -368,7 +375,7 @@ body {
 .eth-pulse-ring { animation: eth-pulse 1.6s ease-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .eth-spin, .eth-skel, .eth-enter, .eth-unfold, .eth-flash-up, .eth-flash-down, .eth-pulse-ring {
+  .eth-spin, .eth-skel, .eth-enter, .eth-unfold, .eth-pulse-bar, .eth-flash-up, .eth-flash-down, .eth-pulse-ring {
     animation: none;
   }
   .eth-tip-body { transition: none; }
