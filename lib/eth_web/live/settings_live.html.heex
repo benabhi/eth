@@ -2,96 +2,105 @@
   flash={@flash}
   radar_degraded={@radar_degraded}
   active={:settings}
+  wide
   pilot={@pilot}
   characters={@characters}
   ship_form={@ship_form}
 >
-  <div class="flex flex-wrap items-baseline justify-between gap-2">
-    <h1 class="text-2xl font-bold">{gettext("Ajustes")}</h1>
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h1 class="flex items-center gap-3 font-display text-2xl font-semibold eth-strong sm:text-[26px]">
+      {gettext("Ajustes")}
+      <.help topic={:settings} title={gettext("Ajustes")} align="start">
+        {gettext(
+          "Personajes, naves, reglas del juego, radar, mercados, alertas y primer arranque."
+        )}
+      </.help>
+    </h1>
   </div>
 
-  <nav role="tablist" aria-label={gettext("Secciones de ajustes")} class="tabs tabs-border">
-    <.link
-      :for={{id, {label, path}} <- @tabs}
-      id={"tab-#{id}"}
-      patch={path}
-      role="tab"
-      aria-selected={to_string(@live_action == id)}
-      class={["tab", @live_action == id && "tab-active"]}
-    >
-      {label}
-    </.link>
-  </nav>
+  <.tabs
+    id="settings-tabs"
+    active={to_string(@live_action)}
+    label={gettext("Secciones de ajustes")}
+    tabs={for {id, {label, path}} <- @tabs, do: {to_string(id), label, path}}
+  />
 
   <%!-- Personajes (RF-9.2) --%>
   <section :if={@live_action == :characters} id="settings-characters" class="space-y-3">
-    <p class="text-sm text-base-content/70">
+    <p class="text-sm eth-muted">
       {gettext(
         "Cada personaje mantiene su sesión con EVE; los que no están activos consultan ESI con menos frecuencia."
       )}
     </p>
 
-    <div
+    <.empty_state
       :if={@rows == []}
       id="characters-empty"
-      class="card border border-base-300 p-6 text-center"
+      title={gettext("Todavía no vinculaste ningún personaje.")}
     >
-      <p class="text-base-content/70">{gettext("Todavía no vinculaste ningún personaje.")}</p>
-      <a href={~p"/auth/eve"} class="btn btn-primary btn-sm mx-auto mt-3">
-        {gettext("Iniciar sesión con EVE")}
-      </a>
-    </div>
+      {gettext("Iniciá sesión con EVE para ver tu billetera, tu nave y tus impuestos reales.")}
+      <:actions>
+        <a href={~p"/auth/eve"} class="btn btn-primary btn-sm">
+          {gettext("Iniciar sesión con EVE")}
+        </a>
+      </:actions>
+    </.empty_state>
 
-    <article
-      :for={row <- @rows}
-      id={"character-#{row.character.id}"}
-      class="card border border-base-300 p-4"
-    >
-      <div class="flex flex-wrap items-start gap-4">
-        <img
-          src={row.portrait_url}
-          alt=""
-          width="64"
-          height="64"
-          class="size-16 rounded-lg ring-1 ring-base-300"
-        />
-        <div class="min-w-0 flex-1 space-y-1">
-          <div class="flex flex-wrap items-center gap-2">
-            <h2 class="text-lg font-semibold">{row.character.name}</h2>
-            <span
-              :if={@pilot && @pilot.id == row.character.id}
-              class="badge badge-primary badge-sm"
-            >
-              {gettext("activo")}
-            </span>
-            <span class={["badge badge-sm", status_class(row.session)]}>
-              {status_label(row.session, row.character)}
-            </span>
-            <span :if={row.session} class="text-xs text-base-content/60">
-              {mode_label(row.session.mode)}
-            </span>
-          </div>
-          <p class="text-xs text-base-content/60 tabular-nums">
-            {gettext("Último login")}: {row.character.last_login_at &&
-              Calendar.strftime(row.character.last_login_at, "%Y-%m-%d %H:%M UTC")}
-          </p>
-          <p :if={row.missing_scopes == []} class="text-xs text-success">
-            {gettext("Concedió todos los permisos que usa la aplicación.")}
-          </p>
-          <div :if={row.missing_scopes != []} class="text-xs text-warning">
-            {gettext("Faltan permisos (volvé a iniciar sesión para concederlos):")}
-            <ul class="ml-4 list-disc font-mono">
-              <li :for={scope <- row.missing_scopes}>{scope}</li>
-            </ul>
+    <div class="grid gap-3 xl:grid-cols-2">
+      <article
+        :for={row <- @rows}
+        id={"character-#{row.character.id}"}
+        class={[
+          "eth-chamfer border bg-base-100 p-4",
+          if(@pilot && @pilot.id == row.character.id,
+            do: "border-primary/60",
+            else: "border-base-300"
+          )
+        ]}
+      >
+        <div class="flex flex-wrap items-start gap-4">
+          <img
+            src={row.portrait_url}
+            alt=""
+            width="64"
+            height="64"
+            class="eth-chamfer-sm size-16 bg-base-300"
+          />
+          <div class="min-w-0 flex-1 space-y-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <h2 class="font-display text-lg font-semibold eth-strong">{row.character.name}</h2>
+              <.seal
+                :if={@pilot && @pilot.id == row.character.id}
+                kind={:new}
+                label={gettext("activo")}
+              />
+              <span class={["badge badge-sm", status_class(row.session)]}>
+                {status_label(row.session, row.character)}
+              </span>
+            </div>
+            <p :if={row.session} class="text-xs eth-muted">{mode_label(row.session.mode)}</p>
+            <p class="font-mono text-xs eth-faint">
+              {gettext("Último login")}: {row.character.last_login_at &&
+                Calendar.strftime(row.character.last_login_at, "%Y-%m-%d %H:%M UTC")}
+            </p>
+            <p :if={row.missing_scopes == []} class="text-xs text-success">
+              {gettext("Concedió todos los permisos que usa la aplicación.")}
+            </p>
+            <div :if={row.missing_scopes != []} class="text-xs text-warning">
+              {gettext("Faltan permisos (volvé a iniciar sesión para concederlos):")}
+              <ul class="ml-4 list-disc font-mono">
+                <li :for={scope <- row.missing_scopes}>{scope}</li>
+              </ul>
+            </div>
           </div>
         </div>
-        <div class="flex flex-wrap gap-2">
+        <div class="mt-3 flex flex-wrap gap-2 border-t border-base-300 pt-3">
           <.link
             :if={!(@pilot && @pilot.id == row.character.id)}
             id={"settings-activate-#{row.character.id}"}
             href={~p"/auth/characters/#{row.character.id}/activate"}
             method="post"
-            class="btn btn-sm"
+            class="btn btn-primary btn-sm"
           >
             {gettext("Activar")}
           </.link>
@@ -107,13 +116,13 @@
                 name: row.character.name
               )
             }
-            class="btn btn-sm btn-error btn-outline"
+            class="btn btn-error btn-outline btn-sm ml-auto"
           >
             {gettext("Olvidar")}
           </button>
         </div>
-      </div>
-    </article>
+      </article>
+    </div>
 
     <a :if={@rows != []} href={~p"/auth/eve"} class="btn btn-sm">
       <.icon name="hero-user-plus" class="size-4" /> {gettext("Agregar personaje")}
@@ -122,259 +131,273 @@
 
   <%!-- Naves (RF-9.3) --%>
   <section :if={@live_action == :ships} id="settings-ships" class="space-y-3">
-    <p class="text-sm text-base-content/70">
-      {gettext(
-        "Perfiles de carga guardados a mano. Con el permiso de assets la bodega se calcula sola; el perfil manual se usa cuando no se pueden leer los módulos."
-      )}
-    </p>
-
-    <div
+    <.empty_state
       :if={@profiles == []}
       id="ships-empty"
-      class="card border border-base-300 p-6 text-center"
+      title={gettext("No hay perfiles de carga guardados.")}
     >
-      <p class="text-base-content/70">{gettext("No hay perfiles de carga guardados.")}</p>
-    </div>
+      {gettext(
+        "Con el permiso de assets la bodega se calcula sola; el perfil manual se usa cuando no se pueden leer los módulos."
+      )}
+    </.empty_state>
 
-    <div :if={@profiles != []} class="card overflow-x-auto border border-base-300">
-      <table class="table table-sm">
-        <thead>
-          <tr>
-            <th>{gettext("Nave")}</th>
-            <th>{gettext("Aplica a")}</th>
-            <th class="text-right">{gettext("Bodega")}</th>
-            <th>{gettext("Clase de evasión")}</th>
-            <th class="text-right">{gettext("Valor máx.")}</th>
-            <th><span class="sr-only">{gettext("Acciones")}</span></th>
-          </tr>
-        </thead>
-        <tbody id="ship-profiles">
-          <%= for row <- @profiles do %>
-            <tr id={"profile-#{row.profile.id}"}>
-              <td>
-                <div class="flex items-center gap-2">
-                  <img
-                    src={Pilot.ship_render_url(row.profile.ship_type_id, 32)}
-                    alt=""
-                    width="24"
-                    height="24"
-                    class="size-6 rounded bg-base-300"
-                  />
-                  {row.type_name}
-                </div>
-              </td>
-              <td class="text-sm">
-                <%= if row.profile.ship_item_id do %>
-                  {gettext("Esta nave (#%{id})", id: row.profile.ship_item_id)}
-                <% else %>
-                  {gettext("Todas las %{ship} sin perfil propio", ship: row.type_name)}
-                <% end %>
-              </td>
-              <td class="text-right tabular-nums">
-                {Format.integer(round(row.profile.cargo_m3))} m³
-              </td>
-              <td>{evasion_label(row.profile.evasion_class)}</td>
-              <td class="text-right tabular-nums">
-                {Format.compact(row.profile.max_cargo_value)}
-              </td>
-              <td class="text-right">
-                <button
-                  id={"edit-profile-#{row.profile.id}"}
-                  type="button"
-                  phx-click="edit_ship"
-                  phx-value-id={row.profile.id}
-                  class="btn btn-ghost btn-xs"
-                >
-                  {gettext("Editar")}
-                </button>
-                <button
-                  id={"delete-profile-#{row.profile.id}"}
-                  type="button"
-                  phx-click="delete_ship"
-                  phx-value-id={row.profile.id}
-                  data-confirm={gettext("¿Borrar este perfil de carga?")}
-                  class="btn btn-ghost btn-xs text-error"
-                >
-                  {gettext("Borrar")}
-                </button>
-              </td>
+    <.panel
+      :if={@profiles != []}
+      id="ships-panel"
+      title={gettext("Perfiles de carga")}
+      help={:ship_profile}
+    >
+      <:help_body>
+        {gettext(
+          "Perfiles guardados a mano. Con el permiso de assets la bodega se calcula sola; el perfil manual se usa cuando no se pueden leer los módulos."
+        )}
+      </:help_body>
+      <div class="-mx-4 -mb-4 overflow-x-auto">
+        <table class="table table-sm">
+          <thead>
+            <tr class="border-base-300">
+              <th class="eth-kicker text-[10px]">{gettext("Nave")}</th>
+              <th class="eth-kicker text-[10px]">{gettext("Aplica a")}</th>
+              <th class="eth-kicker text-right text-[10px]">{gettext("Bodega")}</th>
+              <th class="eth-kicker text-[10px]">{gettext("Clase de evasión")}</th>
+              <th class="eth-kicker text-right text-[10px]">{gettext("Valor máx.")}</th>
+              <th><span class="sr-only">{gettext("Acciones")}</span></th>
             </tr>
-            <tr :if={@editing == row.profile.id} id={"profile-edit-#{row.profile.id}"}>
-              <td colspan="6">
-                <.form
-                  for={@ship_edit_form}
-                  id="ship-edit-form"
-                  phx-change="validate_ship"
-                  phx-submit="save_ship"
-                  class="grid grid-cols-1 items-end gap-x-3 sm:grid-cols-4"
-                >
-                  <.input
-                    field={@ship_edit_form[:cargo_m3]}
-                    type="number"
-                    step="any"
-                    min="0"
-                    label={gettext("Bodega general (m³)")}
-                  />
-                  <.input
-                    field={@ship_edit_form[:evasion_class]}
-                    type="select"
-                    label={gettext("Clase de evasión")}
-                    options={evasion_options()}
-                  />
-                  <.input
-                    field={@ship_edit_form[:max_cargo_value]}
-                    type="number"
-                    step="any"
-                    min="0"
-                    label={gettext("Valor máx. de carga")}
-                  />
-                  <div class="mb-2 flex gap-2">
-                    <button id="ship-edit-save" type="submit" class="btn btn-primary btn-sm">
-                      {gettext("Guardar")}
-                    </button>
-                    <button type="button" phx-click="cancel_edit" class="btn btn-ghost btn-sm">
-                      {gettext("Cancelar")}
-                    </button>
+          </thead>
+          <tbody id="ship-profiles">
+            <%= for row <- @profiles do %>
+              <tr id={"profile-#{row.profile.id}"} class="border-base-300/60">
+                <td>
+                  <div class="flex items-center gap-2">
+                    <img
+                      src={Pilot.ship_render_url(row.profile.ship_type_id, 32)}
+                      alt=""
+                      width="28"
+                      height="28"
+                      class="size-7 bg-base-300"
+                    />
+                    <span class="font-semibold eth-strong">{row.type_name}</span>
                   </div>
-                </.form>
-              </td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
+                </td>
+                <td class="text-sm eth-muted">
+                  <%= if row.profile.ship_item_id do %>
+                    {gettext("Esta nave (#%{id})", id: row.profile.ship_item_id)}
+                  <% else %>
+                    {gettext("Todas las %{ship} sin perfil propio", ship: row.type_name)}
+                  <% end %>
+                </td>
+                <td class="text-right font-mono">
+                  {Format.integer(round(row.profile.cargo_m3))} m³
+                </td>
+                <td>{evasion_label(row.profile.evasion_class)}</td>
+                <td class="text-right font-mono">
+                  {Format.compact(row.profile.max_cargo_value)}
+                </td>
+                <td class="text-right">
+                  <button
+                    id={"edit-profile-#{row.profile.id}"}
+                    type="button"
+                    phx-click="edit_ship"
+                    phx-value-id={row.profile.id}
+                    class="btn btn-ghost btn-xs"
+                  >
+                    {gettext("Editar")}
+                  </button>
+                  <button
+                    id={"delete-profile-#{row.profile.id}"}
+                    type="button"
+                    phx-click="delete_ship"
+                    phx-value-id={row.profile.id}
+                    data-confirm={gettext("¿Borrar este perfil de carga?")}
+                    class="btn btn-ghost btn-xs text-error"
+                  >
+                    {gettext("Borrar")}
+                  </button>
+                </td>
+              </tr>
+              <tr
+                :if={@editing == row.profile.id}
+                id={"profile-edit-#{row.profile.id}"}
+                class="bg-base-200/70"
+              >
+                <td colspan="6" class="eth-unfold">
+                  <.form
+                    for={@ship_edit_form}
+                    id="ship-edit-form"
+                    phx-change="validate_ship"
+                    phx-submit="save_ship"
+                    class="grid grid-cols-1 items-end gap-x-3 sm:grid-cols-4"
+                  >
+                    <.input
+                      field={@ship_edit_form[:cargo_m3]}
+                      type="number"
+                      step="any"
+                      min="0"
+                      label={gettext("Bodega general (m³)")}
+                    />
+                    <.input
+                      field={@ship_edit_form[:evasion_class]}
+                      type="select"
+                      label={gettext("Clase de evasión")}
+                      options={evasion_options()}
+                    />
+                    <.input
+                      field={@ship_edit_form[:max_cargo_value]}
+                      type="number"
+                      step="any"
+                      min="0"
+                      label={gettext("Valor máx. de carga")}
+                    />
+                    <div class="mb-2 flex gap-2">
+                      <button id="ship-edit-save" type="submit" class="btn btn-primary btn-sm">
+                        {gettext("Guardar")}
+                      </button>
+                      <button type="button" phx-click="cancel_edit" class="btn btn-ghost btn-sm">
+                        {gettext("Cancelar")}
+                      </button>
+                    </div>
+                  </.form>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </.panel>
   </section>
 
   <%!-- Reglas de mercado (RF-9.4) --%>
   <section :if={@live_action == :rules} id="settings-rules" class="space-y-3">
-    <p class="text-sm text-base-content/70">
-      {gettext(
-        "Valores del juego que CCP puede cambiar. Dejá el campo vacío para usar el valor por defecto."
-      )}
-      <span :if={@verified_on}>
-        {gettext("Valores por defecto verificados el %{date}.",
-          date: Date.to_iso8601(@verified_on)
-        )}
-      </span>
-    </p>
-
-    <.form
-      for={@rules_form}
-      id="rules-form"
-      phx-submit="save_rules"
-      class="card border border-base-300"
-    >
-      <table class="table table-sm">
-        <thead>
-          <tr>
-            <th>{gettext("Regla")}</th>
-            <th class="text-right">{gettext("Por defecto")}</th>
-            <th class="w-48">{gettext("Override (%)")}</th>
-            <th><span class="sr-only">{gettext("Acciones")}</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr :for={rule <- @rules} id={"rule-#{rule.key}"}>
-            <td>
-              <div>{rule.label}</div>
-              <div class="font-mono text-xs text-base-content/50">{rule.key}</div>
-            </td>
-            <td class="text-right tabular-nums">{pct(rule.default)}</td>
-            <td>
-              <.input
-                field={@rules_form[Atom.to_string(rule.key)]}
-                placeholder={percent_input(rule.default)}
-                inputmode="decimal"
-              />
-            </td>
-            <td class="text-right">
-              <button
-                :if={rule.override}
-                id={"reset-#{rule.key}"}
-                type="button"
-                phx-click="reset_rule"
-                phx-value-key={rule.key}
-                class="btn btn-ghost btn-xs"
-              >
-                {gettext("Restablecer")}
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="flex items-center gap-3 border-t border-base-300 p-3">
-        <button id="rules-save" type="submit" class="btn btn-primary btn-sm">
-          {gettext("Guardar reglas")}
-        </button>
-        <span class="text-xs text-base-content/60">
-          {gettext("Guardar vuelve a evaluar el mercado con los valores nuevos.")}
-        </span>
-      </div>
+    <.form for={@rules_form} id="rules-form" phx-submit="save_rules">
+      <.panel id="rules-panel" title={gettext("Reglas del mercado")} help={:sales_tax}>
+        <:help_body>
+          {gettext(
+            "Valores del juego que CCP puede cambiar. Dejá el campo vacío para usar el valor por defecto."
+          )}
+        </:help_body>
+        <:actions>
+          <span :if={@verified_on} class="text-xs eth-faint">
+            {gettext("Valores por defecto verificados el %{date}.",
+              date: Date.to_iso8601(@verified_on)
+            )}
+          </span>
+        </:actions>
+        <div class="-mx-4 -mt-4 overflow-x-auto">
+          <table class="table table-sm">
+            <thead>
+              <tr class="border-base-300">
+                <th class="eth-kicker text-[10px]">{gettext("Regla")}</th>
+                <th class="eth-kicker text-right text-[10px]">{gettext("Por defecto")}</th>
+                <th class="eth-kicker w-48 text-[10px]">{gettext("Override (%)")}</th>
+                <th><span class="sr-only">{gettext("Acciones")}</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr :for={rule <- @rules} id={"rule-#{rule.key}"} class="border-base-300/60">
+                <td>
+                  <div class="eth-strong">{rule.label}</div>
+                  <div class="font-mono text-xs eth-faint">{rule.key}</div>
+                </td>
+                <td class="text-right font-mono">{pct(rule.default)}</td>
+                <td>
+                  <.input
+                    field={@rules_form[Atom.to_string(rule.key)]}
+                    placeholder={percent_input(rule.default)}
+                    inputmode="decimal"
+                  />
+                </td>
+                <td class="text-right">
+                  <button
+                    :if={rule.override}
+                    id={"reset-#{rule.key}"}
+                    type="button"
+                    phx-click="reset_rule"
+                    phx-value-key={rule.key}
+                    class="btn btn-ghost btn-xs"
+                  >
+                    {gettext("Restablecer")}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="-mx-4 -mb-4 mt-0 flex items-center gap-3 border-t border-base-300 px-4 py-3">
+          <button id="rules-save" type="submit" class="btn btn-primary btn-sm">
+            {gettext("Guardar reglas")}
+          </button>
+          <span class="text-xs eth-faint">
+            {gettext("Guardar vuelve a evaluar el mercado con los valores nuevos.")}
+          </span>
+        </div>
+      </.panel>
     </.form>
   </section>
 
   <%!-- Radar (RF-9.5) --%>
   <section :if={@live_action == :radar} id="settings-radar" class="space-y-3">
-    <p class="text-sm text-base-content/70">
-      {gettext(
-        "El modo de ruta Evasiva suma α × amenaza al costo de cada sistema en alerta: con α más alto acepta desvíos más largos para esquivar camps y ganks. Los sistemas a evitar se sacan del camino en todos los modos (salvo si son el origen o el destino)."
-      )}
-    </p>
-
-    <.form
-      for={@radar_form}
-      id="radar-form"
-      phx-submit="save_radar"
-      class="card space-y-2 border border-base-300 p-4"
-    >
-      <div class="w-48">
-        <.input
-          field={@radar_form[:evasive_alpha]}
-          label={gettext("α del modo Evasiva")}
-          placeholder={"#{@alpha_default}"}
-          inputmode="decimal"
-        />
-      </div>
-      <.input
-        field={@radar_form[:avoid]}
-        type="textarea"
-        label={gettext("Sistemas a evitar")}
-        placeholder="Uedama, Niarja, Sivala"
-      />
-      <p class="text-xs text-base-content/60">
+    <.panel id="radar-panel" title={gettext("Radar y rutas")} help={:evasive}>
+      <:help_body>
         {gettext(
-          "Nombres exactos separados por comas o renglones. Vacío: no se evita ninguno. α vacío: %{alpha} (por defecto).",
-          alpha: @alpha_default
+          "El modo Evasiva suma α × amenaza al costo de cada sistema en alerta; los sistemas a evitar se sacan del camino en todos los modos."
+        )}
+      </:help_body>
+      <p class="mb-3 text-sm eth-muted">
+        {gettext(
+          "El modo de ruta Evasiva suma α × amenaza al costo de cada sistema en alerta: con α más alto acepta desvíos más largos para esquivar camps y ganks. Los sistemas a evitar se sacan del camino en todos los modos (salvo si son el origen o el destino)."
         )}
       </p>
-      <div>
+      <.form for={@radar_form} id="radar-form" phx-submit="save_radar" class="space-y-2">
+        <div class="w-48">
+          <.input
+            field={@radar_form[:evasive_alpha]}
+            label={gettext("α del modo Evasiva")}
+            placeholder={"#{@alpha_default}"}
+            inputmode="decimal"
+          />
+        </div>
+        <.input
+          field={@radar_form[:avoid]}
+          type="textarea"
+          label={gettext("Sistemas a evitar")}
+          placeholder="Uedama, Niarja, Sivala"
+        />
+        <p class="text-xs eth-faint">
+          {gettext(
+            "Nombres exactos separados por comas o renglones. Vacío: no se evita ninguno. α vacío: %{alpha} (por defecto).",
+            alpha: @alpha_default
+          )}
+        </p>
         <button id="radar-save" type="submit" class="btn btn-primary btn-sm">
           {gettext("Guardar radar")}
         </button>
-      </div>
-    </.form>
+      </.form>
+    </.panel>
   </section>
 
   <%!-- Notificaciones (RF-10.2, RF-10.3) --%>
-  <section :if={@live_action == :notifications} id="settings-notifications" class="space-y-4">
-    <div class="card border border-base-300 p-4 space-y-2">
-      <h2 class="font-semibold">{gettext("En este navegador")}</h2>
-      <p class="text-sm text-base-content/70">
+  <section
+    :if={@live_action == :notifications}
+    id="settings-notifications"
+    class="grid gap-4 lg:grid-cols-2"
+  >
+    <.panel id="browser-panel" title={gettext("En este navegador")}>
+      <p class="text-sm eth-muted">
         {gettext(
           "Las alertas siempre aparecen dentro de la app. Además podés recibirlas como notificación del sistema y con un sonido corto, útil con el juego en primer plano. Se guarda en este navegador."
         )}
       </p>
-      <p id="notify-status" class="text-sm font-semibold">
+      <p id="notify-status" class="mt-3 text-sm font-semibold eth-strong">
         {gettext("Notificaciones del navegador: cargando…")}
       </p>
-      <div class="flex flex-wrap gap-2">
+      <div class="mt-3 flex flex-wrap gap-2">
         <button
           id="notify-enable"
           type="button"
           phx-click={JS.dispatch("eth:notify-permission")}
-          class="btn btn-sm btn-primary"
+          class="btn btn-primary btn-sm"
         >
-          {gettext("Activar notificaciones")}
+          <.icon name="hero-bell-alert" class="size-4" /> {gettext("Activar notificaciones")}
         </button>
         <button
           id="notify-disable"
@@ -390,17 +413,18 @@
           phx-click={JS.dispatch("eth:notify-sound")}
           class="btn btn-sm"
         >
-          {gettext("Activar o desactivar sonido")}
+          <.icon name="hero-speaker-wave" class="size-4" /> {gettext(
+            "Activar o desactivar sonido"
+          )}
         </button>
-        <button id="notify-test" type="button" phx-click="test_alert" class="btn btn-sm btn-ghost">
+        <button id="notify-test" type="button" phx-click="test_alert" class="btn btn-ghost btn-sm">
           {gettext("Probar")}
         </button>
       </div>
-    </div>
+    </.panel>
 
-    <div class="card border border-base-300 p-4">
-      <h2 class="font-semibold">{gettext("Contratos nuevos")}</h2>
-      <p class="text-sm text-base-content/70">
+    <.panel id="rule-panel" title={gettext("Contratos nuevos")}>
+      <p class="text-sm eth-muted">
         {gettext(
           "Avisa cuando aparece un contrato que no estaba en la evaluación anterior y supera estos mínimos (con los parámetros del modo invitado). Como mucho 3 por evaluación; el mismo contrato no vuelve a sonar antes de 10 minutos."
         )}
@@ -409,7 +433,7 @@
         for={@rule_form}
         id="rule-form"
         phx-submit="save_rule"
-        class="mt-2 flex flex-wrap items-end gap-3"
+        class="mt-3 flex flex-wrap items-end gap-3"
       >
         <.input field={@rule_form[:enabled]} type="checkbox" label={gettext("Activada")} />
         <div class="w-32">
@@ -428,87 +452,98 @@
             placeholder="20M"
           />
         </div>
-        <button type="submit" class="btn btn-sm btn-primary mb-2">{gettext("Guardar")}</button>
+        <button type="submit" class="btn btn-primary btn-sm mb-2">{gettext("Guardar")}</button>
       </.form>
-      <p class="text-xs text-base-content/60">
+      <p class="text-xs eth-faint">
         {gettext(
-          "Siempre avisan, sin configurar: eventos y amenazas de tu viaje activo y tokens de EVE que requieren volver a loguear."
+          "Siempre avisan, sin configurar: eventos y amenazas de tu viaje activo, hitos del registro del cazador, órdenes superadas y tokens de EVE que requieren volver a loguear."
         )}
       </p>
-    </div>
+    </.panel>
   </section>
 
   <%!-- Regiones y estructuras (RF-9.6) --%>
   <section :if={@live_action == :markets} id="settings-markets" class="space-y-4">
-    <div class="card border border-base-300 p-4">
-      <h2 class="font-semibold">{gettext("Regiones habilitadas")}</h2>
-      <p class="text-sm text-base-content/70">
+    <.panel id="regions-panel" title={gettext("Regiones habilitadas")} help={:pollers}>
+      <:help_body>
+        {gettext("El nivel decide la frecuencia cuando el presupuesto de ESI escasea.")}
+      </:help_body>
+      <p class="text-sm eth-muted">
         {gettext(
           "Se eligen con ETH_REGIONS en .env (vacío: todo el universo) y se aplican al reiniciar. El nivel decide la frecuencia cuando el presupuesto de ESI escasea."
         )}
       </p>
-      <div class="mt-2 flex flex-wrap gap-2">
-        <span :for={r <- @regions} id={"region-#{r.region_id}"} class="badge badge-outline">
-          {r.name} · {tier_label(r.tier)}
+      <div class="mt-3 flex flex-wrap gap-1.5">
+        <span
+          :for={r <- @regions}
+          id={"region-#{r.region_id}"}
+          class="border border-base-300 bg-base-200 px-2 py-0.5 text-xs"
+        >
+          <span class="eth-strong">{r.name}</span>
+          <span class="eth-faint">· {tier_label(r.tier)}</span>
         </span>
       </div>
-    </div>
+    </.panel>
 
-    <div class="card border border-base-300 p-4">
-      <h2 class="font-semibold">{gettext("Estructuras")}</h2>
-      <p class="text-sm text-base-content/70">
+    <.panel id="structures-panel" title={gettext("Estructuras")} help={:station}>
+      <:help_body>
+        {gettext(
+          "Mercados de estructuras Upwell: públicas con más órdenes y privadas que agregues por ID."
+        )}
+      </:help_body>
+      <:actions>
+        <.form for={@add_form} id="structure-add" phx-submit="add_structure" class="flex gap-2">
+          <label class="eth-filter w-72">
+            <span class="eth-filter-label">{gettext("ID privada")}</span>
+            <input
+              type="text"
+              id={@add_form[:id].id}
+              name={@add_form[:id].name}
+              value={@add_form[:id].value}
+              inputmode="numeric"
+              aria-label={gettext("Agregar por ID (privadas)")}
+            />
+          </label>
+          <button type="submit" class="btn btn-sm h-8 min-h-8">{gettext("Agregar")}</button>
+        </.form>
+      </:actions>
+      <p class="text-sm eth-muted">
         {gettext(
           "Se siguen las 30 públicas con más órdenes de las regiones habilitadas, más las que marques. El acceso se prueba con tus personajes; un 403 no se reintenta antes de 24 h."
         )}
       </p>
 
-      <.form
-        for={@add_form}
-        id="structure-add"
-        phx-submit="add_structure"
-        class="mt-2 flex items-end gap-2"
-      >
-        <div class="w-64">
-          <.input
-            field={@add_form[:id]}
-            label={gettext("Agregar por ID (privadas)")}
-            inputmode="numeric"
-          />
-        </div>
-        <button type="submit" class="btn btn-sm mb-2">{gettext("Agregar")}</button>
-      </.form>
-
-      <div class="overflow-x-auto">
-        <table class="table table-sm tabular-nums">
+      <div class="-mx-4 mt-3 overflow-x-auto">
+        <table class="table table-sm">
           <thead>
-            <tr>
-              <th>{gettext("Estructura")}</th>
-              <th class="text-right">{gettext("Órdenes")}</th>
-              <th>{gettext("Acceso")}</th>
-              <th>{gettext("Seguida")}</th>
-              <th class="w-40">{gettext("Broker fee (%)")}</th>
+            <tr class="border-base-300">
+              <th class="eth-kicker text-[10px]">{gettext("Estructura")}</th>
+              <th class="eth-kicker text-right text-[10px]">{gettext("Órdenes")}</th>
+              <th class="eth-kicker text-[10px]">{gettext("Acceso")}</th>
+              <th class="eth-kicker text-[10px]">{gettext("Seguida")}</th>
+              <th class="eth-kicker w-44 text-[10px]">{gettext("Broker fee (%)")}</th>
             </tr>
           </thead>
           <tbody>
-            <tr :for={row <- @structures} id={"structure-#{row.structure.id}"}>
+            <tr
+              :for={row <- @structures}
+              id={"structure-#{row.structure.id}"}
+              class="border-base-300/60"
+            >
               <td>
-                <div class="font-semibold">
+                <div class="font-semibold eth-strong">
                   {row.structure.name || gettext("Sin resolver (%{id})", id: row.structure.id)}
                 </div>
-                <div class="text-xs text-base-content/60">
+                <div class="flex items-center gap-1.5 text-xs eth-faint">
                   {if row.structure.public_market,
                     do: gettext("pública"),
                     else: gettext("privada")}
-                  <span :if={row.selected} class="badge badge-success badge-xs">
-                    {gettext("en seguimiento")}
-                  </span>
+                  <.seal :if={row.selected} kind={:improved} label={gettext("en seguimiento")} />
                 </div>
               </td>
-              <td class="text-right">{Format.integer(row.structure.orders_count)}</td>
+              <td class="text-right font-mono">{Format.integer(row.structure.orders_count)}</td>
               <td class="text-xs">
-                <span :if={row.access == %{}} class="text-base-content/50">
-                  {gettext("sin probar")}
-                </span>
+                <span :if={row.access == %{}} class="eth-faint">{gettext("sin probar")}</span>
                 <div :for={{cid, status} <- row.access}>
                   {Map.get(@character_names, cid, cid)}: {access_label(status)}
                 </div>
@@ -516,7 +551,7 @@
               <td>
                 <input
                   type="checkbox"
-                  class="toggle toggle-sm"
+                  class="toggle toggle-primary toggle-sm"
                   checked={row.structure.followed}
                   phx-click="toggle_follow"
                   phx-value-id={row.structure.id}
@@ -526,52 +561,78 @@
               <td>
                 <form phx-submit="save_broker_fee" class="flex gap-1">
                   <input type="hidden" name="structure_id" value={row.structure.id} />
-                  <input
-                    name="fee"
-                    value={
-                      row.structure.broker_fee_override &&
-                        percent_input(row.structure.broker_fee_override)
-                    }
-                    placeholder={gettext("por defecto")}
-                    inputmode="decimal"
-                    class="input input-xs w-20"
-                  />
-                  <button type="submit" class="btn btn-ghost btn-xs">{gettext("Guardar")}</button>
+                  <label class="eth-filter w-24">
+                    <input
+                      name="fee"
+                      value={
+                        row.structure.broker_fee_override &&
+                          percent_input(row.structure.broker_fee_override)
+                      }
+                      placeholder={gettext("defecto")}
+                      inputmode="decimal"
+                      aria-label={gettext("Broker fee (%)")}
+                    />
+                  </label>
+                  <button type="submit" class="btn btn-ghost btn-xs h-8">{gettext("Guardar")}</button>
                 </form>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
-      <p class="text-xs text-base-content/60">
+      <p class="mt-3 text-xs eth-faint">
         {gettext(
-          "El broker fee por estructura se usará en los modos por órdenes (F9); en el arbitraje directo solo aplica el sales tax."
+          "El broker fee por estructura se usará en los modos por órdenes; en el arbitraje directo solo aplica el sales tax."
         )}
       </p>
-    </div>
+    </.panel>
   </section>
 
   <%!-- Primer arranque (RF-9.1) --%>
   <section :if={@live_action == :setup} id="settings-setup" class="space-y-3">
-    <p class="text-sm text-base-content/70">
-      {gettext("Lista de verificación para dejar la aplicación lista para operar.")}
-    </p>
-    <ol class="card divide-y divide-base-300 border border-base-300">
-      <li
-        :for={{id, title, ok, hint} <- @checks}
-        id={"check-#{id}"}
-        class="flex items-start gap-3 p-3"
-        data-ok={to_string(ok)}
-      >
-        <.icon
-          name={if(ok, do: "hero-check-circle", else: "hero-ellipsis-horizontal-circle")}
-          class={["size-5 shrink-0", if(ok, do: "text-success", else: "text-base-content/40")]}
-        />
-        <div>
-          <div class={[ok && "font-medium"]}>{title}</div>
-          <div :if={!ok} class="text-xs text-base-content/60">{hint}</div>
-        </div>
-      </li>
-    </ol>
+    <% done = Enum.count(@checks, fn {_id, _title, ok, _hint} -> ok end) %>
+    <.panel id="setup-panel" title={gettext("Primer arranque")} help={:first_steps}>
+      <:help_body>
+        {gettext("Lista de verificación para dejar la aplicación lista para operar.")}
+      </:help_body>
+      <:actions>
+        <span class="flex items-center gap-2 text-xs eth-muted">
+          <.ring
+            value={done / max(length(@checks), 1)}
+            size={28}
+            stroke={3}
+            class={if(done == length(@checks), do: "text-success", else: "text-primary")}
+            label={gettext("Pasos completos")}
+          />
+          <span class="font-mono">{done}/{length(@checks)}</span>
+        </span>
+      </:actions>
+      <ol class="-mx-4 -my-4 divide-y divide-base-300">
+        <li
+          :for={{{id, title, ok, hint}, i} <- Enum.with_index(@checks, 1)}
+          id={"check-#{id}"}
+          class="flex items-start gap-3 px-4 py-3"
+          data-ok={to_string(ok)}
+        >
+          <span class={[
+            "eth-chamfer-xs flex size-6 shrink-0 items-center justify-center border font-display text-xs",
+            if(ok,
+              do: "border-success bg-success/10 text-success",
+              else: "border-base-300 eth-muted"
+            )
+          ]}>
+            <%= if ok do %>
+              <.icon name="hero-check" class="size-4" />
+            <% else %>
+              {i}
+            <% end %>
+          </span>
+          <div>
+            <div class={[if(ok, do: "eth-strong", else: "eth-muted")]}>{title}</div>
+            <div :if={!ok} class="text-xs eth-faint">{hint}</div>
+          </div>
+        </li>
+      </ol>
+    </.panel>
   </section>
 </Layouts.app>
