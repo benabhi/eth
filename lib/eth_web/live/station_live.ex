@@ -14,7 +14,10 @@ defmodule EthWeb.StationLive do
     "Copiar precio" y "Abrir mercado" (la orden se publica en el cliente: ESI no permite
     crearla, D-12).
 
-  Implementa: RF-4.16, RF-4.17, RF-6.4, RF-6.12.
+  - Diseño F10 (§9.5): cabecera del tablón, sellos, anillo de Certeza, ficha con "?" al
+    manual y anillo de órdenes usadas frente al límite.
+
+  Implementa: RF-4.16, RF-4.17, RF-6.4, RF-6.12, RF-6.13, RF-11.2.
   """
   use EthWeb, :live_view
 
@@ -38,6 +41,7 @@ defmodule EthWeb.StationLive do
      |> assign(:selected, nil)
      |> assign(:selected_row, nil)
      |> assign(:total, 0)
+     |> assign(:reward, 0.0)
      |> assign(:url_params, %{})
      |> assign(:hubs, hubs())
      |> assign(:pilot_overrides, overrides(socket.assigns.pilot))
@@ -139,6 +143,7 @@ defmodule EthWeb.StationLive do
     socket
     |> assign_my_orders()
     |> assign(total: total, meta: Engine.meta(), now: Clock.utc_now())
+    |> assign(:reward, Enum.reduce(rows, 0.0, &(&1.profit_day + &2)))
     |> assign(:selected_row, selected_row(socket.assigns.selected, socket.assigns.query))
     |> stream(:rows, rows, reset: true)
   end
@@ -200,18 +205,6 @@ defmodule EthWeb.StationLive do
 
   defp pct(x), do: "#{:erlang.float_to_binary(x * 100, decimals: 1)} %"
   defp pct2(x), do: "#{:erlang.float_to_binary(x * 100, decimals: 2)} %"
-
-  defp shield_label(:scam), do: gettext("☠ SCAM")
-  defp shield_label(:suspicious), do: gettext("⚠ sospechosa")
-  defp shield_label(:no_history), do: gettext("sin historial")
-
-  defp shield_class(:scam), do: "badge-error"
-  defp shield_class(:suspicious), do: "badge-warning"
-  defp shield_class(_status), do: "badge-ghost"
-
-  defp certainty_class(c) when c >= 0.7, do: "badge-success"
-  defp certainty_class(c) when c >= 0.4, do: "badge-warning"
-  defp certainty_class(_c), do: "badge-ghost"
 
   defp short_name(name), do: name |> String.split(" - ") |> hd()
 end

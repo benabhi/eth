@@ -419,11 +419,6 @@ defmodule EthWeb.HunterLive do
     if count > 1, do: "#{label} +#{count - 1}", else: label
   end
 
-  defp shield_label(:scam), do: gettext("SCAM")
-  defp shield_label(:suspicious), do: gettext("Sospechosa")
-  defp shield_label(:no_history), do: gettext("Sin historial")
-  defp shield_label(:ok), do: gettext("ok")
-
   @doc false
   # Puntos `"x,y x,y …"` de un sparkline SVG (viewBox 0 0 120 32) con los promedios
   # diarios: une los días con operaciones, cada uno en su posición del calendario. `nil`
@@ -461,11 +456,6 @@ defmodule EthWeb.HunterLive do
   defp sec_label(sec), do: :erlang.float_to_binary(Sde.security_display(sec), decimals: 1)
 
   defp pct(x), do: "#{:erlang.float_to_binary(x * 100, decimals: 1)} %"
-
-  defp certainty_color(c) when c >= 0.8, do: "text-success"
-  defp certainty_color(c) when c >= 0.6, do: "text-primary"
-  defp certainty_color(c) when c >= 0.4, do: "text-warning"
-  defp certainty_color(_c), do: "text-error"
 
   defp route_label(:secure), do: gettext("Segura")
   defp route_label(:evasive), do: gettext("Evasiva")

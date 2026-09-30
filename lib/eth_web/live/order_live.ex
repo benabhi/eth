@@ -14,7 +14,10 @@ defmodule EthWeb.OrderLive do
   comisiones. ESI no permite publicar órdenes (D-12): el precio se copia y la orden se
   publica en el cliente.
 
-  Implementa: RF-4.1, RF-6.4, RF-6.12.
+  Diseño F10 (§9.5): cabecera del tablón, sellos, anillo de Certeza y ficha con pasos
+  numerados y "?" al manual.
+
+  Implementa: RF-4.1, RF-6.4, RF-6.12, RF-6.13, RF-11.2.
   """
   use EthWeb, :live_view
 
@@ -38,6 +41,7 @@ defmodule EthWeb.OrderLive do
      |> assign(:selected, nil)
      |> assign(:selected_row, nil)
      |> assign(:total, 0)
+     |> assign(:reward, 0.0)
      |> assign(:url_params, %{})
      |> assign(:pilot_overrides, overrides(socket.assigns.pilot))
      |> stream_configure(:rows, dom_id: &"ord-#{&1.id}")
@@ -138,6 +142,7 @@ defmodule EthWeb.OrderLive do
 
     socket
     |> assign(total: total, meta: Engine.meta(), now: Clock.utc_now())
+    |> assign(:reward, Enum.reduce(rows, 0.0, &(&1.profit + &2)))
     |> assign(:selected_row, selected_row(socket.assigns.selected, socket.assigns.query))
     |> stream(:rows, rows, reset: true)
   end
@@ -161,6 +166,27 @@ defmodule EthWeb.OrderLive do
   defp mode_label(:listing), do: gettext("Listado")
   defp mode_label(:buy_order), do: gettext("Compra por orden")
 
+  # Pasos del modo, en orden, para la ficha.
+  defp how_to(%{mode: :listing} = r) do
+    [
+      gettext("Comprá %{qty} unidades en el origen (a sus órdenes de venta).",
+        qty: Format.integer(r.quantity)
+      ),
+      gettext("Llevalas al hub (%{jumps} saltos).", jumps: r.jumps),
+      gettext("Publicá una orden de venta al precio sugerido y esperá a que se venda.")
+    ]
+  end
+
+  defp how_to(r) do
+    [
+      gettext("Publicá en el hub una orden de compra por %{qty} unidades al precio sugerido.",
+        qty: Format.integer(r.quantity)
+      ),
+      gettext("Cuando se llene, llevá la carga al destino (%{jumps} saltos).", jumps: r.jumps),
+      gettext("Vendé a las órdenes de compra del destino.")
+    ]
+  end
+
   defp price_label(:listing), do: gettext("Orden de venta en el hub")
   defp price_label(:buy_order), do: gettext("Orden de compra en el hub")
 
@@ -171,18 +197,6 @@ defmodule EthWeb.OrderLive do
 
   defp days_label(days),
     do: gettext("%{days} días", days: :erlang.float_to_binary(days, decimals: 1))
-
-  defp shield_label(:scam), do: gettext("☠ SCAM")
-  defp shield_label(:suspicious), do: gettext("⚠ sospechosa")
-  defp shield_label(:no_history), do: gettext("sin historial")
-
-  defp shield_class(:scam), do: "badge-error"
-  defp shield_class(:suspicious), do: "badge-warning"
-  defp shield_class(_status), do: "badge-ghost"
-
-  defp certainty_class(c) when c >= 0.7, do: "badge-success"
-  defp certainty_class(c) when c >= 0.4, do: "badge-warning"
-  defp certainty_class(_c), do: "badge-ghost"
 
   defp sec_style(nil), do: ""
   defp sec_style(sec), do: "color: #{Sde.security_color(sec)}"

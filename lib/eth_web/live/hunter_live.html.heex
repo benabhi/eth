@@ -8,40 +8,38 @@
   ship_form={@ship_form}
 >
   <%!-- Cabecera del tablón (RF-6.13) --%>
-  <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
-    <h1 class="font-display text-2xl font-semibold eth-strong sm:text-[26px]">
-      {gettext("Tablón de caza")}
-    </h1>
-    <.family_nav active={:direct} search={@form[:search].value} />
-    <div class="flex-1"></div>
-    <div class="flex items-end gap-6">
+  <.board_header
+    title={gettext("Tablón de caza")}
+    family={:direct}
+    search={@form[:search].value}
+    status_id="hunter-status"
+  >
+    <:stats :if={@meta}>
       <.stat
-        :if={@meta}
         id="board-open"
         label={gettext("contratos abiertos")}
         value={Format.integer(@total)}
         class="items-end"
       />
       <.stat
-        :if={@meta}
         id="board-reward"
         label={gettext("recompensa en el tablón")}
         value={Format.compact(@reward)}
         value_class="text-accent"
         class="items-end"
       />
-    </div>
-  </div>
-  <p id="hunter-status" class="-mt-2 text-xs eth-faint tabular-nums">
-    <%= if @meta do %>
-      {gettext("%{total} oportunidades", total: Format.integer(@total))} · {gettext(
-        "evaluado %{ago}",
-        ago: Format.ago(@meta.evaluated_at, @now)
-      )} · v{@meta.version} · {gettext("motor %{ms} ms", ms: @meta.duration_ms)}
-    <% else %>
-      {gettext("El motor todavía no evaluó el mercado: espera el primer ciclo de descarga.")}
-    <% end %>
-  </p>
+    </:stats>
+    <:status>
+      <%= if @meta do %>
+        {gettext("%{total} oportunidades", total: Format.integer(@total))} · {gettext(
+          "evaluado %{ago}",
+          ago: Format.ago(@meta.evaluated_at, @now)
+        )} · v{@meta.version} · {gettext("motor %{ms} ms", ms: @meta.duration_ms)}
+      <% else %>
+        {gettext("El motor todavía no evaluó el mercado: espera el primer ciclo de descarga.")}
+      <% end %>
+    </:status>
+  </.board_header>
 
   <%!-- Filtros (RF-6.4) --%>
   <.form
@@ -283,17 +281,7 @@
                     label={threat_seal(row.route_alerts)}
                     title={row.route_alerts.worst.classification.description}
                   />
-                  <.seal
-                    :if={row.shield.status == :scam}
-                    kind={:scam}
-                    title={Enum.join(row.shield.reasons, " · ")}
-                  />
-                  <.seal
-                    :if={row.shield.status in [:suspicious, :no_history]}
-                    kind={:suspicious}
-                    label={shield_label(row.shield.status)}
-                    title={Enum.join(row.shield.reasons, " · ")}
-                  />
+                  <.shield_seal shield={row.shield} />
                   <.seal
                     :if={row.illiquid}
                     kind={:illiquid}
@@ -349,14 +337,7 @@
               </td>
               <td class="text-right">
                 <div class="flex justify-end">
-                  <.ring
-                    value={row.certainty}
-                    size={40}
-                    class={certainty_color(row.certainty)}
-                    label={gettext("Certeza %{c}", c: pct(row.certainty))}
-                  >
-                    <span class="font-mono text-[10px] eth-strong">{round(row.certainty * 100)}</span>
-                  </.ring>
+                  <.certainty_ring value={row.certainty} />
                 </div>
               </td>
               <td>
