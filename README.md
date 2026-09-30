@@ -14,7 +14,8 @@ sale de tu máquina salvo las consultas a los servicios oficiales de EVE y a zKi
   cómo andan el radar y el motor.
 - **Manual integrado** en `/docs`, con las fórmulas y los valores vigentes.
 
-> La especificación completa está en [docs/ERS.md](docs/ERS.md).
+> Documentación: la de uso está dentro de la aplicación (menú **Documentación**) y la
+> técnica, en [docs/](docs/README.md). Ver [Documentación](#documentación).
 
 ---
 
@@ -113,6 +114,31 @@ vos. Podés agregar más personajes desde el menú del retrato.
 
 ---
 
+## Documentación
+
+**Para el piloto**, dentro de la aplicación (menú *Documentación*, con la aplicación
+corriendo). Las fórmulas muestran los valores vigentes de tu instalación:
+
+| Página | Enlace |
+|---|---|
+| Primeros pasos: instalar y registrar tu app de EVE | <http://localhost:4000/docs/primeros-pasos> |
+| El tablón de caza y las familias Directo, Por órdenes y Estación | <http://localhost:4000/docs/tablon> · <http://localhost:4000/docs/familias> |
+| Cómo se calculan los números: impuestos, walk-the-book, TVS y Certeza, anti-scam | <http://localhost:4000/docs/impuestos> · <http://localhost:4000/docs/tvs-certeza> |
+| En ruta: radar, bodega y viaje activo | <http://localhost:4000/docs/radar> · <http://localhost:4000/docs/viaje> |
+| Centro de control, Ajustes y límites de ESI | <http://localhost:4000/docs/centro-de-control> · <http://localhost:4000/docs/ajustes> |
+| Glosario de siglas y términos | <http://localhost:4000/docs/glosario> |
+
+**Para quien desarrolla**, en [`docs/`](docs/README.md):
+
+| Documento | Qué contiene |
+|---|---|
+| [Arquitectura](docs/arquitectura.md) | Flujo de datos, árbol de supervisión, ETS, PubSub, base de datos y capa web. |
+| [Motor](docs/motor.md) | Evaluación universal, consulta personalizada y dónde vive cada fórmula. |
+| [Desarrollo](docs/desarrollo.md) | Entorno, tests, modo Replay, depuración y recetas. |
+| [ERS](docs/ERS.md) | Especificación de requisitos: la fuente de verdad funcional. |
+| [Auditoría v1.0](docs/audit-v1.0.md) | Rendimiento, seguridad, calidad y hallazgos. |
+| [CHANGELOG](CHANGELOG.md) | Cambios por versión. |
+
 ## Uso diario
 
 ```bash
@@ -140,8 +166,8 @@ se conservan: no se pierde ningún dato. Los cambios de cada versión están en
 
 ## Respaldo
 
-- **Ajustes → Respaldo** exporta tu configuración (reglas, radar, alertas, naves y
-  estructuras) a un JSON sin secretos, y la importa en otra instalación.
+- **Ajustes → Respaldo** exporta tu configuración (reglas, parámetros del motor, radar,
+  alertas, naves y estructuras) a un JSON sin secretos, y la importa en otra instalación.
 - Tus datos viven en dos volúmenes de Docker: `eth-release_pgdata` (base) y
   `eth-release_data` (SDE, snapshots). Para empezar de cero (se pierde el historial de
   viajes): `docker compose -f docker-compose.release.yml down -v`.
@@ -177,8 +203,9 @@ docker compose up --build
 docker compose exec phoenix mix precommit
 ```
 
-Convenciones, comandos y estructura del código: [CLAUDE.md](CLAUDE.md). Requisitos y
-decisiones: [docs/ERS.md](docs/ERS.md).
+Guía de desarrollo: [docs/desarrollo.md](docs/desarrollo.md). Arquitectura y motor:
+[docs/arquitectura.md](docs/arquitectura.md) y [docs/motor.md](docs/motor.md). Reglas del
+proyecto y convenciones: [CLAUDE.md](CLAUDE.md). Requisitos: [docs/ERS.md](docs/ERS.md).
 
 ## Licencia y avisos
 

@@ -26,7 +26,8 @@ Instrucciones permanentes para Claude Code (y cualquier colaborador). La fuente 
 7. **Documentación en el mismo cambio.**
    - Si cambia un requisito: `docs/ERS.md`.
    - Si cambia una convención o un comando: este archivo.
-   - Si es una decisión de arquitectura: un ADR en `docs/adr/`.
+   - Si cambia la arquitectura (un proceso, una tabla ETS, un tópico, una tabla de la base): `docs/arquitectura.md`; si cambia el motor: `docs/motor.md`; una decisión de arquitectura: un ADR en `docs/adr/`.
+   - Si cambia algo que ve el piloto: la documentación de la app (`lib/eth_web/docs_pages/`) y, si hay un término nuevo, el glosario (`EthWeb.Glossary`).
 
 ## El proyecto en 30 segundos
 
