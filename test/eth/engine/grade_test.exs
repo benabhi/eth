@@ -24,7 +24,7 @@ defmodule Eth.Engine.GradeTest do
   end
 
   test "rango del cazador y progreso al siguiente" do
-    assert %{rank: "I", next: "II", progress: 0.0} = Grade.hunter_rank(0)
+    assert %{rank: "I", next: "II", progress: +0.0} = Grade.hunter_rank(0)
     assert %{rank: "IV", next: "V", progress: p} = Grade.hunter_rank(7_500_000_000)
     assert_in_delta p, 0.5, 1.0e-9
     assert %{rank: "VII", next: nil, progress: 1.0} = Grade.hunter_rank(80_000_000_000)

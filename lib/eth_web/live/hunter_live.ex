@@ -18,9 +18,11 @@ defmodule EthWeb.HunterLive do
     detalle, Multibuy y Ruta bloqueados en una SCAM y "Reportar falso positivo".
   - Historial (RF-1.12, RF-6.5): sparkline de 30 días, mediana, volumen y liquidez; las
     estadísticas nuevas se reflejan en vivo (`market:history`).
+  - Diseño F10 (§9.5): rango por TVS, sellos, medidor de peligro, anillo de Certeza y "?"
+    con enlace al manual; la ficha se recalcula en segundo plano con un spinner (RNF-5.15).
 
   Implementa: RF-4.7, RF-4.8, RF-5.9, RF-6.2, RF-6.3, RF-6.4, RF-6.5, RF-6.6, RF-6.7,
-  RF-6.10.
+  RF-6.10, RF-11.2, RNF-5.15.
   """
   use EthWeb, :live_view
 
@@ -28,7 +30,7 @@ defmodule EthWeb.HunterLive do
 
   alias Eth.{Characters, Clock, Engine, Market, Sde, Tracking}
   alias Eth.Characters.Pilot
-  alias Eth.Engine.Query
+  alias Eth.Engine.{Grade, Query}
   alias EthWeb.{Format, HunterParams}
 
   @impl true
@@ -45,7 +47,9 @@ defmodule EthWeb.HunterLive do
       |> assign(:pending, 0)
       |> assign(:selected, nil)
       |> assign(:route_details, nil)
+      |> assign(:detail_loading, false)
       |> assign(:total, 0)
+      |> assign(:reward, 0.0)
       |> assign(:meta, Engine.meta())
       |> assign(:now, Clock.utc_now())
       |> assign(:url_params, %{})
@@ -75,14 +79,20 @@ defmodule EthWeb.HunterLive do
     {:noreply, push_patch(socket, to: ~p"/")}
   end
 
+  # La ficha (personalización + ruta con radar) puede tardar: se calcula en una tarea y
+  # mientras tanto se muestra el spinner (RNF-5.15).
   def handle_event("select", %{"id" => id}, socket) do
-    selected = if socket.assigns.selected == id, do: nil, else: id
+    if socket.assigns.selected == id do
+      {:noreply,
+       assign(socket, selected: nil, selected_row: nil, route_details: nil, detail_loading: false)}
+    else
+      query = socket.assigns.query
 
-    {:noreply,
-     socket
-     |> assign(:selected, selected)
-     |> assign(:selected_row, selected_row(selected, socket.assigns.query))
-     |> assign_route_details()}
+      {:noreply,
+       socket
+       |> assign(selected: id, detail_loading: true)
+       |> start_async(:detail, fn -> {id, detail(id, query)} end)}
+    end
   end
 
   def handle_event("toggle_freeze", _params, socket) do
@@ -175,6 +185,20 @@ defmodule EthWeb.HunterLive do
   end
 
   @impl true
+  def handle_async(:detail, {:ok, {id, {row, route}}}, %{assigns: %{selected: id}} = socket) do
+    {:noreply, assign(socket, selected_row: row, route_details: route, detail_loading: false)}
+  end
+
+  # Resultado de una selección anterior: ya se eligió otra fila.
+  def handle_async(:detail, {:ok, _stale}, socket), do: {:noreply, socket}
+
+  def handle_async(:detail, {:exit, _reason}, socket) do
+    {:noreply,
+     socket
+     |> assign(detail_loading: false)
+     |> put_flash(:error, gettext("No se pudo calcular la ficha del contrato"))}
+  end
+
   def handle_async(:ingame, {:ok, {action, :ok}}, socket) do
     message =
       case action do
@@ -263,6 +287,7 @@ defmodule EthWeb.HunterLive do
 
     socket
     |> assign(total: total, meta: Engine.meta(), now: Clock.utc_now(), empty?: rows == [])
+    |> assign(:reward, Enum.reduce(rows, 0.0, &(&1.profit + &2)))
     |> assign(:selected_row, selected_row(socket.assigns[:selected], socket.assigns.query))
     |> assign_route_details()
     |> stream(:rows, rows, reset: true)
@@ -270,12 +295,21 @@ defmodule EthWeb.HunterLive do
 
   # La fila seleccionada se recalcula aparte: puede no estar entre las 200 visibles.
   # Detalle de la ruta de la fila seleccionada (sección Ruta, RF-6.5).
-  defp assign_route_details(%{assigns: %{selected_row: %{} = row, query: query}} = socket) do
-    ship_class = Map.get(query, :ship_class, Query.defaults().ship_class)
-    assign(socket, :route_details, Engine.route_details(row, ship_class))
+  defp assign_route_details(%{assigns: %{selected_row: row, query: query}} = socket) do
+    assign(socket, :route_details, route_details(row, query))
   end
 
-  defp assign_route_details(socket), do: assign(socket, :route_details, nil)
+  defp detail(id, query) do
+    row = selected_row(id, query)
+    {row, route_details(row, query)}
+  end
+
+  defp route_details(nil, _query), do: nil
+
+  defp route_details(row, query) do
+    ship_class = Map.get(query, :ship_class, Query.defaults().ship_class)
+    Engine.route_details(row, ship_class)
+  end
 
   defp selected_row(nil, _query), do: nil
 
@@ -360,10 +394,6 @@ defmodule EthWeb.HunterLive do
   defp access_label(:private_ok), do: gettext("estructura privada ✓")
   defp access_label(_public), do: gettext("estructura")
 
-  defp access_class(:forbidden), do: "badge-error"
-  defp access_class(:private_unverified), do: "badge-warning"
-  defp access_class(_ok), do: "badge-neutral"
-
   defp access_title(access) do
     gettext("Origen: %{origin} · destino: %{destination}",
       origin: access_name(access.origin),
@@ -383,14 +413,16 @@ defmodule EthWeb.HunterLive do
   defp threat_label(:hauler_gank), do: gettext("Gank de transportes")
   defp threat_label(:roaming), do: gettext("Actividad hostil")
 
-  defp shield_label(:scam), do: gettext("☠ SCAM")
-  defp shield_label(:suspicious), do: gettext("⚠ sospechosa")
-  defp shield_label(:no_history), do: gettext("sin historial")
-  defp shield_label(:ok), do: gettext("ok")
+  # Sello de amenaza en la ruta: la peor, más la cantidad de las demás.
+  defp threat_seal(%{count: count, worst: worst}) do
+    label = threat_label(worst.classification.type)
+    if count > 1, do: "#{label} +#{count - 1}", else: label
+  end
 
-  defp shield_class(:scam), do: "badge-error"
-  defp shield_class(:suspicious), do: "badge-warning"
-  defp shield_class(_status), do: "badge-ghost"
+  defp shield_label(:scam), do: gettext("SCAM")
+  defp shield_label(:suspicious), do: gettext("Sospechosa")
+  defp shield_label(:no_history), do: gettext("Sin historial")
+  defp shield_label(:ok), do: gettext("ok")
 
   @doc false
   # Puntos `"x,y x,y …"` de un sparkline SVG (viewBox 0 0 120 32) con los promedios
@@ -430,9 +462,10 @@ defmodule EthWeb.HunterLive do
 
   defp pct(x), do: "#{:erlang.float_to_binary(x * 100, decimals: 1)} %"
 
-  defp tvs_class(tvs) when tvs >= 75, do: "badge-success"
-  defp tvs_class(tvs) when tvs >= 40, do: "badge-warning"
-  defp tvs_class(_tvs), do: "badge-ghost"
+  defp certainty_color(c) when c >= 0.8, do: "text-success"
+  defp certainty_color(c) when c >= 0.6, do: "text-primary"
+  defp certainty_color(c) when c >= 0.4, do: "text-warning"
+  defp certainty_color(_c), do: "text-error"
 
   defp route_label(:secure), do: gettext("Segura")
   defp route_label(:evasive), do: gettext("Evasiva")

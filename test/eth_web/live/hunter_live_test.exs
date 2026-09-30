@@ -65,6 +65,7 @@ defmodule EthWeb.HunterLiveTest do
     {:ok, view, _html} = live(conn, ~p"/")
 
     view |> element("#opportunities tr[id^='opp-']") |> render_click()
+    render_async(view)
     assert has_element?(view, "#detail", "Libro consumido")
     assert has_element?(view, "#detail", "¿Por qué TVS")
     assert has_element?(view, "#copy-detail[data-text='Tritanium\t3850000']")
@@ -107,9 +108,10 @@ defmodule EthWeb.HunterLiveTest do
       refute has_element?(view, "#opportunities tr[id^='opp-']")
 
       {:ok, view, _html} = live(conn, ~p"/?shield=all")
-      assert has_element?(view, "#opportunities", "☠ SCAM")
+      assert has_element?(view, "#opportunities", "Scam · bloqueado")
 
       view |> element("#opportunities tr[id^='opp-']") |> render_click()
+      render_async(view)
       assert has_element?(view, "#shield-alert", "SCAM ALERT")
       assert has_element?(view, "#shield-alert", "Compra a 11,1× la mediana de 7 días")
       assert has_element?(view, "#copy-detail[disabled]")
@@ -128,6 +130,7 @@ defmodule EthWeb.HunterLiveTest do
       {:ok, view, _html} = live(conn, ~p"/?min_profit=1k")
 
       view |> element("#opportunities tr[id^='opp-']") |> render_click()
+      render_async(view)
       refute has_element?(view, "#shield-alert")
       assert has_element?(view, "#history svg polyline")
       assert has_element?(view, "#history", "30 / 30")
@@ -165,9 +168,10 @@ defmodule EthWeb.HunterLiveTest do
 
       for mode <- ["secure", "evasive"] do
         {:ok, view, _html} = live(conn, ~p"/?route_mode=#{mode}")
-        assert has_element?(view, "#opportunities", "⚠ Gatecamp")
+        assert has_element?(view, "#opportunities", "Gatecamp")
 
         view |> element("#opportunities tr[id^='opp-']") |> render_click()
+        render_async(view)
         assert has_element?(view, "#route", "Perimeter: Gatecamp en el gate a Jita")
         assert has_element?(view, "#detail", "Ruta (amenazas y riesgo base)")
       end

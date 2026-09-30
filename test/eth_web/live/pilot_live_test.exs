@@ -141,6 +141,7 @@ defmodule EthWeb.PilotLiveTest do
 
   defp select_first_row(view) do
     view |> element("#opportunities tr[id^='opp-']") |> render_click()
+    render_async(view)
   end
 
   test "en modo invitado ofrece el login y deshabilita las acciones in-game", %{conn: conn} do
