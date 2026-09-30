@@ -60,6 +60,36 @@ defmodule EthWeb.ControlLiveTest do
     assert has_element?(view, "#metric-evaluate", "—")
   end
 
+  test "Requiere atención agrupa las regiones con el mismo problema en un solo aviso", %{
+    conn: conn
+  } do
+    {:ok, view, _html} = live(conn, ~p"/control")
+
+    for {id, name} <- [{10_000_002, "The Forge"}, {10_000_043, "Domain"}] do
+      send(
+        view.pid,
+        {:region_status, region_status(%{region_id: id, name: name, status: :backoff})}
+      )
+    end
+
+    assert has_element?(view, "#attention", "2 regiones · error")
+    refute has_element?(view, "#attention", "The Forge: Error")
+  end
+
+  test "el pipeline muestra cada etapa y cuenta las pantallas conectadas (RF-8.4)", %{
+    conn: conn
+  } do
+    start_supervised!(Eth.Metrics)
+    {:ok, view, _html} = live(conn, ~p"/control")
+    _ = :sys.get_state(Eth.Metrics)
+    send(view.pid, :tick)
+
+    for stage <- ~w(esi snapshots engine opportunities viewers),
+        do: assert(has_element?(view, "#pipe-#{stage}"))
+
+    assert has_element?(view, "#pipe-viewers", "1 conectada")
+  end
+
   test "sin mercado corriendo muestra el estado vacío", %{conn: conn} do
     {:ok, _view, html} = live(conn, ~p"/control")
 

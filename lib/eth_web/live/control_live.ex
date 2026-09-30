@@ -206,12 +206,28 @@ defmodule EthWeb.ControlLive do
 
   # Lo que requiere atención ahora: {tipo, texto, ruta}.
   defp attention(assigns) do
+    # Agrupadas por estado: con muchas regiones (el primer escaneo del universo) un solo
+    # aviso por estado en lugar de uno por región.
     regions =
       for status <- Map.values(assigns.regions),
           {key, label, _color} = display(status, assigns.now),
           key in [:backoff, :excluded, :stale, :degraded] do
-        {:region, "#{status.name}: #{label}", ~p"/control/market?region=#{status.region_id}"}
+        {label, status}
       end
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+      |> Enum.map(fn
+        {label, [status]} ->
+          {:region, "#{status.name}: #{label}", ~p"/control/market?region=#{status.region_id}"}
+
+        {label, statuses} ->
+          {:region,
+           ngettext(
+             "%{count} región · %{label}",
+             "%{count} regiones · %{label}",
+             length(statuses),
+             label: String.downcase(label)
+           ), ~p"/control/market"}
+      end)
 
     sessions =
       for s <- assigns.sessions, s.status in [:relogin, :token_error] do
@@ -422,9 +438,76 @@ defmodule EthWeb.ControlLive do
       history: Market.history_status(),
       memory: %{total: :erlang.memory(:total), ets: :erlang.memory(:ets)},
       next_downtime: ServerStatus.next_downtime(now),
-      metrics: Metrics.series()
+      metrics: Metrics.series(),
+      viewers: Metrics.viewers()
     )
   end
+
+  # Etapas del pipeline (RF-8.4). `flowing` dice si pasan datos hacia esa etapa: consultas
+  # en el último minuto, una evaluación reciente, pantallas conectadas.
+  defp pipeline_stages(assigns) do
+    meta = assigns.engine_meta
+    requests = assigns.metrics.requests |> Enum.at(-2, 0)
+    fresh_engine? = meta != nil and DateTime.diff(assigns.now, meta.evaluated_at) < 60
+    t = totals(assigns.regions)
+
+    [
+      %{
+        id: "esi",
+        title: "ESI",
+        value: gettext("%{n} consultas/s", n: Float.round(requests / 60, 1)),
+        detail: error_limit_text(assigns.budget),
+        flowing: false
+      },
+      %{
+        id: "snapshots",
+        title: gettext("Mercados en memoria"),
+        value: gettext("%{fresh}/%{count} regiones", fresh: t.fresh, count: t.count),
+        detail: gettext("%{orders} órdenes", orders: Format.compact(t.orders)),
+        flowing: requests > 0
+      },
+      %{
+        id: "engine",
+        title: gettext("Motor"),
+        value:
+          if(meta,
+            do: gettext("%{s} s por ciclo", s: Float.round(meta.duration_ms / 1000, 1)),
+            else: "—"
+          ),
+        detail:
+          if(meta, do: gettext("versión %{v}", v: meta.version), else: gettext("sin evaluar")),
+        flowing: fresh_engine?
+      },
+      %{
+        id: "opportunities",
+        title: gettext("Oportunidades"),
+        value:
+          if(meta, do: gettext("%{n} directas", n: Format.integer(meta.opportunities)), else: "—"),
+        detail:
+          if(meta,
+            do:
+              gettext("%{s} estación · %{o} órdenes",
+                s: Format.compact(meta.station_candidates),
+                o: Format.compact(meta.order_candidates)
+              ),
+            else: ""
+          ),
+        flowing: fresh_engine?
+      },
+      %{
+        id: "viewers",
+        title: gettext("Pantallas"),
+        value: ngettext("%{count} conectada", "%{count} conectadas", assigns.viewers),
+        detail: gettext("se actualizan en vivo"),
+        flowing: fresh_engine? and assigns.viewers > 0
+      }
+    ]
+  end
+
+  defp error_limit_text(%{error_limit: %{remain: remain}}),
+    do: gettext("error limit %{n}/100", n: remain)
+
+  defp error_limit_text(_budget), do: gettext("sin respuestas todavía")
 
   # Mosaicos de la última hora (RF-8.9): título, valor del último minuto con datos y serie.
   defp metric_tiles(s) do

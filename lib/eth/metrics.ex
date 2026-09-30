@@ -64,6 +64,33 @@ defmodule Eth.Metrics do
     }
   end
 
+  @doc """
+  Registra una LiveView conectada (RF-8.4): se cuenta mientras su proceso viva; al
+  terminar se descuenta sola.
+  """
+  @spec viewer_joined(pid()) :: :ok
+  def viewer_joined(pid) do
+    if Process.whereis(__MODULE__), do: GenServer.cast(__MODULE__, {:viewer, pid})
+    :ok
+  end
+
+  @doc "Pantallas (LiveViews) conectadas ahora."
+  @spec viewers() :: non_neg_integer()
+  def viewers do
+    case :ets.whereis(@table) do
+      :undefined ->
+        0
+
+      table ->
+        table
+        |> :ets.lookup(:viewers)
+        |> then(fn
+          [{_, n}] -> n
+          [] -> 0
+        end)
+    end
+  end
+
   @doc "Minuto actual (minutos Unix)."
   @spec current_minute() :: integer()
   def current_minute, do: div(DateTime.to_unix(Clock.utc_now()), 60)
@@ -132,11 +159,23 @@ defmodule Eth.Metrics do
   end
 
   @impl true
+  def handle_cast({:viewer, pid}, state) do
+    Process.monitor(pid)
+    :ets.update_counter(@table, :viewers, 1, {:viewers, 0})
+    {:noreply, state}
+  end
+
+  @impl true
   def handle_info(:sample, state) do
     minute = current_minute()
     sample(minute)
     prune(minute)
     Process.send_after(self(), :sample, 60_000)
+    {:noreply, state}
+  end
+
+  def handle_info({:DOWN, _ref, :process, _pid, _reason}, state) do
+    :ets.update_counter(@table, :viewers, -1, {:viewers, 0})
     {:noreply, state}
   end
 
