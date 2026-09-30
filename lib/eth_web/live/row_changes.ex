@@ -13,13 +13,17 @@ defmodule EthWeb.RowChanges do
 
   # Cambio relativo mínimo para marcar una fila como mejorada o empeorada.
   @threshold 0.01
+  # Puntos de TVS o de Certeza (%) que tiene que moverse el puntaje para resaltar la fila.
+  @score_step 2
 
   @type kind :: :new | :up | :down
-  @type known :: %{optional(term()) => number()} | nil
+  @typedoc "Valor principal, o `{valor, puntaje}` para comparar también el puntaje."
+  @type value :: number() | {number(), number()}
+  @type known :: %{optional(term()) => value()} | nil
 
   @doc "Resaltados de las filas frente a lo conocido, y lo conocido actualizado."
-  @spec diff(known(), [map()], (map() -> number())) ::
-          {%{term() => kind()}, %{term() => number()}}
+  @spec diff(known(), [map()], (map() -> value())) ::
+          {%{term() => kind()}, %{term() => value()}}
   def diff(known, rows, value) do
     current = Map.new(rows, &{&1.id, value.(&1)})
     {changes(known, current), current}
@@ -32,6 +36,17 @@ defmodule EthWeb.RowChanges do
   end
 
   defp kind(:error, _now), do: :new
+
+  # Con `{valor, puntaje}` (beneficio y TVS o Certeza %): manda el valor si cambió más del
+  # umbral; si no, el puntaje si se movió al menos `@score_step` puntos. Así se ve por qué
+  # una fila cambia de posición aunque el beneficio sea el mismo (historial o radar nuevos).
+  defp kind({:ok, {before, before_score}}, {now, now_score}) do
+    case kind({:ok, before}, now) do
+      nil when now_score - before_score >= @score_step -> :up
+      nil when before_score - now_score >= @score_step -> :down
+      kind -> kind
+    end
+  end
 
   defp kind({:ok, before}, now) do
     cond do
@@ -88,13 +103,39 @@ defmodule EthWeb.RowChanges do
     {shown, Enum.map(expired, &elem(&1, 0))}
   end
 
+  # Posiciones que tiene que moverse una fila sin otro cambio para marcarla como movida.
+  @move_step 3
+
+  @doc """
+  Suma a los resaltados las filas que cambiaron de posición al menos #{@move_step} lugares
+  sin otro cambio (`:moved`, destello neutro): muestra el reordenamiento que causan sus
+  vecinas o los cambios chicos de puntaje. `previous` son los fantasmas de la carga
+  anterior (`ghosts/2`, traen la posición); con `nil` no hace nada.
+  """
+  @spec with_moved(%{term() => kind()}, ghosts() | nil, [map()]) :: %{term() => kind() | :moved}
+  def with_moved(flashes, nil, _rows), do: flashes
+
+  def with_moved(flashes, previous, rows) do
+    rows
+    |> Enum.with_index()
+    |> Enum.reduce(flashes, fn {row, index}, acc ->
+      case {Map.has_key?(acc, row.id), Map.get(previous, row.id)} do
+        {false, {before, _ghost}} when abs(before - index) >= @move_step ->
+          Map.put(acc, row.id, :moved)
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
   @doc """
   Clase CSS del resaltado (animación que se desvanece sola). `generation` es un
   contador de cargas: alterna entre dos variantes de la animación para que una fila que
   vuelve a cambiar en la carga siguiente se resalte otra vez (con la misma clase el
   navegador no repite la animación).
   """
-  @spec class(kind() | nil, non_neg_integer()) :: String.t() | nil
+  @spec class(kind() | :moved | nil, non_neg_integer()) :: String.t() | nil
   def class(kind, generation \\ 0)
   def class(nil, _generation), do: nil
   def class(kind, generation) when rem(generation, 2) == 0, do: "eth-flash-#{kind}"

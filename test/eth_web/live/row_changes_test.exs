@@ -23,6 +23,27 @@ defmodule EthWeb.RowChangesTest do
     assert RowChanges.class(:up, 1) == "eth-flash-up-alt"
   end
 
+  test "con el mismo beneficio, un cambio de puntaje de 2 puntos o más también se resalta" do
+    known = %{"a" => {100.0, 70}, "b" => {100.0, 70}, "c" => {100.0, 70}}
+    rows = [%{id: "a", v: {100.0, 73}}, %{id: "b", v: {100.0, 69}}, %{id: "c", v: {100.0, 67}}]
+
+    {changes, _known} = RowChanges.diff(known, rows, & &1.v)
+
+    # a sube 3 (verde), b baja 1 (ruido: nada), c baja 3 (rojo).
+    assert changes == %{"a" => :up, "c" => :down}
+  end
+
+  test "una fila que cambió 3 lugares o más sin otro cambio se marca como movida" do
+    previous = RowChanges.ghosts(Enum.map(~w(a b c d e), &%{id: &1}), &%{name: &1.id})
+    rows = Enum.map(~w(e a b c d), &%{id: &1})
+
+    # e sube 4 lugares; las demás bajan 1 (empujadas): solo e se marca.
+    assert RowChanges.with_moved(%{}, previous, rows) == %{"e" => :moved}
+    # Un resaltado propio no se pisa.
+    assert RowChanges.with_moved(%{"e" => :up}, previous, rows) == %{"e" => :up}
+    assert RowChanges.class(:moved, 1) == "eth-flash-moved-alt"
+  end
+
   test "las filas que desaparecieron vuelven tachadas en su posición anterior" do
     previous = RowChanges.ghosts(rows([{"a", 1.0}, {"b", 2.0}, {"c", 3.0}]), &%{name: &1.id})
 
