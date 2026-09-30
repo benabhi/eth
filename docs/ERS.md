@@ -6,7 +6,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.8 |
+| Versión | 1.9 |
 | Fecha | 2026-09-29 |
 | Estado | Base para desarrollo — decisiones a confirmar en §15.2 |
 | Autor | Hernan Jalabert |
@@ -17,6 +17,7 @@
 | Versión | Fecha | Cambios |
 |---|---|---|
 | 0.1 | 2026-09 | Borrador inicial de ideas. |
+| 1.9 | 2026-09-30 | **F11 implementada** (v1.0 pendiente de revisión): atajos de teclado (RF-6.9), exportar e importar la configuración (RF-9.7), resaltado de filas nuevas y cambiadas (RF-6.3), imagen de producción y guía de instalación (RNF-10.5–10.7, D-22), universo completo por defecto y optimizado (consultas en paralelo, texto buscable precalculado, intervalo mínimo del motor, tablas cedidas con `give_away`; parámetros nuevos en B.7) y auditoría previa a v1.0 en `docs/audit-v1.0.md` (§11.6). Propuesta pendiente de decisión: ajustar RNF-1.2 al universo completo (hallazgo A-04). |
 | 1.8 | 2026-09-30 | **F10 implementada:** identidad visual con temas oscuro y claro y tipografías propias; componentes compartidos (`EthWeb.UI`, `EthWeb.TradingComponents`); tablón con rango, sellos, peligro y anillo de Certeza, filtros acoplados a la tabla y ficha que se despliega bajo la fila con secciones en columnas (RF-6.5, a pedido del usuario, en lugar de pestañas); Centro de control por pestañas con instrumentos (RF-8.10); registro del cazador con rango, racha e hitos (RF-7.7); manual integrado en HEEx (D-21); indicador de carga inmediato en las filas y WebSocket sin fallback a long polling (RNF-5.15). |
 | 1.7 | 2026-09-29 | **Diseño final y cierre de v1.0:** principio "trades rápido primero" (RNF-5.13); explicación de cada cifra con tooltip, fórmula con los valores reales y enlace al manual (RNF-5.14); instrumentos del Centro de control (anillos de progreso para pollers, medidores por tipo de proceso, §9.10); hitos y rachas del registro del cazador con datos reales (RF-7.7); nuevo módulo M11 **Manual integrado** (`/docs`, RF-11.1–11.4); auditoría total de sistemas como última tarea de v1.0 (§11.6, F11). |
 | 1.6 | 2026-09-29 | **Sin instancia pública:** se descarta el módulo M11 (multiusuario, suscripciones con ISK, reclamo de contratos y ranking público) y la fase F13 (D-20). La herramienta es de **uso personal y autoalojada**: cada piloto la descarga y la usa con sus personajes (§2.3, D-01, RNF-10.5–10.7). La gamificación del tablón de caza (RF-6.13) y el registro del cazador (RF-7.7) se mantienen, en versión personal. |
@@ -1207,6 +1208,8 @@ El desglose de una oportunidad (RF-6.5) y los tooltips (RNF-5.14) muestran cada 
 | RNF-1.5 | Memoria total ≤ 2 GB RSS con el universo completo (≈ 1,7 M órdenes; ETS de órdenes estimado en ≈ 400 MB). | LiveDashboard y Centro de control. |
 | RNF-1.6 | LiveView nunca envía más de 200 filas a la vez; actualizaciones por fila (streams). | Tests de LiveView. |
 
+*Medición (F11, imagen de producción, universo completo: 69 regiones y ~1,55 M órdenes):* consulta p95 19 / 24 / 65 ms (Directo / Estación / Por órdenes); evaluación 4,9–5,6 s; arranque en frío 53 s (universo) y en caliente 13 s; RSS 1,27–1,88 GiB. RNF-1.2 no se cumple con el universo completo (≤ ~16 s): propuesta de ajuste en `docs/audit-v1.0.md` (A-04), pendiente de decisión. Detalle y cambios en esa auditoría.
+
 ### RNF-2 · Resiliencia y disponibilidad
 
 - **RNF-2.1 Aislamiento de fallos:** árbol de supervisión por dominio; la caída de un poller no afecta a los demás y sus tablas ETS sobreviven (el dueño es `TableOwner`).
@@ -2336,10 +2339,12 @@ Aproximación de la escala del cliente. En el tema claro se usan como fondo de i
 | `max_universal_opportunities` | 5,000 | Top N universal por TVS base |
 | `poll_jitter_s` | 1–5 | Espera extra tras `Expires` |
 | `pages_concurrency` | 8 por región · 16 global | Descarga paginada |
-| `snapshot_grace_s` | 60 | Vida de la generación anterior tras el swap |
+| `snapshot_grace_s` | 20 | Vida de la generación anterior tras el swap (solo la lee una evaluación en curso; con 60 s el pico de memoria del universo completo superaba RNF-1.5) |
+| `engine_min_interval_ms` / `engine_grace_ms` | 10.000 / 5.000 | Intervalo mínimo entre evaluaciones del motor y vida de la versión anterior de las oportunidades; con el universo completo evaluaba sin pausa y mantenía 4 versiones vivas (RNF-1.5) |
+| `engine_parallel_min` | 2.000 | Desde cuántos candidatos las consultas de Estación y Por órdenes se reparten entre los núcleos (RNF-1.1) |
 | `backoff` | base 2 s · ×2 · máx. 5 min · ±20 % | Reintentos |
 | `circuit_breaker` | 5 fallos ⇒ 10 min | Por poller |
-| `market_budget_reserve` | 10 % | Reserva del grupo de mercado |
+| Política por nivel (`Eth.Market.Policy`) | ≥ 40 % todo · 20–40 % N3 cada 2 ciclos · 10–20 % N2 cada 2 y N3 cada 3 · < 10 % solo hubs | Reparto del presupuesto del grupo `market-order` (§8.11); reemplaza a la reserva fija del 10 % del borrador |
 | `error_limit_pause_at` | 20 | `X-ESI-Error-Limit-Remain` |
 | `history_max_per_min` / `history_concurrency` | 250 / 4 | Cola de historial (RF-1.12) |
 | `history_announce_ms` | 5,000 | Agrupa los avisos de historial nuevo al Cazador |

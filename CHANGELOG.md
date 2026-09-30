@@ -18,6 +18,15 @@ migraciones (corren solas al arrancar) o cambios en `.env`.
 - **Centro de control:** Mercado sin panel lateral (el detalle se despliega bajo la región)
   y Radar rediseñado con indicadores, anillos de amenaza y kills con el ícono de la nave.
 
+### Mejorado
+
+- **Universo completo por defecto** (69 regiones, ~1,5 M órdenes), también en desarrollo.
+- **Rendimiento con el universo completo:** búsqueda con texto precalculado, consultas de
+  Estación y Por órdenes repartidas entre los núcleos, intervalo mínimo entre evaluaciones
+  del motor y tablas cedidas por la tarea de evaluación. p95 de consulta 19–65 ms
+  (antes hasta 283 ms) y memoria de 1,3–1,9 GiB (antes hasta 2,2 GiB).
+- Contraste AA en el tema claro (acento y texto tenue).
+
 ### Corregido
 
 - Algunos "?" mostraban solo el enlace al manual: ahora todos tienen un texto breve (si no
