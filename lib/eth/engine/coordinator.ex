@@ -207,6 +207,43 @@ defmodule Eth.Engine.Coordinator do
     all_types = types |> Map.values() |> List.flatten() |> Enum.uniq()
     summaries_ms = System.monotonic_time(:millisecond) - started
 
+    # Cada familia se evalúa, se vuelca a su tabla y se suelta antes de la siguiente, con
+    # una recolección en el medio: sus listas (decenas de miles de candidatos con sus
+    # libros) nunca conviven y el pico de memoria de la tarea baja (RNF-1.5).
+    direct = stage(fn -> direct_stage(sources, all_types, owner) end)
+    direct_at = System.monotonic_time(:millisecond)
+    station = stage(fn -> station_stage(entries, types, owner) end)
+    station_at = System.monotonic_time(:millisecond)
+    orders = stage(fn -> orders_stage(sources, all_types, owner) end)
+    orders_at = System.monotonic_time(:millisecond)
+
+    History.demand(direct.demand ++ station.demand ++ orders.demand)
+
+    stats = %{
+      duration_ms: System.monotonic_time(:millisecond) - started,
+      summaries_ms: summaries_ms,
+      # Duración de cada etapa, para la barra segmentada del Centro de control (RF-8.10).
+      direct_ms: direct_at - started - summaries_ms,
+      station_ms: station_at - direct_at,
+      orders_ms: orders_at - station_at,
+      types: length(all_types),
+      sources: length(sources),
+      opportunities: direct.count,
+      station_candidates: station.count,
+      order_candidates: orders.count
+    }
+
+    tables = %{current: direct.tid, station: station.tid, orders: orders.tid}
+    {summarized, types, tables, stats}
+  end
+
+  defp stage(fun) do
+    result = fun.()
+    :erlang.garbage_collect()
+    result
+  end
+
+  defp direct_stage(sources, all_types, owner) do
     opportunities =
       sources
       |> Evaluator.run(all_types,
@@ -218,62 +255,48 @@ defmodule Eth.Engine.Coordinator do
       # Texto buscable una sola vez por evaluación, no en cada consulta (RNF-1.1).
       |> Opportunity.index_search()
 
-    direct_at = System.monotonic_time(:millisecond)
-
-    stations =
-      entries |> StationEvaluator.run(types) |> StationOpportunity.index_search()
-
-    station_at = System.monotonic_time(:millisecond)
-
-    # Por órdenes: solo candidatos con historial en el hub y viables en el mejor caso; de
-    # los demás se pide el historial (entran en la evaluación siguiente). Sin esto:
-    # ~170.000 candidatos, ~380 MB y ~0,5 s por consulta (RNF-1.1).
-    %{candidates: order_opps, missing_history: order_missing} =
-      OrderEvaluator.run(sources, all_types)
-
-    order_opps = OrderOpportunity.index_search(order_opps)
-
-    orders_at = System.monotonic_time(:millisecond)
-
-    History.demand(
-      history_demand(opportunities) ++
-        station_history_demand(stations) ++ order_history_demand(order_missing)
-    )
-
-    stats = %{
-      duration_ms: System.monotonic_time(:millisecond) - started,
-      summaries_ms: summaries_ms,
-      # Duración de cada etapa, para la barra segmentada del Centro de control (RF-8.10).
-      direct_ms: direct_at - started - summaries_ms,
-      station_ms: station_at - direct_at,
-      orders_ms: orders_at - station_at,
-      types: length(all_types),
-      sources: length(sources),
-      opportunities: length(opportunities),
-      station_candidates: length(stations),
-      order_candidates: length(order_opps)
+    %{
+      tid: fill(:eth_opportunities, Enum.map(opportunities, &{&1.id, &1}), owner),
+      demand: history_demand(opportunities),
+      count: length(opportunities)
     }
+  end
 
-    tables = %{
-      current: fill(:eth_opportunities, Enum.map(opportunities, &{&1.id, &1}), owner),
+  defp station_stage(entries, types, owner) do
+    stations = entries |> StationEvaluator.run(types) |> StationOpportunity.index_search()
+
+    %{
       # Con la clave (región, tipo) aparte: la consulta filtra por historial sin copiar el
       # candidato completo (RNF-1.1).
-      station:
+      tid:
         fill(
           :eth_station_opportunities,
           Enum.map(stations, &{&1.id, {&1.location.region_id, &1.type_id}, &1}),
           owner
         ),
+      demand: station_history_demand(stations),
+      count: length(stations)
+    }
+  end
+
+  # Por órdenes: solo candidatos con historial en el hub y viables en el mejor caso; de
+  # los demás se pide el historial (entran en la evaluación siguiente). Sin esto:
+  # ~170.000 candidatos, ~380 MB y ~0,5 s por consulta (RNF-1.1).
+  defp orders_stage(sources, all_types, owner) do
+    %{candidates: candidates, missing_history: missing} = OrderEvaluator.run(sources, all_types)
+    order_opps = OrderOpportunity.index_search(candidates)
+
+    %{
       # Con el par (región del hub, tipo) aparte, como en station trading.
-      orders:
+      tid:
         fill(
           :eth_order_opportunities,
           Enum.map(order_opps, &{&1.id, {hub_region(&1), &1.type_id}, &1}),
           owner
-        )
+        ),
+      demand: order_history_demand(missing),
+      count: length(order_opps)
     }
-
-    {summarized, types, tables, stats}
   end
 
   defp fill(name, rows, owner) do
