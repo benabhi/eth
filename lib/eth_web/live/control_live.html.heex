@@ -7,453 +7,871 @@
   characters={@characters}
   ship_form={@ship_form}
 >
-  <div class="flex flex-wrap items-center justify-between gap-2">
-    <h1 class="text-2xl font-bold">{gettext("Centro de control")}</h1>
-    <div class="text-sm text-base-content/70 tabular-nums">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h1 class="flex items-center gap-3 font-display text-2xl font-semibold eth-strong sm:text-[26px]">
+      {gettext("Centro de control")}
+      <.help topic={:control} title={gettext("Centro de control")} align="start">
+        {gettext(
+          "Qué está haciendo la aplicación: mercados que descarga, presupuesto de EVE, radar y motor."
+        )}
+      </.help>
+    </h1>
+    <div class="font-mono text-xs eth-muted tabular-nums">
       EVE {Format.eve_time(@now)} UTC
       <a :if={@dev_routes} href="/dev/dashboard" class="link ml-3">LiveDashboard</a>
     </div>
   </div>
 
-  <%!-- Barra de salud global (RF-8.1) --%>
+  <%!-- Barra de salud global, siempre visible (RF-8.1) --%>
   <section
+    id="health"
     aria-label={gettext("Salud global")}
-    class="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8"
+    class="eth-chamfer grid grid-cols-2 border border-base-300 bg-base-100 md:grid-cols-4 xl:grid-cols-7 [&>div]:border-base-300 [&>div]:px-4 [&>div]:py-3 xl:[&>div:not(:last-child)]:border-r"
   >
-    <div class="card bg-base-200 p-3">
-      <div class="text-xs uppercase text-base-content/60">Tranquility</div>
+    <div>
+      <div class="eth-kicker text-[10px]">Tranquility</div>
       <%= cond do %>
         <% is_nil(@server) -> %>
-          <div class="text-base-content/70">{gettext("Consultando…")}</div>
+          <div class="text-sm eth-muted">{gettext("Consultando…")}</div>
         <% @server[:replay] -> %>
-          <div class="font-semibold text-info">◆ {gettext("Modo Replay")}</div>
-          <div class="text-xs text-base-content/70">{gettext("datos grabados, sin ESI")}</div>
+          <div class="text-sm font-semibold text-info">{gettext("Modo Replay")}</div>
+          <div class="text-xs eth-faint">{gettext("datos grabados, sin ESI")}</div>
         <% @server.online -> %>
-          <div class="font-semibold text-success">● {gettext("En línea")}</div>
-          <div class="text-sm tabular-nums">
+          <div class="flex items-center gap-1.5 text-sm font-semibold text-success">
+            <span class="size-1.5 bg-success"></span> {gettext("En línea")}
+          </div>
+          <div class="font-mono text-xs eth-muted">
             {Format.integer(@server.players)} {gettext("pilotos")}
-            <span :if={@server.vip} class="badge badge-warning badge-sm">VIP</span>
+            <span :if={@server.vip} class="text-warning">· VIP</span>
           </div>
         <% true -> %>
-          <div class="font-semibold text-error">× {gettext("Sin respuesta")}</div>
+          <div class="text-sm font-semibold text-error">{gettext("Sin respuesta")}</div>
       <% end %>
     </div>
 
-    <div class="card bg-base-200 p-3">
-      <div class="text-xs uppercase text-base-content/60">{gettext("Error limit ESI")}</div>
-      <div class="font-semibold tabular-nums">
+    <div>
+      <div class="eth-kicker flex items-center gap-1.5 text-[10px]">
+        {gettext("Error limit")}
+        <.help topic={:esi_limits} title={gettext("Error limit")}>
+          {gettext(
+            "EVE permite 100 errores por minuto; si se acerca a cero, la aplicación pausa ESI sola."
+          )}
+        </.help>
+      </div>
+      <div class="font-mono text-sm eth-strong">
         {if @budget.error_limit, do: "#{@budget.error_limit.remain}/100", else: "—"}
       </div>
-      <div class="text-xs text-base-content/60">{gettext("errores permitidos por minuto")}</div>
+      <div class="text-xs eth-faint">{gettext("errores permitidos por minuto")}</div>
     </div>
 
-    <div class="card bg-base-200 p-3">
-      <div class="text-xs uppercase text-base-content/60">
-        {gettext("Presupuesto de mercado")}
-      </div>
-      <%= if @market_budget do %>
-        <div class="font-semibold tabular-nums">
-          {Format.integer(@market_budget.remaining)}/{Format.integer(@market_budget.limit)} tk
-        </div>
-        <progress
-          class={[
-            "progress h-1.5",
-            if(budget_used_pct(@market_budget) >= 90,
-              do: "progress-error",
-              else: "progress-primary"
-            )
-          ]}
-          value={budget_used_pct(@market_budget)}
-          max="100"
-          aria-label={gettext("Presupuesto usado")}
-        ></progress>
-        <div class="text-xs text-base-content/60">
-          {gettext("%{pct} % usado en la ventana", pct: budget_used_pct(@market_budget))}
-        </div>
-      <% else %>
-        <div class="text-base-content/70">—</div>
-      <% end %>
-    </div>
-
-    <div class="card bg-base-200 p-3">
-      <div class="text-xs uppercase text-base-content/60">ESI</div>
+    <div>
+      <div class="eth-kicker text-[10px]">ESI</div>
       <%= if @budget.paused_until do %>
-        <div class="font-semibold text-warning">□ {gettext("En pausa")}</div>
-        <div class="text-xs text-base-content/70">
-          {gettext("motivo")}: {@budget.pause_reason}
-        </div>
-        <button phx-click="resume_esi" class="btn btn-xs btn-primary mt-1">
+        <div class="text-sm font-semibold text-warning">{gettext("En pausa")}</div>
+        <div class="text-xs eth-faint">{gettext("motivo")}: {@budget.pause_reason}</div>
+        <button phx-click="resume_esi" class="btn btn-primary btn-xs mt-1">
           {gettext("Reanudar")}
         </button>
       <% else %>
-        <div class="font-semibold text-success">● {gettext("Activo")}</div>
+        <div class="flex items-center gap-1.5 text-sm font-semibold text-success">
+          <span class="size-1.5 bg-success"></span> {gettext("Activo")}
+        </div>
         <button
           phx-click="pause_esi"
           data-confirm={gettext("¿Pausar todas las descargas de ESI?")}
-          class="btn btn-xs btn-outline btn-warning mt-1"
+          class="btn btn-outline btn-warning btn-xs mt-1"
         >
           {gettext("Pausa global")}
         </button>
       <% end %>
     </div>
 
-    <div class="card bg-base-200 p-3">
-      <div class="text-xs uppercase text-base-content/60">{gettext("Memoria")}</div>
-      <div class="font-semibold tabular-nums">{Format.bytes(@memory.total)}</div>
-      <div class="text-xs text-base-content/70 tabular-nums">
+    <div>
+      <div class="eth-kicker text-[10px]">{gettext("Memoria")}</div>
+      <div class="font-mono text-sm eth-strong">{Format.bytes(@memory.total)}</div>
+      <div class="font-mono text-xs eth-faint">
         ETS {Format.bytes(@memory.ets)} · {Format.compact(totals(@regions).orders)} {gettext(
           "órdenes"
         )}
       </div>
     </div>
 
-    <div id="sde-status" class="card bg-base-200 p-3">
-      <div class="text-xs uppercase text-base-content/60">{gettext("Datos estáticos")}</div>
-      <% {sde_text, sde_class, sde_icon} = sde_label(@sde) %>
-      <div class={["font-semibold", sde_class]}>{sde_icon} {sde_text}</div>
-      <div :if={@sde[:build]} class="text-xs text-base-content/70 tabular-nums">
+    <div id="sde-status">
+      <div class="eth-kicker text-[10px]">{gettext("Datos estáticos")}</div>
+      <% {sde_text, sde_class} = sde_label(@sde) %>
+      <div class={["text-sm font-semibold", sde_class]}>{sde_text}</div>
+      <div :if={@sde[:build]} class="font-mono text-xs eth-faint">
         SDE {@sde.build}
         <span :if={@sde[:routable_systems]}>
-          · {Format.integer(@sde.routable_systems)} {gettext("sistemas ruteables")}
+          · {Format.integer(@sde.routable_systems)} {gettext("sistemas")}
         </span>
       </div>
       <div :if={@sde[:error]} class="text-xs text-error">{@sde.error}</div>
     </div>
 
     <%!-- Cola de historial (RF-1.12) --%>
-    <div id="history-status" class="card bg-base-200 p-3">
-      <div class="text-xs uppercase text-base-content/60">{gettext("Historial")}</div>
+    <div id="history-status">
+      <div class="eth-kicker text-[10px]">{gettext("Historial")}</div>
       <%= if @history do %>
-        <div class="font-semibold tabular-nums">
+        <div class="font-mono text-sm eth-strong">
           {@history.last_minute}/{@history.max_per_min} {gettext("por min")}
         </div>
-        <div class="text-xs text-base-content/70 tabular-nums">
+        <div class="font-mono text-xs eth-faint">
           {gettext("%{cached} en caché · %{pending} en cola",
             cached: Format.integer(@history.cached),
             pending: Format.integer(@history.pending)
           )}
         </div>
       <% else %>
-        <div class="text-base-content/70">—</div>
+        <div class="text-sm eth-muted">—</div>
       <% end %>
     </div>
 
-    <div class="card bg-base-200 p-3">
-      <div class="text-xs uppercase text-base-content/60">{gettext("Próximo downtime")}</div>
-      <div class="font-semibold tabular-nums">{Format.countdown(@next_downtime, @now)}</div>
-      <div class="text-xs text-base-content/60">11:00 UTC</div>
+    <div>
+      <div class="eth-kicker text-[10px]">{gettext("Próximo downtime")}</div>
+      <div class="font-mono text-sm eth-strong">{Format.countdown(@next_downtime, @now)}</div>
+      <div class="font-mono text-xs eth-faint">11:00 UTC</div>
     </div>
   </section>
 
-  <div class="grid gap-6 xl:grid-cols-[1fr_24rem]">
-    <%!-- Mapa de regiones (RF-8.2) --%>
-    <section aria-labelledby="regions-title" class="space-y-4">
-      <div class="flex items-baseline justify-between">
-        <h2 id="regions-title" class="text-lg font-semibold">
-          {gettext("Regiones")} ({totals(@regions).count})
-        </h2>
-        <span class="text-sm text-base-content/70">
-          {gettext("%{fresh} con datos frescos", fresh: totals(@regions).fresh)}
-        </span>
+  <.tabs
+    id="control-tabs"
+    active={@tab}
+    label={gettext("Secciones del Centro de control")}
+    tabs={control_tabs(assigns)}
+  />
+
+  <%= case @tab do %>
+    <% "overview" -> %>
+      <%!-- Requiere atención (RF-8.10) --%>
+      <% issues = attention(assigns) %>
+      <div
+        id="attention"
+        class={[
+          "flex flex-wrap items-center gap-x-4 gap-y-1 border px-4 py-2.5 text-sm",
+          if(issues == [],
+            do: "border-success/40 bg-success/5",
+            else: "border-warning/50 bg-warning/10"
+          )
+        ]}
+      >
+        <%= if issues == [] do %>
+          <span class="font-semibold text-success">{gettext("Todo en orden")}</span>
+          <span class="eth-muted">
+            {gettext("Ningún proceso requiere atención ahora.")}
+          </span>
+        <% else %>
+          <span class="eth-kicker text-[11px] text-warning">{gettext("Requiere atención")}</span>
+          <.link
+            :for={{_kind, text, path} <- issues}
+            patch={path}
+            class="link link-hover eth-strong"
+          >
+            {text}
+          </.link>
+        <% end %>
       </div>
 
-      <p :if={@regions == %{}} class="text-base-content/70">
-        {gettext(
-          "Todavía no hay pollers corriendo. El mercado arranca unos segundos después del servidor."
-        )}
-      </p>
-
-      <div :for={{tier, tier_title} <- @tiers} :if={regions_in_tier(@regions, tier) != []}>
-        <h3 class="mb-2 text-sm font-semibold uppercase text-base-content/60">{tier_title}</h3>
-        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
-          <button
-            :for={{r, {key, label, color}} <- tiles(@regions, tier, @now)}
-            id={"region-#{r.region_id}"}
-            type="button"
-            phx-click="select_region"
-            phx-value-id={r.region_id}
-            aria-label={"#{r.name}: #{label}"}
-            aria-pressed={to_string(@selected == r.region_id)}
-            class={[
-              "card border-l-4 bg-base-200 p-3 text-left transition hover:bg-base-300",
-              tone_border(color),
-              @selected == r.region_id && "ring-2 ring-primary"
-            ]}
-          >
-            <div class="truncate font-semibold">{r.name}</div>
-            <div class={["text-sm", tone_text(color)]}>{status_icon(key)} {label}</div>
-            <div class="text-xs tabular-nums">{timing(r, @now)}</div>
-            <progress
-              :if={r.status == :fetching}
-              class="progress progress-info h-1"
-              value={progress_pct(r)}
-              max="100"
-            ></progress>
-            <div class="text-xs text-base-content/70 tabular-nums">
-              {Format.compact(r.orders)} {gettext("órd.")} · {Format.ago(r.last_modified, @now)}
-            </div>
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <%!-- Detalle de proceso (RF-8.3) --%>
-    <aside aria-labelledby="detail-title" class="card h-fit border border-base-300 p-4">
-      <%= if r = @selected && @regions[@selected] do %>
-        <div class="flex items-start justify-between">
-          <h2 id="detail-title" class="text-lg font-semibold">{r.name}</h2>
-          <button
-            phx-click="close_detail"
-            class="btn btn-ghost btn-xs"
-            aria-label={gettext("Cerrar detalle")}
-          >
-            ✕
-          </button>
-        </div>
-        <div class="text-xs text-base-content/60">{r.region_id} · {tier_label(r.tier)}</div>
-
-        <dl class="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm tabular-nums">
-          <dt class="text-base-content/60">{gettext("Estado")}</dt>
-          <dd>{r |> display(@now) |> elem(1)} ({r.status})</dd>
-          <dt class="text-base-content/60">{gettext("Generación")}</dt>
-          <dd>{r.generation || "—"}</dd>
-          <dt class="text-base-content/60">Last-Modified</dt>
-          <dd>{Format.eve_time(r.last_modified)} ({Format.ago(r.last_modified, @now)})</dd>
-          <dt class="text-base-content/60">Expires</dt>
-          <dd>{Format.eve_time(r.expires)} (T-{Format.countdown(r.expires, @now)})</dd>
-          <dt class="text-base-content/60">{gettext("Próximo ciclo")}</dt>
-          <dd>{Format.eve_time(r.next_at)}</dd>
-          <dt class="text-base-content/60">{gettext("Páginas")}</dt>
-          <dd>{r.pages || "—"} ({r.not_modified_pages || 0} × 304)</dd>
-          <dt class="text-base-content/60">{gettext("Órdenes")}</dt>
-          <dd>
-            {Format.integer(r.orders)}
-            <span class="text-base-content/60">
-              ({gettext("venta")} {Format.compact(r.sell_orders)} · {gettext("compra")} {Format.compact(
-                r.buy_orders
-              )})
-            </span>
-          </dd>
-          <dt class="text-base-content/60">{gettext("Memoria ETS")}</dt>
-          <dd>{Format.bytes(r.bytes)}</dd>
-          <dt class="text-base-content/60">{gettext("Fallos seguidos")}</dt>
-          <dd>{r.failures}</dd>
-          <dt :if={r.last_error} class="text-base-content/60">{gettext("Último error")}</dt>
-          <dd :if={r.last_error} class="text-error">{r.last_error}</dd>
-        </dl>
-
-        <div :if={r.history != []} class="mt-3">
-          <div class="text-xs text-base-content/60">
-            {gettext("Duración de los últimos %{n} ciclos", n: length(r.history))} · {gettext(
-              "último"
-            )}: {Format.duration(div(hd(r.history).duration_ms, 1000))}
-          </div>
-          <svg viewBox="0 0 100 20" class="h-10 w-full text-primary" aria-hidden="true">
-            <polyline
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-              points={sparkline_points(r.history)}
-            />
-          </svg>
-        </div>
-
-        <div class="mt-4 flex flex-wrap gap-2">
-          <button
-            phx-click="refresh_now"
-            phx-value-id={r.region_id}
-            class="btn btn-sm btn-primary"
-          >
-            {gettext("Actualizar ahora")}
-          </button>
-          <button
-            :if={r.status != :paused or r.pause_reason != :manual}
-            phx-click="pause_region"
-            phx-value-id={r.region_id}
-            class="btn btn-sm btn-outline"
-          >
-            {gettext("Pausar")}
-          </button>
-          <button
-            :if={r.status == :paused and r.pause_reason == :manual}
-            phx-click="resume_region"
-            phx-value-id={r.region_id}
-            class="btn btn-sm btn-outline"
-          >
-            {gettext("Reanudar")}
-          </button>
-        </div>
-        <p class="mt-2 text-xs text-base-content/60">
+      <%!-- Pollers de los hubs como anillos dobles (§9.10) --%>
+      <.panel id="pollers" title={gettext("Pollers de mercado")} help={:pollers}>
+        <:help_body>
           {gettext(
-            "\"Actualizar ahora\" solo actúa si ESI ya publicó datos nuevos (Expires vencido) o si la región está en error."
+            "Anillo exterior: tiempo hasta que EVE publique datos nuevos. Interior: páginas descargadas del ciclo."
+          )}
+        </:help_body>
+        <:actions>
+          <.link patch={~p"/control/market"} class="text-xs link link-primary">
+            {gettext("Mapa de regiones →")}
+          </.link>
+        </:actions>
+
+        <p :if={@regions == %{}} class="text-sm eth-muted">
+          {gettext(
+            "Todavía no hay pollers corriendo. El mercado arranca unos segundos después del servidor."
           )}
         </p>
-      <% else %>
-        <h2 id="detail-title" class="text-lg font-semibold">{gettext("Detalle")}</h2>
-        <p class="text-sm text-base-content/70">
-          {gettext("Elegí una región del mapa para ver sus métricas y acciones.")}
-        </p>
-      <% end %>
-    </aside>
-  </div>
-
-  <%!-- Panel del radar (RF-8.5) --%>
-  <section id="radar" aria-labelledby="radar-title" class="card border border-base-300 p-4">
-    <div class="flex flex-wrap items-baseline justify-between gap-2">
-      <h2 id="radar-title" class="text-lg font-semibold">{gettext("Radar de amenazas")}</h2>
-      <p id="radar-feed" class="text-sm tabular-nums text-base-content/70">
-        {feed_label(@feed)}
-        <span :if={@feed[:sequence]}>· {gettext("secuencia")} {@feed.sequence}</span>
-        <span :if={@feed[:lag_s]}>· {gettext("atraso %{s} s", s: @feed.lag_s)}</span>
-        <span :if={@feed[:processed]}>
-          · {gettext("%{n} kills leídas", n: Format.integer(@feed.processed))}
-        </span>
-        · {gettext("línea base: %{kills} h de kills, %{jumps} h de saltos",
-          kills: @baseline.kill_hours,
-          jumps: @baseline.jump_hours
-        )}
-        <span :if={@radar_degraded} class="badge badge-warning badge-sm">
-          {gettext("degradado: solo línea base")}
-        </span>
-      </p>
-    </div>
-
-    <div class="mt-3 grid gap-4 lg:grid-cols-2">
-      <div>
-        <h3 class="text-sm font-semibold">{gettext("Sistemas calientes")}</h3>
-        <p :if={@hot == []} class="text-sm text-base-content/60">
-          {gettext("Sin kills PvP en la ventana de 15 minutos.")}
-        </p>
-        <table :if={@hot != []} class="table table-xs tabular-nums">
-          <thead>
-            <tr>
-              <th>{gettext("Sistema")}</th>
-              <th class="text-right">{gettext("Kills")}</th>
-              <th class="text-right">λ</th>
-              <th>{gettext("Amenaza")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr :for={h <- @hot} id={"hot-#{h.system_id}"} class={[h.alert && "text-error"]}>
-              <td>
-                <span style={sec_style(h.system_id)} class="font-mono">
-                  {sec_label(h.system_id)}
-                </span>
-                {system_name(h.system_id)}
-              </td>
-              <td class="text-right">{h.kills}</td>
-              <td class="text-right">{:erlang.float_to_binary(h.lambda / 1, decimals: 2)}</td>
-              <td>
-                <%= if h.alert do %>
-                  {round(h.threat * 100)} % · {h.classification.description}
-                <% else %>
-                  <span class="text-base-content/50">{gettext("dentro de lo habitual")}</span>
-                <% end %>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div>
-        <h3 class="text-sm font-semibold">{gettext("Últimas kills relevantes")}</h3>
-        <p :if={@kills == []} class="text-sm text-base-content/60">
-          {gettext("Transportes destruidos, kills en gates y sistemas en alerta aparecen acá.")}
-        </p>
-        <ol id="radar-kills" class="max-h-72 space-y-0.5 overflow-y-auto text-xs tabular-nums">
-          <li :for={k <- @kills} id={"kill-#{k.id}"} class={[k.alert && "text-error"]}>
-            <span class="text-base-content/60">{Calendar.strftime(k.time, "%H:%M")}</span>
-            {k.system_name}
-            <span :if={k.gate_to}>· {gettext("gate a %{to}", to: k.gate_to)}</span>
-            <span :if={k.victim_transport} class="badge badge-warning badge-xs">
-              {gettext("transporte")}
+        <div
+          :if={@regions != %{}}
+          class="flex flex-wrap items-start justify-center gap-6 sm:justify-start"
+        >
+          <.link
+            :for={{r, {_key, label, color}} <- tiles(@regions, :hub, @now)}
+            id={"poller-#{r.region_id}"}
+            patch={~p"/control/market?region=#{r.region_id}"}
+            class="group flex w-32 flex-col items-center gap-2 text-center"
+            title={"#{r.name}: #{label}"}
+          >
+            <.double_ring
+              outer={expires_fraction(r, @now)}
+              inner={pages_fraction(r)}
+              size={112}
+              outer_class={tone_text(color)}
+              inner_class="text-success"
+              label={"#{r.name}: #{label} · #{timing(r, @now)}"}
+            >
+              <span class="font-mono text-sm eth-strong">{timing(r, @now)}</span>
+              <span class={["text-[10px] uppercase tracking-wider", tone_text(color)]}>
+                {label}
+              </span>
+            </.double_ring>
+            <span class="font-display text-sm font-semibold eth-strong group-hover:text-primary">
+              {r.name}
             </span>
-            · {k.attackers} {gettext("atacantes")} · {Format.compact(k.value)} ISK
+            <span class="font-mono text-xs eth-faint">
+              {Format.compact(r.orders)} {gettext("órdenes")}
+            </span>
+          </.link>
+        </div>
+        <p :if={@regions != %{}} class="mt-4 text-xs eth-faint">
+          {gettext(
+            "N2 · Activas (%{active}) · N3 · Resto (%{rest}) · %{fresh} regiones con datos frescos",
+            active: length(regions_in_tier(@regions, :active)),
+            rest: length(regions_in_tier(@regions, :rest)),
+            fresh: totals(@regions).fresh
+          )}
+        </p>
+      </.panel>
+
+      <div class="grid gap-5 lg:grid-cols-2">
+        <%!-- Motor: barra segmentada por etapa --%>
+        <.panel
+          id="engine"
+          title={
+            if(@engine_meta,
+              do: gettext("Evaluación del motor · v%{v}", v: @engine_meta.version),
+              else: gettext("Evaluación del motor")
+            )
+          }
+          help={:engine}
+        >
+          <:help_body>
+            {gettext("Cuánto tardó cada etapa de la última evaluación del mercado.")}
+          </:help_body>
+          <%= if @engine_meta do %>
+            <div class="flex h-3 w-full gap-px bg-base-300" aria-hidden="true">
+              <span
+                :for={{_label, ms, class} <- engine_stages(@engine_meta)}
+                class={["h-full", class]}
+                style={"width: #{stage_width(ms, @engine_meta)}%"}
+              ></span>
+            </div>
+            <ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+              <li
+                :for={{label, ms, class} <- engine_stages(@engine_meta)}
+                class="flex items-center gap-1.5"
+              >
+                <span class={["size-2", class]}></span>
+                <span class="eth-muted">{label}</span>
+                <span class="font-mono eth-strong">{ms} ms</span>
+              </li>
+              <li class="ml-auto font-mono eth-muted">
+                {gettext("total %{ms} ms", ms: @engine_meta.duration_ms)} · {Format.ago(
+                  @engine_meta.evaluated_at,
+                  @now
+                )}
+              </li>
+            </ul>
+          <% else %>
+            <p class="text-sm eth-muted">
+              {gettext("El motor todavía no evaluó el mercado.")}
+            </p>
+          <% end %>
+        </.panel>
+
+        <%!-- Presupuestos de ESI como arcos --%>
+        <.panel id="budgets" title={gettext("Presupuestos de ESI")} help={:budgets}>
+          <:help_body>
+            {gettext(
+              "Cuánto se usó de cada presupuesto de EVE en su ventana. Cerca del límite, la aplicación baja el ritmo."
+            )}
+          </:help_body>
+          <:actions>
+            <.link patch={~p"/control/esi"} class="text-xs link link-primary">
+              {gettext("Detalle →")}
+            </.link>
+          </:actions>
+          <div class="flex flex-wrap items-end justify-around gap-4">
+            <.arc
+              value={error_used(@budget)}
+              width={120}
+              class={used_class(error_used(@budget))}
+              label={gettext("Error limit usado")}
+            >
+              <span class="font-mono text-sm eth-strong">
+                {if @budget.error_limit, do: @budget.error_limit.remain, else: "—"}
+              </span>
+              <span class="text-[10px] uppercase tracking-wider eth-faint">
+                {gettext("error limit")}
+              </span>
+            </.arc>
+            <.arc
+              :for={g <- Enum.take(budget_groups(@budget), 3)}
+              value={g.used}
+              width={120}
+              class={used_class(g.used)}
+              label={"#{g.name}: #{round(g.used * 100)} %"}
+            >
+              <span class="font-mono text-sm eth-strong">{round(g.used * 100)} %</span>
+              <span class="max-w-24 truncate text-[10px] uppercase tracking-wider eth-faint">
+                {g.name}
+              </span>
+            </.arc>
+          </div>
+        </.panel>
+
+        <%!-- Cola de historial como medidor de caudal --%>
+        <.panel id="history-queue" title={gettext("Cola de historial")} help={:history_queue}>
+          <:help_body>
+            {gettext(
+              "Consultas de historial por minuto frente al tope, y cuánto falta para vaciar la cola."
+            )}
+          </:help_body>
+          <%= if @history do %>
+            <div class="flex items-center gap-5">
+              <.arc
+                value={@history.last_minute / max(@history.max_per_min, 1)}
+                width={140}
+                class="text-info"
+                label={gettext("Consultas de historial por minuto")}
+              >
+                <span class="font-mono text-base eth-strong">{@history.last_minute}</span>
+                <span class="text-[10px] uppercase tracking-wider eth-faint">
+                  {gettext("req/min")}
+                </span>
+              </.arc>
+              <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
+                <dt class="eth-muted">{gettext("Tope")}</dt>
+                <dd class="font-mono">{@history.max_per_min}/min</dd>
+                <dt class="eth-muted">{gettext("Pendientes")}</dt>
+                <dd class="font-mono">{Format.integer(@history.pending)}</dd>
+                <dt class="eth-muted">{gettext("En caché")}</dt>
+                <dd class="font-mono">{Format.integer(@history.cached)}</dd>
+                <dt class="eth-muted">{gettext("Para vaciar")}</dt>
+                <dd class="font-mono">~{drain_minutes(@history)} min</dd>
+              </dl>
+            </div>
+          <% else %>
+            <p class="text-sm eth-muted">{gettext("La cola de historial no está corriendo.")}</p>
+          <% end %>
+        </.panel>
+
+        <%!-- Radar como pulso y SDE como pasos --%>
+        <.panel id="radar-pulse" title={gettext("Radar · R2Z2")} help={:radar_feed}>
+          <:help_body>
+            {gettext(
+              "El pulso late mientras llegan kills; si el feed se corta, el radar usa solo la línea base."
+            )}
+          </:help_body>
+          <div class="flex items-center gap-4">
+            <.pulse live={not @radar_degraded} size={56} />
+            <div class="min-w-0">
+              <div class={[
+                "text-sm font-semibold",
+                if(@radar_degraded, do: "text-warning", else: "text-success")
+              ]}>
+                {feed_label(@feed)}
+              </div>
+              <div class="font-mono text-xs eth-faint">
+                <span :if={@feed[:lag_s]}>{gettext("atraso %{s} s", s: @feed.lag_s)} · </span>
+                {gettext("%{n} sistemas en alerta", n: Enum.count(@hot, & &1.alert))}
+              </div>
+              <.link patch={~p"/control/radar"} class="text-xs link link-primary">
+                {gettext("Ver el radar →")}
+              </.link>
+            </div>
+          </div>
+
+          <div id="sde-steps" class="mt-5 border-t border-base-300 pt-3">
+            <div class="eth-kicker mb-2 text-[10px]">
+              {if @sde[:build], do: gettext("SDE · build %{b}", b: @sde.build), else: "SDE"}
+            </div>
+            <.steps steps={sde_steps(@sde)} />
+          </div>
+        </.panel>
+      </div>
+    <% "market" -> %>
+      <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <%!-- Mapa de regiones (RF-8.2) --%>
+        <.panel
+          id="regions"
+          title={gettext("Regiones (%{n})", n: totals(@regions).count)}
+          help={:pollers}
+        >
+          <:help_body>
+            {gettext(
+              "Cada región con su estado, la cuenta regresiva hasta datos nuevos y las páginas."
+            )}
+          </:help_body>
+          <:actions>
+            <span class="text-xs eth-muted">
+              {gettext("%{fresh} con datos frescos", fresh: totals(@regions).fresh)}
+            </span>
+          </:actions>
+
+          <p :if={@regions == %{}} class="text-sm eth-muted">
+            {gettext(
+              "Todavía no hay pollers corriendo. El mercado arranca unos segundos después del servidor."
+            )}
+          </p>
+
+          <div
+            :for={{tier, tier_title} <- @tiers}
+            :if={regions_in_tier(@regions, tier) != []}
+            class="mb-4 last:mb-0"
+          >
+            <h3 class="eth-kicker mb-2 text-[11px]">{tier_title}</h3>
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              <button
+                :for={{r, {_key, label, color}} <- tiles(@regions, tier, @now)}
+                id={"region-#{r.region_id}"}
+                type="button"
+                phx-click="select_region"
+                phx-value-id={r.region_id}
+                aria-label={"#{r.name}: #{label}"}
+                aria-pressed={to_string(@selected == r.region_id)}
+                class={[
+                  "flex items-center gap-3 border border-l-4 border-base-300 bg-base-200 p-2.5 text-left transition-colors hover:border-primary/60",
+                  tone_border(color),
+                  @selected == r.region_id && "border-primary bg-primary/10"
+                ]}
+              >
+                <.ring
+                  value={
+                    if(r.status == :fetching,
+                      do: pages_fraction(r),
+                      else: expires_fraction(r, @now)
+                    )
+                  }
+                  size={36}
+                  stroke={3}
+                  class={tone_text(color)}
+                />
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-sm font-semibold eth-strong">{r.name}</span>
+                  <span class={["block text-xs", tone_text(color)]}>
+                    {label} · <span class="font-mono">{timing(r, @now)}</span>
+                  </span>
+                  <span class="block font-mono text-[11px] eth-faint">
+                    {Format.compact(r.orders)} {gettext("órd.")} · {Format.ago(
+                      r.last_modified,
+                      @now
+                    )}
+                  </span>
+                </span>
+              </button>
+            </div>
+          </div>
+        </.panel>
+
+        <%!-- Detalle de proceso (RF-8.3) --%>
+        <aside
+          aria-labelledby="detail-title"
+          class="eth-chamfer h-fit border border-base-300 bg-base-100 p-4 xl:sticky xl:top-20"
+        >
+          <%= if @selected && @regions[@selected] do %>
+            <div :for={r <- [@regions[@selected]]} id="region-detail">
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex items-center gap-3">
+                  <% {_key, label, color} = display(r, @now) %>
+                  <.double_ring
+                    outer={expires_fraction(r, @now)}
+                    inner={pages_fraction(r)}
+                    size={64}
+                    outer_class={tone_text(color)}
+                    label={label}
+                  />
+                  <div>
+                    <h2 id="detail-title" class="font-display text-lg font-semibold eth-strong">
+                      {r.name}
+                    </h2>
+                    <div class="font-mono text-xs eth-faint">
+                      {r.region_id} · {tier_label(r.tier)}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  phx-click="close_detail"
+                  class="btn btn-ghost btn-xs"
+                  aria-label={gettext("Cerrar detalle")}
+                >
+                  <.icon name="hero-x-mark" class="size-4" />
+                </button>
+              </div>
+
+              <dl class="mt-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                <dt class="eth-muted">{gettext("Estado")}</dt>
+                <dd>
+                  {r |> display(@now) |> elem(1)}
+                  <span class="font-mono eth-faint">({r.status})</span>
+                </dd>
+                <dt class="eth-muted">{gettext("Generación")}</dt>
+                <dd class="font-mono">{r.generation || "—"}</dd>
+                <dt class="eth-muted">Last-Modified</dt>
+                <dd class="font-mono">
+                  {Format.eve_time(r.last_modified)} ({Format.ago(r.last_modified, @now)})
+                </dd>
+                <dt class="eth-muted">Expires</dt>
+                <dd class="font-mono">
+                  {Format.eve_time(r.expires)} (T-{Format.countdown(r.expires, @now)})
+                </dd>
+                <dt class="eth-muted">{gettext("Próximo ciclo")}</dt>
+                <dd class="font-mono">{Format.eve_time(r.next_at)}</dd>
+                <dt class="eth-muted">{gettext("Páginas")}</dt>
+                <dd class="font-mono">{r.pages || "—"} ({r.not_modified_pages || 0} × 304)</dd>
+                <dt class="eth-muted">{gettext("Órdenes")}</dt>
+                <dd class="font-mono">
+                  {Format.integer(r.orders)}
+                  <span class="eth-faint">
+                    ({gettext("venta")} {Format.compact(r.sell_orders)} · {gettext("compra")} {Format.compact(
+                      r.buy_orders
+                    )})
+                  </span>
+                </dd>
+                <dt class="eth-muted">{gettext("Memoria ETS")}</dt>
+                <dd class="font-mono">{Format.bytes(r.bytes)}</dd>
+                <dt class="eth-muted">{gettext("Fallos seguidos")}</dt>
+                <dd class="font-mono">{r.failures}</dd>
+                <dt :if={r.last_error} class="eth-muted">{gettext("Último error")}</dt>
+                <dd :if={r.last_error} class="text-error">{r.last_error}</dd>
+              </dl>
+
+              <div :if={r.history != []} class="mt-4">
+                <div class="text-xs eth-faint">
+                  {gettext("Duración de los últimos %{n} ciclos", n: length(r.history))} · {gettext(
+                    "último"
+                  )}: {Format.duration(div(hd(r.history).duration_ms, 1000))}
+                </div>
+                <svg viewBox="0 0 100 20" class="h-10 w-full text-primary" aria-hidden="true">
+                  <polyline
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    vector-effect="non-scaling-stroke"
+                    points={sparkline_points(r.history)}
+                  />
+                </svg>
+              </div>
+
+              <div class="mt-4 flex flex-wrap gap-2">
+                <button
+                  phx-click="refresh_now"
+                  phx-value-id={r.region_id}
+                  class="btn btn-primary btn-sm"
+                >
+                  {gettext("Actualizar ahora")}
+                </button>
+                <button
+                  :if={r.status != :paused or r.pause_reason != :manual}
+                  phx-click="pause_region"
+                  phx-value-id={r.region_id}
+                  class="btn btn-outline btn-sm"
+                >
+                  {gettext("Pausar")}
+                </button>
+                <button
+                  :if={r.status == :paused and r.pause_reason == :manual}
+                  phx-click="resume_region"
+                  phx-value-id={r.region_id}
+                  class="btn btn-outline btn-sm"
+                >
+                  {gettext("Reanudar región")}
+                </button>
+              </div>
+              <p class="mt-2 text-xs eth-faint">
+                {gettext(
+                  "\"Actualizar ahora\" solo actúa si ESI ya publicó datos nuevos (Expires vencido) o si la región está en error."
+                )}
+              </p>
+            </div>
+          <% else %>
+            <h2 id="detail-title" class="eth-kicker">{gettext("Detalle")}</h2>
+            <p class="mt-2 text-sm eth-muted">
+              {gettext("Elegí una región del mapa para ver sus métricas y acciones.")}
+            </p>
+          <% end %>
+        </aside>
+      </div>
+    <% "radar" -> %>
+      <%!-- Panel del radar (RF-8.5) --%>
+      <.panel id="radar" title={gettext("Radar de amenazas")} help={:radar}>
+        <:help_body>
+          {gettext("Kills en vivo comparadas con la actividad habitual de cada sistema.")}
+        </:help_body>
+        <div class="flex flex-wrap items-center gap-4">
+          <.pulse live={not @radar_degraded} size={48} />
+          <p id="radar-feed" class="text-sm eth-muted">
+            <span class="eth-strong">{feed_label(@feed)}</span>
+            <span :if={@feed[:sequence]} class="font-mono">
+              · {gettext("secuencia")} {@feed.sequence}
+            </span>
+            <span :if={@feed[:lag_s]}>· {gettext("atraso %{s} s", s: @feed.lag_s)}</span>
+            <span :if={@feed[:processed]}>
+              · {gettext("%{n} kills leídas", n: Format.integer(@feed.processed))}
+            </span>
+            <br />
+            {gettext("Línea base: %{kills} h de kills, %{jumps} h de saltos",
+              kills: @baseline.kill_hours,
+              jumps: @baseline.jump_hours
+            )}
+            <.seal
+              :if={@radar_degraded}
+              kind={:risk}
+              label={gettext("degradado: solo línea base")}
+            />
+          </p>
+        </div>
+
+        <div class="mt-5 grid gap-6 lg:grid-cols-2">
+          <div>
+            <h3 class="eth-kicker mb-2 flex items-center gap-2 text-[11px] text-primary">
+              {gettext("Sistemas calientes")}
+              <.help topic={:radar} title="λ">
+                {gettext("λ: kills esperadas en la ventana según la línea base del sistema.")}
+              </.help>
+            </h3>
+            <p :if={@hot == []} class="text-sm eth-muted">
+              {gettext("Sin kills PvP en la ventana de 15 minutos.")}
+            </p>
+            <table :if={@hot != []} class="table table-sm">
+              <thead>
+                <tr class="border-base-300">
+                  <th class="eth-kicker text-[10px]">{gettext("Sistema")}</th>
+                  <th class="eth-kicker text-right text-[10px]">{gettext("Kills")}</th>
+                  <th class="eth-kicker text-right text-[10px]">λ</th>
+                  <th class="eth-kicker text-[10px]">{gettext("Amenaza")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  :for={h <- @hot}
+                  id={"hot-#{h.system_id}"}
+                  class={["border-base-300/60", h.alert && "bg-error/5"]}
+                >
+                  <td>
+                    <span style={sec_style(h.system_id)} class="font-mono">
+                      {sec_label(h.system_id)}
+                    </span>
+                    {system_name(h.system_id)}
+                  </td>
+                  <td class="text-right font-mono">{h.kills}</td>
+                  <td class="text-right font-mono">
+                    {:erlang.float_to_binary(h.lambda / 1, decimals: 2)}
+                  </td>
+                  <td class="text-xs">
+                    <%= if h.alert do %>
+                      <span class="text-error">
+                        {round(h.threat * 100)} % · {h.classification.description}
+                      </span>
+                    <% else %>
+                      <span class="eth-faint">{gettext("dentro de lo habitual")}</span>
+                    <% end %>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <h3 class="eth-kicker mb-2 text-[11px] text-primary">
+              {gettext("Últimas kills relevantes")}
+            </h3>
+            <p :if={@kills == []} class="text-sm eth-muted">
+              {gettext(
+                "Transportes destruidos, kills en gates y sistemas en alerta aparecen acá."
+              )}
+            </p>
+            <ol id="radar-kills" class="max-h-80 space-y-1 overflow-y-auto text-xs">
+              <li
+                :for={k <- @kills}
+                id={"kill-#{k.id}"}
+                class={[
+                  "flex flex-wrap items-center gap-x-1.5 border-l-2 pl-2",
+                  if(k.alert, do: "border-error", else: "border-base-300")
+                ]}
+              >
+                <span class="font-mono eth-faint">{Calendar.strftime(k.time, "%H:%M")}</span>
+                <span class="eth-strong">{k.system_name}</span>
+                <span :if={k.gate_to} class="eth-muted">
+                  · {gettext("gate a %{to}", to: k.gate_to)}
+                </span>
+                <.seal :if={k.victim_transport} kind={:risk} label={gettext("transporte")} />
+                <span class="font-mono eth-muted">
+                  · {k.attackers} {gettext("atacantes")} · {Format.compact(k.value)} ISK
+                </span>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </.panel>
+    <% "characters" -> %>
+      <%!-- Sesiones de personajes (RF-8.6) --%>
+      <.panel id="character-sessions" title={gettext("Personajes")} help={:privacy}>
+        <:help_body>
+          {gettext(
+            "Cada anillo se llena desde la última lectura hasta la próxima consulta a EVE."
+          )}
+        </:help_body>
+        <p :if={@sessions == []} class="text-sm eth-muted">
+          {gettext("No hay sesiones de personajes: iniciá sesión con EVE para vincular uno.")}
+        </p>
+        <div
+          :for={s <- @sessions}
+          id={"session-#{s.id}"}
+          class="border-b border-base-300 py-4 first:pt-0 last:border-0 last:pb-0"
+        >
+          <div class="flex flex-wrap items-center gap-3">
+            <img
+              src={"https://images.evetech.net/characters/#{s.id}/portrait?size=64"}
+              alt=""
+              width="36"
+              height="36"
+              class="eth-chamfer-xs bg-base-300"
+            />
+            <span class="font-display font-semibold eth-strong">{s.name}</span>
+            <.seal kind={session_kind(s.status)} label={session_label(s.status)} />
+            <span class="text-xs eth-muted">{mode_label(s.mode)}</span>
+            <span :if={s.token_expires_at} class="font-mono text-xs eth-faint">
+              · {gettext("token vence en %{time}",
+                time: Format.countdown(s.token_expires_at, @now)
+              )}
+            </span>
+          </div>
+          <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
+            <div
+              :for={resource <- session_resources()}
+              id={"session-#{s.id}-#{resource}"}
+              class="flex items-center gap-2.5"
+            >
+              <.ring
+                value={resource_fraction(s, resource, @now)}
+                size={34}
+                stroke={3}
+                class={if(s.next_at[resource], do: "text-primary", else: "text-base-content/30")}
+                label={resource_label(resource)}
+              />
+              <div class="min-w-0 text-xs">
+                <div class="truncate eth-strong">{resource_label(resource)}</div>
+                <div class="font-mono eth-faint">{Format.ago(s.read_at[resource], @now)}</div>
+                <div class="font-mono eth-faint">
+                  <%= if s.next_at[resource] do %>
+                    {gettext("en %{time}", time: Format.countdown(s.next_at[resource], @now))}
+                  <% else %>
+                    {gettext("en pausa")}
+                  <% end %>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </.panel>
+    <% "logs" -> %>
+      <.panel id="events-panel" title={gettext("Eventos")}>
+        <:actions>
+          <div class="join" role="group" aria-label={gettext("Filtrar eventos")}>
+            <button
+              :for={
+                {value, label} <- [
+                  {"", gettext("Todos")},
+                  {"error", gettext("Errores")},
+                  {"warning", gettext("Avisos")},
+                  {"action", gettext("Acciones")}
+                ]
+              }
+              phx-click="filter_events"
+              phx-value-level={value}
+              aria-pressed={to_string((@event_level || "") == value)}
+              class={[
+                "btn join-item btn-xs",
+                if((@event_level || "") == value, do: "btn-primary", else: "btn-ghost")
+              ]}
+            >
+              {label}
+            </button>
+          </div>
+        </:actions>
+
+        <ol id="events" class="max-h-[32rem] space-y-1 overflow-y-auto text-sm">
+          <li :if={@events == []} class="eth-muted">{gettext("Sin eventos.")}</li>
+          <li :for={e <- @events} class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            <span class="font-mono text-xs eth-faint">{Format.eve_time(e.at)}</span>
+            <span class={[
+              "inline-flex w-16 justify-center border px-1 font-display text-[10px] font-semibold tracking-wider",
+              level_badge(e.level) |> elem(1)
+            ]}>
+              {level_badge(e.level) |> elem(0)}
+            </span>
+            <span class="w-28 shrink-0 truncate text-xs eth-muted">{e.source}</span>
+            <span class="min-w-0 flex-1">{e.message}</span>
           </li>
         </ol>
-      </div>
-    </div>
-  </section>
+      </.panel>
+    <% "esi" -> %>
+      <.panel id="esi-budgets" title={gettext("Presupuestos por grupo")} help={:budgets}>
+        <:help_body>
+          {gettext(
+            "ESI limita las consultas por grupo de endpoints y ventana de tiempo; cada personaje tiene los suyos."
+          )}
+        </:help_body>
+        <div class="flex flex-wrap items-end gap-6">
+          <.arc
+            value={error_used(@budget)}
+            width={150}
+            class={used_class(error_used(@budget))}
+            label={gettext("Error limit usado")}
+          >
+            <span class="font-mono text-base eth-strong">
+              {if @budget.error_limit, do: "#{@budget.error_limit.remain}/100", else: "—"}
+            </span>
+            <span class="text-[10px] uppercase tracking-wider eth-faint">
+              {gettext("error limit")}
+            </span>
+          </.arc>
+          <p class="max-w-md text-sm eth-muted">
+            {gettext(
+              "Si el error limit baja de %{n}, ESI se pausa sola hasta que se reinicie la ventana. La pausa global de arriba detiene todo a mano.",
+              n: Eth.GameRules.get(:error_limit_pause_at)
+            )}
+          </p>
+        </div>
 
-  <%!-- Sesiones de personajes (RF-8.6) --%>
-  <section
-    id="character-sessions"
-    aria-labelledby="sessions-title"
-    class="card border border-base-300 p-4"
-  >
-    <h2 id="sessions-title" class="text-lg font-semibold">{gettext("Personajes")}</h2>
-    <p :if={@sessions == []} class="text-sm text-base-content/60">
-      {gettext("No hay sesiones de personajes: iniciá sesión con EVE para vincular uno.")}
-    </p>
-    <div :for={s <- @sessions} id={"session-#{s.id}"} class="mt-3">
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="font-semibold">{s.name}</span>
-        <span class={["badge badge-sm", session_class(s.status)]}>{session_label(s.status)}</span>
-        <span class="text-xs text-base-content/60">{mode_label(s.mode)}</span>
-        <span :if={s.token_expires_at} class="text-xs tabular-nums text-base-content/60">
-          · {gettext("token vence en %{time}", time: Format.countdown(s.token_expires_at, @now))}
-        </span>
-      </div>
-      <div class="mt-1 overflow-x-auto">
-        <table class="table table-xs tabular-nums">
+        <p :if={budget_groups(@budget) == []} class="mt-4 text-sm eth-muted">
+          {gettext("Todavía no hubo respuestas de ESI con presupuesto.")}
+        </p>
+        <table :if={budget_groups(@budget) != []} class="table table-sm mt-4">
           <thead>
-            <tr>
-              <th>{gettext("Dato")}</th>
-              <th>{gettext("Última lectura")}</th>
-              <th>{gettext("Próxima consulta")}</th>
+            <tr class="border-base-300">
+              <th class="eth-kicker text-[10px]">{gettext("Grupo")}</th>
+              <th class="eth-kicker text-[10px]">{gettext("Personaje")}</th>
+              <th class="eth-kicker text-[10px]">{gettext("Uso")}</th>
+              <th class="eth-kicker text-right text-[10px]">{gettext("Restan")}</th>
+              <th class="eth-kicker text-right text-[10px]">{gettext("Actualizado")}</th>
             </tr>
           </thead>
           <tbody>
-            <tr :for={resource <- session_resources()} id={"session-#{s.id}-#{resource}"}>
-              <td>{resource_label(resource)}</td>
-              <td>{Format.ago(s.read_at[resource], @now)}</td>
-              <td>
-                <%= if s.next_at[resource] do %>
-                  {gettext("en %{time}", time: Format.countdown(s.next_at[resource], @now))}
-                <% else %>
-                  <span class="text-base-content/50">{gettext("en pausa")}</span>
-                <% end %>
+            <tr :for={g <- budget_groups(@budget)} class="border-base-300/60">
+              <td class="font-mono text-xs">{g.name}</td>
+              <td class="text-xs eth-muted">{g.character_id || gettext("público")}</td>
+              <td class="w-48">
+                <div class="h-1.5 w-full bg-base-300">
+                  <div
+                    class={[
+                      "h-full",
+                      g.used >= 0.9 && "bg-error",
+                      (g.used >= 0.7 and g.used < 0.9) && "bg-warning",
+                      g.used < 0.7 && "bg-primary"
+                    ]}
+                    style={"width: #{round(g.used * 100)}%"}
+                  >
+                  </div>
+                </div>
               </td>
+              <td class="text-right font-mono text-xs">
+                {g.remaining && Format.integer(g.remaining)}/{g.limit && Format.integer(g.limit)}
+              </td>
+              <td class="text-right font-mono text-xs eth-faint">{Format.ago(g.at, @now)}</td>
             </tr>
           </tbody>
         </table>
-      </div>
-    </div>
-  </section>
-
-  <section aria-labelledby="events-title" class="card border border-base-300 p-4">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <h2 id="events-title" class="text-lg font-semibold">{gettext("Eventos")}</h2>
-      <div class="join" role="group" aria-label={gettext("Filtrar eventos")}>
-        <button
-          :for={
-            {value, label} <- [
-              {"", gettext("Todos")},
-              {"error", gettext("Errores")},
-              {"warning", gettext("Avisos")},
-              {"action", gettext("Acciones")}
-            ]
-          }
-          phx-click="filter_events"
-          phx-value-level={value}
-          aria-pressed={to_string((@event_level || "") == value)}
-          class={["btn btn-xs join-item", (@event_level || "") == value && "btn-active"]}
-        >
-          {label}
-        </button>
-      </div>
-    </div>
-
-    <ol id="events" class="mt-3 max-h-80 space-y-1 overflow-y-auto font-mono text-sm">
-      <li :if={@events == []} class="text-base-content/60">{gettext("Sin eventos.")}</li>
-      <li :for={e <- @events} class="flex gap-3">
-        <span class="tabular-nums text-base-content/60">{Format.eve_time(e.at)}</span>
-        <span class={["badge badge-sm w-16", level_badge(e.level) |> elem(1)]}>
-          {level_badge(e.level) |> elem(0)}
-        </span>
-        <span class="w-28 shrink-0 truncate text-base-content/80">{e.source}</span>
-        <span>{e.message}</span>
-      </li>
-    </ol>
-  </section>
+      </.panel>
+  <% end %>
 </Layouts.app>

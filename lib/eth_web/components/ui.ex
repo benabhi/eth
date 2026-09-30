@@ -55,6 +55,51 @@ defmodule EthWeb.UI do
     """
   end
 
+  @doc """
+  Pestañas con URL propia (RF-8.10): cada una es un `patch`, así el navegador conserva la
+  pestaña al recargar y el historial funciona. El contador opcional marca lo que requiere
+  atención.
+  """
+  attr :id, :string, required: true
+  attr :active, :string, required: true
+  attr :label, :string, required: true, doc: "nombre accesible del grupo"
+
+  attr :tabs, :list,
+    required: true,
+    doc: "[{clave, etiqueta, ruta}] o [{clave, etiqueta, ruta, contador}]"
+
+  def tabs(assigns) do
+    ~H"""
+    <nav
+      id={@id}
+      aria-label={@label}
+      class="-mx-4 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-base-300 px-4 sm:mx-0 sm:px-0"
+    >
+      <.link
+        :for={tab <- @tabs}
+        id={"#{@id}-#{elem(tab, 0)}"}
+        patch={elem(tab, 2)}
+        aria-current={@active == elem(tab, 0) && "page"}
+        class={[
+          "-mb-px flex shrink-0 items-center gap-2 border-b-2 px-3 py-2 font-display text-xs font-semibold uppercase tracking-[0.14em] transition-colors",
+          if(@active == elem(tab, 0),
+            do: "border-primary text-primary",
+            else: "border-transparent eth-muted hover:text-base-content"
+          )
+        ]}
+      >
+        {elem(tab, 1)}
+        <span
+          :if={tuple_size(tab) > 3 and elem(tab, 3) > 0}
+          class="bg-warning px-1.5 font-mono text-[10px] text-warning-content"
+        >
+          {elem(tab, 3)}
+        </span>
+      </.link>
+    </nav>
+    """
+  end
+
   @doc "Cifra destacada con su etiqueta."
   attr :label, :string, required: true
   attr :value, :any, required: true

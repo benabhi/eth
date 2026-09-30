@@ -214,7 +214,7 @@ defmodule EthWeb.PilotLiveTest do
     {:ok, view, _html} = live(conn, ~p"/")
     await_pilot(view)
 
-    {:ok, control, _html} = live(conn, ~p"/control")
+    {:ok, control, _html} = live(conn, ~p"/control/characters")
     assert has_element?(control, "#session-#{@id}", "token vigente")
     assert has_element?(control, "#session-#{@id}-wallet", "hace")
     assert has_element?(control, "#session-#{@id}-assets")

@@ -1065,6 +1065,8 @@ Los procesos se muestran como **instrumentos** (§9.10), cada tipo con su forma:
 
 **CA:** cada pestaña se abre por URL; la barra de salud está en todas; ninguna pestaña supera una pantalla de alto en escritorio sin scroll interno.
 
+*Implementación (F10):* las rutas usan claves en inglés (RNF-6): `/control` (Resumen), `/control/market`, `/control/radar`, `/control/characters`, `/control/logs` y `/control/esi`; una pestaña desconocida vuelve al Resumen. Cada pestaña muestra en su etiqueta cuántas cosas requieren atención, y un anillo del Resumen abre la región en Mercado (`?region=<id>`). El motor publica la duración de cada etapa (`summaries_ms`, `direct_ms`, `station_ms`, `orders_ms`) para la barra segmentada; el resto (sobre todo la demanda de historial) se muestra como un segmento aparte.
+
 #### RF-8.5 · Panel del radar — S · F6
 
 Estado del feed (fuente, secuencia, lag), sistemas calientes (tipo de amenaza, kills, tendencia) y feed de las últimas killmails relevantes (transportes, gates).
