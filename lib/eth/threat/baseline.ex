@@ -101,7 +101,7 @@ defmodule Eth.Threat.Baseline do
     :ets.new(@table, [:named_table, :public, :set, read_concurrency: true])
 
     sources = Map.new(@sources, &{&1, %{etag: nil, expires: nil, timer: nil, failures: 0}})
-    state = %{sources: sources, tasks: %{}, computing: nil}
+    state = %{sources: sources, tasks: %{}, computing: nil, dirty: false}
     {:ok, state, {:continue, :start}}
   end
 
@@ -134,7 +134,7 @@ defmodule Eth.Threat.Baseline do
   def handle_info({ref, result}, %{computing: %Task{ref: ref}} = state) do
     Process.demonitor(ref, [:flush])
     publish(result)
-    {:noreply, %{state | computing: nil}}
+    {:noreply, after_compute(state)}
   end
 
   def handle_info({ref, result}, state) when is_map_key(state.tasks, ref) do
@@ -145,7 +145,7 @@ defmodule Eth.Threat.Baseline do
 
   def handle_info({:DOWN, ref, :process, _pid, reason}, %{computing: %Task{ref: ref}} = state) do
     Events.emit(:error, "Radar", "Falló el cálculo de la línea base: #{inspect(reason)}")
-    {:noreply, %{state | computing: nil}}
+    {:noreply, after_compute(state)}
   end
 
   def handle_info({:DOWN, ref, :process, _pid, reason}, state)
@@ -248,12 +248,17 @@ defmodule Eth.Threat.Baseline do
 
   ## Cálculo
 
-  defp recompute(%{computing: %Task{}} = state), do: state
+  # Si llegan datos mientras se calcula, se marca para volver a calcular al terminar:
+  # si no, la línea base quedaba sin esos datos hasta el ciclo siguiente.
+  defp recompute(%{computing: %Task{}} = state), do: %{state | dirty: true}
 
   defp recompute(state) do
     task = Task.Supervisor.async_nolink(Eth.Threat.TaskSupervisor, &compute/0)
-    %{state | computing: task}
+    %{state | computing: task, dirty: false}
   end
+
+  defp after_compute(%{dirty: true} = state), do: recompute(%{state | computing: nil})
+  defp after_compute(state), do: %{state | computing: nil}
 
   # Corre en la tarea: borra lo viejo, agrega por sistema y franja, y calcula.
   defp compute do
