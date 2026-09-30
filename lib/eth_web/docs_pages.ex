@@ -49,7 +49,13 @@ defmodule EthWeb.DocsPages do
   def plain_text(slug), do: slug |> page_html() |> strip_tags()
 
   defp strip_tags(html),
-    do: html |> String.replace(~r/<[^>]+>/, " ") |> String.replace(~r/\s+/, " ")
+    do:
+      html
+      # Primero los comentarios: en desarrollo HEEx anota cada componente con uno, y su
+      # contenido tiene "<" y ">" que confunden al reemplazo de etiquetas.
+      |> String.replace(~r/<!--.*?-->/s, " ")
+      |> String.replace(~r/<[^>]+>/, " ")
+      |> String.replace(~r/\s+/, " ")
 
   ## Componentes de las páginas
 

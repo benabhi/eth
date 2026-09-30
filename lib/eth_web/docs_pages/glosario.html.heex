@@ -1,31 +1,22 @@
 <.section_title id="glosario">Glosario</.section_title>
-<dl class="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-[12rem_1fr]">
-  <dt class="font-semibold eth-strong">Broker fee</dt>
-  <dd>Comisión al publicar una orden (<.doc_link topic={:broker}>fórmula</.doc_link>).</dd>
-  <dt class="font-semibold eth-strong">Certeza</dt>
-  <dd>
-    Probabilidad de que el trade salga como se calculó (<.doc_link topic={:certainty}>factores</.doc_link>).
-  </dd>
-  <dt class="font-semibold eth-strong">Contrato</dt>
-  <dd>Una oportunidad de trade en el tablón.</dd>
-  <dt class="font-semibold eth-strong">ESI</dt>
-  <dd>La interfaz oficial de datos de EVE Online.</dd>
-  <dt class="font-semibold eth-strong">Escrow</dt>
-  <dd>El ISK que inmoviliza una orden de compra mientras está abierta.</dd>
-  <dt class="font-semibold eth-strong">Hub</dt>
-  <dd>
-    Estación con mucho mercado: Jita IV-4, Amarr VIII, Dodixie IX-20, Rens VI-8 y Hek VIII-12.
-  </dd>
-  <dt class="font-semibold eth-strong">Relist</dt>
-  <dd>
-    Modificar el precio de una orden publicada (<.doc_link topic={:relist}>costo</.doc_link>).
-  </dd>
-  <dt class="font-semibold eth-strong">Sales tax</dt>
-  <dd>Impuesto al vender (<.doc_link topic={:sales_tax}>fórmula</.doc_link>).</dd>
-  <dt class="font-semibold eth-strong">SDE</dt>
-  <dd>Los datos estáticos de EVE: mapa, estaciones, objetos y atributos.</dd>
-  <dt class="font-semibold eth-strong">TVS</dt>
-  <dd>Puntaje de 0 a 100 de cada contrato (<.doc_link topic={:tvs}>fórmula</.doc_link>).</dd>
-  <dt class="font-semibold eth-strong">Walk-the-book</dt>
-  <dd>Recorrer el libro orden por orden (<.doc_link topic={:walk}>cómo</.doc_link>).</dd>
+<p>
+  Siglas y términos de EVE Online y de la aplicación. En las pantallas, los términos con
+  <span class="border-b border-dotted border-current/40">subrayado punteado</span>
+  muestran esta misma definición al pasar el cursor.
+</p>
+<dl class="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-[12rem_1fr]">
+  <%= for entry <- EthWeb.Glossary.entries() do %>
+    <dt
+      id={EthWeb.Glossary.anchor(entry.key)}
+      class="scroll-mt-24 font-semibold eth-strong target:text-primary"
+    >
+      {entry.term}
+    </dt>
+    <dd>
+      {entry.definition}
+      <.doc_link :if={entry.topic && entry.topic != :glossary} topic={entry.topic}>
+        Más →
+      </.doc_link>
+    </dd>
+  <% end %>
 </dl>

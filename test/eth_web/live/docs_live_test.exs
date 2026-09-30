@@ -3,7 +3,7 @@ defmodule EthWeb.DocsLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias EthWeb.{Docs, DocsPages}
+  alias EthWeb.{Docs, DocsPages, Glossary}
 
   describe "manual al día (RF-11.4)" do
     test "cada tema de la aplicación apunta a una página y un encabezado que existen" do
@@ -70,6 +70,22 @@ defmodule EthWeb.DocsLiveTest do
       end)
     end
 
+    test "cada término del glosario se explica solo, enlaza bien y tiene su ancla" do
+      entries = Glossary.entries()
+      keys = Enum.map(entries, & &1.key)
+      assert keys == Enum.uniq(keys), "claves repetidas en el glosario"
+
+      html = DocsPages.page_html("glosario")
+
+      for entry <- entries do
+        assert String.length(entry.definition) >= 20, "#{entry.key}: definición muy corta"
+        assert is_nil(entry.topic) or Map.has_key?(Docs.topics(), entry.topic)
+        assert html =~ ~s(id="#{Glossary.anchor(entry.key)}"), "#{entry.key} sin ancla"
+      end
+
+      assert_raise ArgumentError, fn -> Glossary.fetch!(:no_existe) end
+    end
+
     test "un tema desconocido falla en vez de dejar un enlace roto" do
       assert_raise ArgumentError, fn -> Docs.href(:no_existe) end
     end
@@ -99,6 +115,22 @@ defmodule EthWeb.DocsLiveTest do
 
       view |> form("#docs-search", q: "linea base") |> render_change()
       assert has_element?(view, "#docs-results", "Radar")
+    end
+
+    test "una sigla del glosario aparece primero y no coincide dentro de otra palabra", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, ~p"/docs")
+      view |> form("#docs-search", q: "SDE") |> render_change()
+
+      assert has_element?(view, "#docs-term-sde", "datos fijos de EVE")
+      # "desde" contiene "sde": la primera página no la menciona y no debe aparecer.
+      refute has_element?(view, "#docs-results", "Instalar y registrar tu app de EVE")
+
+      assert has_element?(
+               view,
+               "#docs-term-sde[href='/docs/glosario#g-sde']"
+             )
     end
 
     test "una página inexistente vuelve al inicio del manual", %{conn: conn} do

@@ -498,14 +498,18 @@ defmodule EthWeb.SettingsLive do
        gettext("Definí EVE_CLIENT_ID, EVE_CLIENT_SECRET y ETH_VAULT_KEY en .env y reiniciá.")},
       {:sso, gettext("Aplicación SSO registrada (prueba de login)"), characters != [],
        gettext(
-         "Iniciá sesión con EVE: si falla, revisá el callback y los scopes de la aplicación."
+         "Iniciá sesión con EVE (SSO es su login oficial): si falla, revisá el callback y los scopes (permisos) de la aplicación."
        )},
       {:sde, gettext("SDE descargado"), Sde.ready?(),
-       gettext("Se descarga solo al arrancar (≈ 100 MB); mirá el Centro de control.")},
+       gettext(
+         "Los datos estáticos de EVE (mapa, estaciones, objetos) se descargan solos al arrancar (≈ 100 MB); mirá el Centro de control."
+       )},
       {:graph, gettext("Grafo de rutas construido"), Routing.graph() != nil,
        gettext("Se construye con el SDE.")},
       {:scan, gettext("Primer escaneo de los hubs"), Enum.any?(regions, &(&1.generation > 0)),
-       gettext("Los pollers de mercado descargan las regiones; puede tardar unos minutos.")},
+       gettext(
+         "Los pollers (procesos que descargan el mercado de cada región) hacen el primer escaneo; puede tardar unos minutos."
+       )},
       {:character, gettext("Personaje activo con sesión en EVE"),
        pilot != nil and pilot.status == :ok,
        gettext("Elegí un personaje en el menú de la cabecera.")},
