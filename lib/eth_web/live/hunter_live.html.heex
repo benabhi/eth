@@ -99,6 +99,7 @@
         <button
           id="freeze"
           type="button"
+          data-shortcut="freeze"
           phx-click="toggle_freeze"
           aria-pressed={to_string(@frozen)}
           class={[
@@ -185,7 +186,7 @@
     <%!-- Encabezado de columnas --%>
     <div class={[
       grid_class(),
-      "border-b border-base-300 bg-base-200/60 py-2 eth-kicker text-[10px] max-md:hidden"
+      "border-b border-base-300 bg-base-200/60 py-2 eth-kicker text-[10px] tracking-[0.14em] max-md:hidden"
     ]}>
       <span class="flex items-center gap-1">
         {gettext("Rango")}
@@ -237,6 +238,7 @@
         id={dom_id}
         class={[
           "border-b border-base-300/70 last:border-b-0",
+          RowChanges.class(@flashes[row.id]),
           @selected == row.id && "shadow-[inset_3px_0_0_var(--color-primary)]"
         ]}
       >
@@ -625,6 +627,7 @@
               <button
                 id="copy-detail"
                 type="button"
+                data-shortcut="copy"
                 phx-hook=".Clipboard"
                 data-text={multibuy(row)}
                 class="btn btn-outline btn-primary btn-sm"
@@ -642,6 +645,7 @@
               <button
                 id="set-route"
                 type="button"
+                data-shortcut="route"
                 phx-click="set_route"
                 disabled={scam?(row) or action_blocked(@pilot, :waypoint) != nil}
                 class="btn btn-sm"
@@ -693,12 +697,14 @@
       </span>
       <span>
         {route_label(@query.route_mode)} · {gettext("máx. 200 filas")} ·
-        <.link href={EthWeb.Docs.href(:board)} class="link link-primary">
+        <.link navigate={EthWeb.Docs.href(:board)} class="link link-primary">
           {gettext("Cómo leer el tablón")}
         </.link>
       </span>
     </div>
   </section>
+
+  <.board_shortcuts />
 
   <script :type={Phoenix.LiveView.ColocatedHook} name=".Clipboard">
     export default {

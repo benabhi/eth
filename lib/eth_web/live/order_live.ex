@@ -27,7 +27,7 @@ defmodule EthWeb.OrderLive do
   alias Eth.{Characters, Clock, Engine, Market, Sde}
   alias Eth.Characters.Pilot
   alias Eth.Engine.OrderQuery
-  alias EthWeb.{Format, OrderParams}
+  alias EthWeb.{Format, OrderParams, RowChanges}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -42,6 +42,7 @@ defmodule EthWeb.OrderLive do
      |> assign(:selected, nil)
      |> assign(:selected_row, nil)
      |> assign(:total, 0)
+     |> assign(known: nil, flashes: %{})
      |> assign(:pending, 0)
      |> assign(:reward, 0.0)
      |> assign(:url_params, %{})
@@ -169,7 +170,9 @@ defmodule EthWeb.OrderLive do
         Map.take(overrides, [:standings, :own_order_ids, :base_system_id, :ship_class])
       )
 
+    # Filtros o piloto nuevos: la tabla siguiente no se compara con la anterior (RF-6.3).
     socket
+    |> assign(:known, nil)
     |> assign(:form_defaults, defaults)
     |> assign(:form, to_form(form, as: :filters))
     |> assign(:query, query)
@@ -177,8 +180,10 @@ defmodule EthWeb.OrderLive do
 
   defp load_rows(socket) do
     {rows, total} = Engine.order_query(socket.assigns.query)
+    {flashes, known} = RowChanges.diff(socket.assigns.known, rows, & &1.profit)
 
     socket
+    |> assign(flashes: flashes, known: known)
     |> assign(total: total, meta: Engine.meta(), now: Clock.utc_now())
     |> assign(:reward, Enum.reduce(rows, 0.0, &(&1.profit + &2)))
     |> assign(:selected_row, selected_row(socket.assigns.selected, socket.assigns.query))
@@ -197,7 +202,7 @@ defmodule EthWeb.OrderLive do
   ## Presentación
 
   # Columnas de la grilla, iguales en el encabezado y en cada fila (RNF-5.9).
-  @grid "grid items-center gap-x-2.5 px-3 sm:gap-x-4 sm:px-4 grid-cols-[minmax(0,1fr)_6.5rem_4.5rem_2.75rem] md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)_6rem_7rem_4.5rem_4.5rem_1.25rem] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)_6rem_7rem_4.5rem_3.5rem_4.5rem_1.25rem]"
+  @grid "grid items-center gap-x-2.5 px-3 sm:gap-x-4 sm:px-4 grid-cols-[minmax(0,1fr)_6.5rem_5.25rem_2.75rem] md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)_6rem_7rem_5.25rem_5.75rem_1.25rem] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)_6rem_7rem_5.25rem_4rem_5.75rem_1.25rem]"
 
   defp grid_class, do: @grid
 

@@ -25,9 +25,12 @@ defmodule Eth.Engine.Coordinator do
   alias Eth.Engine.{
     Evaluator,
     Fees,
+    Opportunity,
     OrderEvaluator,
+    OrderOpportunity,
     Query,
     StationEvaluator,
+    StationOpportunity,
     Summary
   }
 
@@ -36,7 +39,6 @@ defmodule Eth.Engine.Coordinator do
   @catalog :eth_opportunities_catalog
   @topic "engine:opportunities"
   @debounce_ms 2_000
-  @grace_ms 30_000
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -92,7 +94,16 @@ defmodule Eth.Engine.Coordinator do
     Phoenix.PubSub.subscribe(Eth.PubSub, "market:snapshots")
     Phoenix.PubSub.subscribe(Eth.PubSub, Sde.topic())
 
-    state = %{summarized: %{}, types: %{}, task: nil, pending: false, timer: nil, version: 0}
+    state = %{
+      summarized: %{},
+      types: %{},
+      task: nil,
+      pending: false,
+      timer: nil,
+      version: 0,
+      last_started: nil
+    }
+
     {:ok, schedule(state)}
   end
 
@@ -134,25 +145,44 @@ defmodule Eth.Engine.Coordinator do
 
   def handle_info(_msg, state), do: {:noreply, state}
 
-  defp schedule(%{timer: nil} = state),
-    do: %{state | timer: Process.send_after(self(), :evaluate, @debounce_ms)}
+  # Debounce y, además, un intervalo mínimo entre inicios de evaluación: con el universo
+  # completo siempre hay alguna región actualizándose y el motor evaluaba sin pausa (una
+  # CPU ocupada y varias generaciones vivas a la vez, RNF-1.5).
+  defp schedule(%{timer: nil} = state) do
+    since_last =
+      case state.last_started do
+        nil -> :infinity
+        at -> System.monotonic_time(:millisecond) - at
+      end
+
+    wait =
+      if since_last == :infinity,
+        do: @debounce_ms,
+        else: max(@debounce_ms, GameRules.get(:engine_min_interval_ms) - since_last)
+
+    %{state | timer: Process.send_after(self(), :evaluate, wait)}
+  end
 
   defp schedule(state), do: state
 
   defp start(state) do
     summarized = state.summarized
     types = state.types
+    owner = self()
 
     task =
       Task.Supervisor.async_nolink(Eth.Engine.TaskSupervisor, fn ->
-        evaluate(summarized, types)
+        evaluate(summarized, types, owner)
       end)
 
-    %{state | task: task}
+    %{state | task: task, last_started: System.monotonic_time(:millisecond)}
   end
 
-  # Corre en la tarea: resúmenes incrementales + evaluación.
-  defp evaluate(summarized, types) do
+  # Corre en la tarea: resúmenes incrementales + evaluación. Las tablas de resultados se
+  # llenan acá y se ceden al coordinador (`:ets.give_away/3`): así las listas grandes
+  # (decenas de miles de candidatos con sus libros) nunca se copian a su heap, que es de
+  # larga vida y quedaba inflado después de cada evaluación (RNF-1.5).
+  defp evaluate(summarized, types, owner) do
     started = System.monotonic_time(:millisecond)
     entries = TableOwner.all()
     sources = Enum.map(entries, &source/1)
@@ -177,31 +207,17 @@ defmodule Eth.Engine.Coordinator do
     all_types = types |> Map.values() |> List.flatten() |> Enum.uniq()
     summaries_ms = System.monotonic_time(:millisecond) - started
 
-    opportunities =
-      sources
-      |> Evaluator.run(all_types,
-        tax: Fees.sales_tax(GameRules.get(:guest_accounting_level)),
-        min_profit: GameRules.get(:min_profit_isk)
-      )
-      |> Enum.sort_by(& &1.profit, :desc)
-      |> Enum.take(GameRules.get(:max_universal_opportunities))
-
+    # Cada familia se evalúa, se vuelca a su tabla y se suelta antes de la siguiente, con
+    # una recolección en el medio: sus listas (decenas de miles de candidatos con sus
+    # libros) nunca conviven y el pico de memoria de la tarea baja (RNF-1.5).
+    direct = stage(fn -> direct_stage(sources, all_types, owner) end)
     direct_at = System.monotonic_time(:millisecond)
-    stations = StationEvaluator.run(entries, types)
+    station = stage(fn -> station_stage(entries, types, owner) end)
     station_at = System.monotonic_time(:millisecond)
-
-    # Por órdenes: solo candidatos con historial en el hub y viables en el mejor caso; de
-    # los demás se pide el historial (entran en la evaluación siguiente). Sin esto:
-    # ~170.000 candidatos, ~380 MB y ~0,5 s por consulta (RNF-1.1).
-    %{candidates: order_opps, missing_history: order_missing} =
-      OrderEvaluator.run(sources, all_types)
-
+    orders = stage(fn -> orders_stage(sources, all_types, owner) end)
     orders_at = System.monotonic_time(:millisecond)
 
-    History.demand(
-      history_demand(opportunities) ++
-        station_history_demand(stations) ++ order_history_demand(order_missing)
-    )
+    History.demand(direct.demand ++ station.demand ++ orders.demand)
 
     stats = %{
       duration_ms: System.monotonic_time(:millisecond) - started,
@@ -212,12 +228,82 @@ defmodule Eth.Engine.Coordinator do
       orders_ms: orders_at - station_at,
       types: length(all_types),
       sources: length(sources),
-      opportunities: length(opportunities),
-      station_candidates: length(stations),
-      order_candidates: length(order_opps)
+      opportunities: direct.count,
+      station_candidates: station.count,
+      order_candidates: orders.count
     }
 
-    {summarized, types, opportunities, stations, order_opps, stats}
+    tables = %{current: direct.tid, station: station.tid, orders: orders.tid}
+    {summarized, types, tables, stats}
+  end
+
+  defp stage(fun) do
+    result = fun.()
+    :erlang.garbage_collect()
+    result
+  end
+
+  defp direct_stage(sources, all_types, owner) do
+    opportunities =
+      sources
+      |> Evaluator.run(all_types,
+        tax: Fees.sales_tax(GameRules.get(:guest_accounting_level)),
+        min_profit: GameRules.get(:min_profit_isk)
+      )
+      |> Enum.sort_by(& &1.profit, :desc)
+      |> Enum.take(GameRules.get(:max_universal_opportunities))
+      # Texto buscable una sola vez por evaluación, no en cada consulta (RNF-1.1).
+      |> Opportunity.index_search()
+
+    %{
+      tid: fill(:eth_opportunities, Enum.map(opportunities, &{&1.id, &1}), owner),
+      demand: history_demand(opportunities),
+      count: length(opportunities)
+    }
+  end
+
+  defp station_stage(entries, types, owner) do
+    stations = entries |> StationEvaluator.run(types) |> StationOpportunity.index_search()
+
+    %{
+      # Con la clave (región, tipo) aparte: la consulta filtra por historial sin copiar el
+      # candidato completo (RNF-1.1).
+      tid:
+        fill(
+          :eth_station_opportunities,
+          Enum.map(stations, &{&1.id, {&1.location.region_id, &1.type_id}, &1}),
+          owner
+        ),
+      demand: station_history_demand(stations),
+      count: length(stations)
+    }
+  end
+
+  # Por órdenes: solo candidatos con historial en el hub y viables en el mejor caso; de
+  # los demás se pide el historial (entran en la evaluación siguiente). Sin esto:
+  # ~170.000 candidatos, ~380 MB y ~0,5 s por consulta (RNF-1.1).
+  defp orders_stage(sources, all_types, owner) do
+    %{candidates: candidates, missing_history: missing} = OrderEvaluator.run(sources, all_types)
+    order_opps = OrderOpportunity.index_search(candidates)
+
+    %{
+      # Con el par (región del hub, tipo) aparte, como en station trading.
+      tid:
+        fill(
+          :eth_order_opportunities,
+          Enum.map(order_opps, &{&1.id, {hub_region(&1), &1.type_id}, &1}),
+          owner
+        ),
+      demand: order_history_demand(missing),
+      count: length(order_opps)
+    }
+  end
+
+  defp fill(name, rows, owner) do
+    tid = :ets.new(name, [:set, :public, read_concurrency: true])
+    :ets.insert(tid, rows)
+    :ets.give_away(tid, owner, :engine)
+    tid
   end
 
   # Historial de los hubs que todavía no lo tienen para candidatos por órdenes (tiempo de
@@ -294,31 +380,19 @@ defmodule Eth.Engine.Coordinator do
     }
   end
 
-  defp publish({summarized, types, opportunities, stations, order_opps, stats}, state) do
-    tid = :ets.new(:eth_opportunities, [:set, :public, read_concurrency: true])
-    :ets.insert(tid, Enum.map(opportunities, &{&1.id, &1}))
-    station_tid = :ets.new(:eth_station_opportunities, [:set, :public, read_concurrency: true])
-    # Con la clave (región, tipo) aparte: la consulta filtra por historial sin copiar el
-    # candidato completo (RNF-1.1).
-    :ets.insert(
-      station_tid,
-      Enum.map(stations, &{&1.id, {&1.location.region_id, &1.type_id}, &1})
-    )
+  defp publish({summarized, types, tables, stats}, state) do
+    %{current: tid, station: station_tid, orders: orders_tid} = tables
 
     case current_station() do
       nil -> :ok
-      old -> Process.send_after(self(), {:drop, old}, @grace_ms)
+      old -> Process.send_after(self(), {:drop, old}, GameRules.get(:engine_grace_ms))
     end
 
     :ets.insert(@catalog, {:station, station_tid})
 
-    orders_tid = :ets.new(:eth_order_opportunities, [:set, :public, read_concurrency: true])
-    # Con el par (región del hub, tipo) aparte, como en station trading.
-    :ets.insert(orders_tid, Enum.map(order_opps, &{&1.id, {hub_region(&1), &1.type_id}, &1}))
-
     case current_orders() do
       nil -> :ok
-      old -> Process.send_after(self(), {:drop, old}, @grace_ms)
+      old -> Process.send_after(self(), {:drop, old}, GameRules.get(:engine_grace_ms))
     end
 
     :ets.insert(@catalog, {:orders, orders_tid})
@@ -327,7 +401,7 @@ defmodule Eth.Engine.Coordinator do
     meta = Map.merge(stats, %{version: version, evaluated_at: Clock.utc_now()})
 
     case current() do
-      {old, _meta} -> Process.send_after(self(), {:drop, old}, @grace_ms)
+      {old, _meta} -> Process.send_after(self(), {:drop, old}, GameRules.get(:engine_grace_ms))
       nil -> :ok
     end
 

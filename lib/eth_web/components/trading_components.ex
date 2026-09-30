@@ -6,7 +6,11 @@ defmodule EthWeb.TradingComponents do
   la barra de filtros acoplada a la tabla (RF-6.4) y la ficha que se despliega bajo la
   fila, con sus columnas y su pie de acciones (RF-6.5, §9.5, RF-11.2).
 
-  Implementa: RF-6.4, RF-6.5, RF-6.12, RF-6.13, RF-11.2.
+  Los atajos de teclado del tablón (RF-6.9) viven en `board_shortcuts/1`: un hook que
+  escucha el teclado de la ventana y actúa sobre elementos marcados con
+  `data-shortcut`, más el diálogo de ayuda que abre `?`.
+
+  Implementa: RF-6.4, RF-6.5, RF-6.9, RF-6.12, RF-6.13, RF-11.2.
   """
   use EthWeb, :html
 
@@ -142,7 +146,8 @@ defmodule EthWeb.TradingComponents do
     ~H"""
     <h3 class="eth-kicker mt-4 mb-1.5 flex items-center gap-2 text-[11px] text-primary">
       {render_slot(@inner_block)}
-      <.help :if={@topic} topic={@topic}>{@help}</.help>
+      <.help :if={@topic && @help} topic={@topic}>{@help}</.help>
+      <.help :if={@topic && !@help} topic={@topic} />
     </h3>
     """
   end
@@ -231,8 +236,115 @@ defmodule EthWeb.TradingComponents do
         placeholder={@placeholder}
         phx-debounce="300"
         aria-label={@placeholder}
+        data-shortcut="search"
       />
     </label>
+    """
+  end
+
+  ## Atajos de teclado (RF-6.9)
+
+  @doc """
+  Atajos del tablón y su diálogo de ayuda. Actúan sobre la página, nunca mientras se
+  escribe en un campo: `/` buscar, `j`/`k` recorrer filas, `Enter` abrir o cerrar la
+  ficha, `c` copiar (Multibuy o precio), `w` fijar ruta, `f` congelar, `?` ayuda y `Esc`
+  cerrar. Las acciones in-game siguen necesitando la tecla explícita del piloto.
+  """
+  attr :id, :string, default: "board-shortcuts"
+
+  def board_shortcuts(assigns) do
+    ~H"""
+    <dialog
+      id={@id}
+      phx-hook=".Shortcuts"
+      phx-update="ignore"
+      aria-labelledby={"#{@id}-title"}
+      class="eth-raised eth-chamfer m-auto w-[min(26rem,calc(100vw-2rem))] border border-base-300 bg-base-100 p-0 text-base-content backdrop:bg-black/50"
+    >
+      <div class="flex items-center justify-between border-b border-base-300 px-4 py-2.5">
+        <h2 id={"#{@id}-title"} class="eth-kicker">{gettext("Atajos de teclado")}</h2>
+        <form method="dialog">
+          <button class="btn btn-ghost btn-xs" aria-label={gettext("Cerrar")}>
+            <.icon name="hero-x-mark" class="size-4" />
+          </button>
+        </form>
+      </div>
+      <dl class="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2 px-4 py-3 text-sm">
+        <dt><kbd class="kbd kbd-sm">/</kbd></dt>
+        <dd>{gettext("Buscar")}</dd>
+        <dt><kbd class="kbd kbd-sm">j</kbd> <kbd class="kbd kbd-sm">k</kbd></dt>
+        <dd>{gettext("Bajar o subir por los contratos")}</dd>
+        <dt><kbd class="kbd kbd-sm">Enter</kbd></dt>
+        <dd>{gettext("Abrir o cerrar la ficha del contrato")}</dd>
+        <dt><kbd class="kbd kbd-sm">c</kbd></dt>
+        <dd>{gettext("Copiar el Multibuy o el precio de la ficha abierta")}</dd>
+        <dt><kbd class="kbd kbd-sm">w</kbd></dt>
+        <dd>{gettext("Fijar la ruta en el juego")}</dd>
+        <dt><kbd class="kbd kbd-sm">f</kbd></dt>
+        <dd>{gettext("Congelar o reanudar el tablón")}</dd>
+        <dt><kbd class="kbd kbd-sm">Esc</kbd></dt>
+        <dd>{gettext("Cerrar la ficha o este diálogo")}</dd>
+        <dt><kbd class="kbd kbd-sm">?</kbd></dt>
+        <dd>{gettext("Mostrar esta ayuda")}</dd>
+      </dl>
+      <p class="border-t border-base-300 px-4 py-2 text-xs eth-faint">
+        {gettext("Los atajos no actúan mientras escribís en un campo.")}
+      </p>
+    </dialog>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".Shortcuts">
+      const TYPING = "input, textarea, select, [contenteditable=true]"
+
+      export default {
+        mounted() {
+          this.onKey = (event) => this.handle(event)
+          window.addEventListener("keydown", this.onKey)
+        },
+        destroyed() {
+          window.removeEventListener("keydown", this.onKey)
+        },
+        rows() {
+          return Array.from(document.querySelectorAll("[data-head]"))
+        },
+        press(name) {
+          const el = document.querySelector(`[data-shortcut="${name}"]:not([disabled])`)
+          if (el) el.click()
+          return !!el
+        },
+        move(step) {
+          const rows = this.rows()
+          if (rows.length === 0) return
+          const current = rows.indexOf(document.activeElement)
+          const next = current === -1 ? 0 : Math.min(Math.max(current + step, 0), rows.length - 1)
+          rows[next].focus()
+          rows[next].scrollIntoView({block: "nearest"})
+        },
+        handle(event) {
+          if (event.ctrlKey || event.metaKey || event.altKey) return
+          if (event.target.closest && event.target.closest(TYPING)) return
+          if (this.el.open) return
+
+          switch (event.key) {
+            case "/": {
+              const search = document.querySelector("[data-shortcut=search]")
+              if (search) { event.preventDefault(); search.focus(); search.select() }
+              break
+            }
+            case "j": event.preventDefault(); this.move(1); break
+            case "k": event.preventDefault(); this.move(-1); break
+            case "Enter":
+            case " ": {
+              const row = document.activeElement
+              if (row && row.matches("[data-head]")) { event.preventDefault(); row.click() }
+              break
+            }
+            case "c": this.press("copy"); break
+            case "w": this.press("route"); break
+            case "f": this.press("freeze"); break
+            case "?": event.preventDefault(); this.el.showModal(); break
+          }
+        }
+      }
+    </script>
     """
   end
 
@@ -296,7 +408,8 @@ defmodule EthWeb.TradingComponents do
     <div class={["min-w-0", @class]}>
       <h3 class="eth-kicker mb-2 flex items-center gap-2 text-[11px] text-primary">
         {@title}
-        <.help :if={@topic} topic={@topic} title={@title}>{@help}</.help>
+        <.help :if={@topic && @help} topic={@topic} title={@title}>{@help}</.help>
+        <.help :if={@topic && !@help} topic={@topic} title={@title} />
       </h3>
       {render_slot(@inner_block)}
     </div>

@@ -30,6 +30,46 @@ defmodule EthWeb.DocsLiveTest do
       end
     end
 
+    test "cada tema tiene un resumen para su \"?\" (RNF-5.14)" do
+      for {topic, _target} <- Docs.topics() do
+        summary = Docs.summary(topic)
+        assert is_binary(summary) and String.length(summary) >= 20, "#{topic} sin resumen"
+      end
+    end
+
+    test "ningún \"?\" de la aplicación queda solo con el enlace al manual", %{conn: conn} do
+      paths =
+        ~w(/ /station /orders /run /docs /settings /settings/ships /settings/rules
+           /settings/radar /settings/markets /settings/notifications /settings/setup
+           /settings/backup /control /control/market /control/radar /control/characters
+           /control/logs /control/esi)
+
+      checked =
+        for path <- paths, reduce: 0 do
+          count ->
+            {:ok, _view, html} = live(conn, path)
+            tooltips = html |> LazyHTML.from_document() |> LazyHTML.query("[role=tooltip]")
+            assert_tooltips_have_text(tooltips, path)
+            count + Enum.count(tooltips)
+        end
+
+      # Que el test no pase en vacío: las pantallas tienen decenas de "?".
+      assert checked > 30
+    end
+
+    defp assert_tooltips_have_text(tooltips, path) do
+      Enum.each(tooltips, fn tooltip ->
+        # Texto de ayuda sin el título y sin el enlace al manual.
+        text =
+          tooltip
+          |> LazyHTML.query("[data-tip-text]")
+          |> LazyHTML.text()
+          |> String.trim()
+
+        assert text != "", "tooltip sin texto en #{path}: #{LazyHTML.to_html(tooltip)}"
+      end)
+    end
+
     test "un tema desconocido falla en vez de dejar un enlace roto" do
       assert_raise ArgumentError, fn -> Docs.href(:no_existe) end
     end

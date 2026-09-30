@@ -36,9 +36,10 @@ services:
       EVE_CALLBACK_URL: http://localhost:4000/auth/eve/callback
       PHX_BIND: 0.0.0.0
       ETH_FS_POLL: "true" # repo en NTFS (C:\): polling para live reload y Tailwind (RNF-11.2)
-      # En desarrollo, solo los 5 hubs para no gastar el presupuesto de ESI de tu IP.
-      # Para escanear todo el universo: ETH_REGIONS= (vacío) en .env.
-      ETH_REGIONS: ${ETH_REGIONS-10000002,10000043,10000032,10000030,10000042}
+      # Todo el universo por defecto (69 regiones, ~1,5 M órdenes, ~2 GB de RAM). Para
+      # limitarlo, ETH_REGIONS con IDs separados por comas en .env (por ejemplo los 5 hubs:
+      # 10000002,10000043,10000032,10000030,10000042).
+      ETH_REGIONS: ${ETH_REGIONS-}
       # live (ESI) o replay (snapshots grabados con `mix eth.replay.record`, sin red).
       ETH_DATA_SOURCE: ${ETH_DATA_SOURCE:-live}
     depends_on:

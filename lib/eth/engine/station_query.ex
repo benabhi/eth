@@ -14,7 +14,7 @@ defmodule Eth.Engine.StationQuery do
   Implementa: RF-4.14, RF-4.16.
   """
 
-  alias Eth.Engine.{Fees, Query, Score, Shield, StationOpportunity, StationTrading}
+  alias Eth.Engine.{Fees, Query, Score, Search, Shield, StationOpportunity, StationTrading}
   alias Eth.{GameRules, Sde}
   alias Eth.Market.{History, Prices}
 
@@ -86,6 +86,16 @@ defmodule Eth.Engine.StationQuery do
       |> elem(0)
 
     {rows |> sort(p.sort) |> Enum.take(p.limit), length(rows)}
+  end
+
+  @doc """
+  Primeras `limit` filas según el orden pedido. Sirve para combinar resultados parciales
+  de `run/3` calculados en paralelo (`Eth.Engine`, RNF-1.1).
+  """
+  @spec top([map()], params()) :: [map()]
+  def top(rows, params) do
+    p = Map.merge(defaults(), params)
+    rows |> sort(p.sort) |> Enum.take(p.limit)
   end
 
   @doc "Personaliza un candidato (`nil` si no deja margen o no tiene historial)."
@@ -203,10 +213,8 @@ defmodule Eth.Engine.StationQuery do
 
   defp matches?(_opp, ""), do: true
 
-  defp matches?(opp, search) do
-    [opp.type_name, opp.location.name, opp.location.system_name, opp.location.region_name]
-    |> Enum.any?(&(&1 && String.contains?(Query.normalize(&1), search)))
-  end
+  defp matches?(opp, search),
+    do: Search.matches?(StationOpportunity.search_text(opp), search)
 
   defp sort(rows, :margin), do: Enum.sort_by(rows, &{-&1.margin_pct, -&1.score})
   defp sort(rows, :volume), do: Enum.sort_by(rows, &{-&1.daily_volume, -&1.score})

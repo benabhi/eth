@@ -265,7 +265,7 @@
     <%!-- Encabezado de columnas --%>
     <div class={[
       grid_class(),
-      "border-b border-base-300 bg-base-200/60 py-2 eth-kicker text-[10px] max-md:hidden"
+      "border-b border-base-300 bg-base-200/60 py-2 eth-kicker text-[10px] tracking-[0.14em] max-md:hidden"
     ]}>
       <span>{gettext("Objeto")}</span>
       <span class="hidden md:block">{gettext("Estación")}</span>
@@ -305,6 +305,7 @@
         id={dom_id}
         class={[
           "border-b border-base-300/70 last:border-b-0",
+          RowChanges.class(@flashes[row.id]),
           @selected == row.id && "shadow-[inset_3px_0_0_var(--color-primary)]"
         ]}
       >
@@ -422,6 +423,7 @@
                 <button
                   id="copy-buy-price"
                   type="button"
+                  data-shortcut="copy"
                   phx-hook=".CopyPrice"
                   data-text={price_text(row.quote.buy_price)}
                   class="btn btn-ghost btn-xs -ml-2"
@@ -567,12 +569,14 @@
       </span>
       <span>
         {gettext("máx. 200 filas")} ·
-        <.link href={EthWeb.Docs.href(:station)} class="link link-primary">
+        <.link navigate={EthWeb.Docs.href(:station)} class="link link-primary">
           {gettext("Cómo funciona el station trading")}
         </.link>
       </span>
     </div>
   </section>
+
+  <.board_shortcuts />
 
   <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyPrice">
     export default {

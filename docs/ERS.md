@@ -6,7 +6,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.8 |
+| Versión | 1.9 |
 | Fecha | 2026-09-29 |
 | Estado | Base para desarrollo — decisiones a confirmar en §15.2 |
 | Autor | Hernan Jalabert |
@@ -17,6 +17,7 @@
 | Versión | Fecha | Cambios |
 |---|---|---|
 | 0.1 | 2026-09 | Borrador inicial de ideas. |
+| 1.9 | 2026-09-30 | **F11 implementada** (v1.0 pendiente de revisión): atajos de teclado (RF-6.9), exportar e importar la configuración (RF-9.7), resaltado de filas nuevas y cambiadas (RF-6.3), imagen de producción y guía de instalación (RNF-10.5–10.7, D-22), universo completo por defecto y optimizado (consultas en paralelo, texto buscable precalculado, intervalo mínimo del motor, tablas cedidas con `give_away`; parámetros nuevos en B.7) y auditoría previa a v1.0 en `docs/audit-v1.0.md` (§11.6). Propuesta pendiente de decisión: ajustar RNF-1.2 al universo completo (hallazgo A-04). |
 | 1.8 | 2026-09-30 | **F10 implementada:** identidad visual con temas oscuro y claro y tipografías propias; componentes compartidos (`EthWeb.UI`, `EthWeb.TradingComponents`); tablón con rango, sellos, peligro y anillo de Certeza, filtros acoplados a la tabla y ficha que se despliega bajo la fila con secciones en columnas (RF-6.5, a pedido del usuario, en lugar de pestañas); Centro de control por pestañas con instrumentos (RF-8.10); registro del cazador con rango, racha e hitos (RF-7.7); manual integrado en HEEx (D-21); indicador de carga inmediato en las filas y WebSocket sin fallback a long polling (RNF-5.15). |
 | 1.7 | 2026-09-29 | **Diseño final y cierre de v1.0:** principio "trades rápido primero" (RNF-5.13); explicación de cada cifra con tooltip, fórmula con los valores reales y enlace al manual (RNF-5.14); instrumentos del Centro de control (anillos de progreso para pollers, medidores por tipo de proceso, §9.10); hitos y rachas del registro del cazador con datos reales (RF-7.7); nuevo módulo M11 **Manual integrado** (`/docs`, RF-11.1–11.4); auditoría total de sistemas como última tarea de v1.0 (§11.6, F11). |
 | 1.6 | 2026-09-29 | **Sin instancia pública:** se descarta el módulo M11 (multiusuario, suscripciones con ISK, reclamo de contratos y ranking público) y la fase F13 (D-20). La herramienta es de **uso personal y autoalojada**: cada piloto la descarga y la usa con sus personajes (§2.3, D-01, RNF-10.5–10.7). La gamificación del tablón de caza (RF-6.13) y el registro del cazador (RF-7.7) se mantienen, en versión personal. |
@@ -870,6 +871,8 @@ Selector del personaje activo en la cabecera; los personajes no activos mantiene
 - **Congelar:** automático mientras haya una fila expandida o el puntero esté sobre la grilla (*configurable*) y manual (tecla `F`), con un contador "N cambios pendientes · Aplicar". Evita que las filas "salten" mientras se leen.
 - Las acciones sobre una fila congelada se revalidan contra la versión vigente antes de ejecutarse.
 
+*Implementación (F11, pedido del usuario):* `EthWeb.RowChanges` compara cada versión con la anterior en las tres familias: las filas nuevas se marcan con un fondo celeste y las que cambiaron su valor principal más de 1 % (beneficio; beneficio por día en Estación), en verde o rojo; el fondo se desvanece en ~2,4 s y las demás no se animan. La primera carga y los cambios de filtros o de piloto no se comparan (no se ilumina toda la tabla). Las filas expiradas tachadas antes de salir quedan para F12.
+
 #### RF-6.4 · Búsqueda, filtros y presets — M · F3
 
 - **Búsqueda de texto** (objeto, estación, sistema, región) por prefijo o contenido, sin distinguir mayúsculas ni acentos.
@@ -923,6 +926,8 @@ Menú por fila: ocultar objeto, estación o ruta (24 h o permanente) y "no me in
 #### RF-6.9 · Atajos de teclado — C · F11
 
 `/` buscar · `j`/`k` navegar · `Enter` expandir · `c` copiar Multibuy · `w` fijar ruta · `f` congelar · `?` ayuda.
+
+*Implementación (F11):* `EthWeb.TradingComponents.board_shortcuts/1` en las tres familias: un hook escucha el teclado de la ventana (nunca mientras se escribe en un campo ni con modificadores) y actúa sobre elementos marcados con `data-shortcut`; `?` abre un diálogo con la lista; `Esc` cierra la ficha (RF-6.5). En Estación y Por órdenes, `c` copia el precio de la ficha. Las filas son enfocables con contorno visible (RNF-5.2).
 
 #### RF-6.10 · Estados vacíos, de carga y de error — M · F3
 
@@ -1068,7 +1073,7 @@ Los procesos se muestran como **instrumentos** (§9.10), cada tipo con su forma:
 
 **CA:** cada pestaña se abre por URL; la barra de salud está en todas; ninguna pestaña supera una pantalla de alto en escritorio sin scroll interno.
 
-*Implementación (F10):* las rutas usan claves en inglés (RNF-6): `/control` (Resumen), `/control/market`, `/control/radar`, `/control/characters`, `/control/logs` y `/control/esi`; una pestaña desconocida vuelve al Resumen. Cada pestaña muestra en su etiqueta cuántas cosas requieren atención, y un anillo del Resumen abre la región en Mercado (`?region=<id>`). El motor publica la duración de cada etapa (`summaries_ms`, `direct_ms`, `station_ms`, `orders_ms`) para la barra segmentada; el resto (sobre todo la demanda de historial) se muestra como un segmento aparte.
+*Implementación (F10):* las rutas usan claves en inglés (RNF-6): `/control` (Resumen), `/control/market`, `/control/radar`, `/control/characters`, `/control/logs` y `/control/esi`; una pestaña desconocida vuelve al Resumen. Cada pestaña muestra en su etiqueta cuántas cosas requieren atención, y un anillo del Resumen abre la región en Mercado (`?region=<id>`). En Mercado, el detalle de la región (RF-8.3) se despliega bajo su nivel a todo el ancho, como la ficha del tablón (sin panel lateral). Radar muestra cuatro indicadores (feed, sistemas en alerta, kills en la ventana y cobertura de la línea base), los sistemas calientes con anillo de amenaza, tipo y cuántas veces superan su λ, y las kills recientes con el ícono de la nave destruida. El motor publica la duración de cada etapa (`summaries_ms`, `direct_ms`, `station_ms`, `orders_ms`) para la barra segmentada; el resto (sobre todo la demanda de historial) se muestra como un segmento aparte.
 
 #### RF-8.5 · Panel del radar — S · F6
 
@@ -1128,6 +1133,8 @@ Regiones habilitadas y su nivel; estructuras seguidas y acceso por personaje.
 #### RF-9.7 · Exportar/importar configuración — C · F11
 
 Archivo JSON sin secretos ni tokens.
+
+*Implementación (F11):* `Eth.ConfigTransfer` exporta `{app, format, exported_at, game_rules, radar, notifications, ship_profiles, structures}` (solo estructuras seguidas o con broker propio) y lo descarga `GET /settings/export`; Ajustes → Respaldo importa el archivo (hasta 1 MB): reemplaza cada sección presente, valida con las APIs de cada contexto y muestra lo aplicado y lo descartado. Personajes y tokens nunca se exportan.
 
 ### M10 · Notificaciones
 
@@ -1200,6 +1207,8 @@ El desglose de una oportunidad (RF-6.5) y los tooltips (RNF-5.14) muestran cada 
 | RNF-1.4 | Arranque en frío: hubs visibles en < 60 s (con el SDE en caché) y universo completo en < 6 min. Arranque en caliente (snapshots): < 20 s. | Registro de eventos. |
 | RNF-1.5 | Memoria total ≤ 2 GB RSS con el universo completo (≈ 1,7 M órdenes; ETS de órdenes estimado en ≈ 400 MB). | LiveDashboard y Centro de control. |
 | RNF-1.6 | LiveView nunca envía más de 200 filas a la vez; actualizaciones por fila (streams). | Tests de LiveView. |
+
+*Medición (F11, imagen de producción, universo completo: 69 regiones y ~1,55 M órdenes):* consulta p95 19 / 24 / 65 ms (Directo / Estación / Por órdenes); evaluación 4,9–5,6 s; arranque en frío 53 s (universo) y en caliente 13 s; RSS 1,27–1,88 GiB. RNF-1.2 no se cumple con el universo completo (≤ ~16 s): propuesta de ajuste en `docs/audit-v1.0.md` (A-04), pendiente de decisión. Detalle y cambios en esa auditoría.
 
 ### RNF-2 · Resiliencia y disponibilidad
 
@@ -1292,6 +1301,8 @@ Estrategia detallada en §11. Mínimos: cobertura ≥ 85 % en `Eth.Engine`, `Eth
 - **RNF-10.5** **Distribución para uso personal:** la aplicación se descarga (clon del repositorio o release versionado) y se levanta con un solo `docker compose up`, sin compilar nada en el host. Funciona igual en Windows, macOS y Linux con Docker.
 - **RNF-10.6** **Guía de instalación** en el README, en español, paso a paso: requisitos, registrar la aplicación en developers.eveonline.com (callback `http://localhost:4000/auth/eve/callback` y la lista de scopes de RF-5.2), completar `.env` (con un comando para generar `ETH_VAULT_KEY`), levantar, iniciar sesión y actualizar a una versión nueva sin perder datos. Ajustes → Primer arranque (RF-9.1) guía los mismos pasos dentro de la app.
 - **RNF-10.7** **Actualizaciones** sin pérdida de datos: releases con versión semántica y notas de cambios; las migraciones corren solas (RNF-10.3) y los volúmenes (base, SDE, snapshots) se conservan.
+
+*Implementación (F11):* `Dockerfile` de producción (release de Elixir en dos etapas) y `docker-compose.release.yml` (proyecto `eth-release`): `docker compose -f docker-compose.release.yml up -d --build`. Al arrancar corre `bin/migrate` (`Eth.Release`) y luego el servidor; los datos van al volumen `/data` (`ETH_DATA_DIR`) y la base a su propio volumen. Guía paso a paso en el README y cambios en `CHANGELOG.md` (D-22).
 
 ### RNF-11 · Entorno de desarrollo (Windows + VS Code + Docker)
 
@@ -1975,8 +1986,9 @@ EXPOSE 4000
 | `EVE_CALLBACK_URL` | Sí | Debe coincidir exactamente con la registrada | `http://localhost:4000/auth/eve/callback` |
 | `ESI_CONTACT` | Sí | Contacto (email) para el User-Agent (RNF-3.1) | `tu-email@dominio` |
 | `ESI_COMPATIBILITY_DATE` | No | Fecha de compatibilidad de ESI (si falta, la de `config.exs`) | `2026-09-01` |
-| `ETH_VAULT_KEY` | Sí | Clave AES-256 en Base64 para cifrar los refresh tokens | `:crypto.strong_rand_bytes(32) \|> Base.encode64()` |
-| `SECRET_KEY_BASE` | Producción | Secreto de Phoenix | `mix phx.gen.secret` |
+| `ETH_VAULT_KEY` | Sí | Clave AES-256 en Base64 para cifrar los refresh tokens | `docker run --rm alpine sh -c "head -c 32 /dev/urandom \| base64"` |
+| `SECRET_KEY_BASE` | No | Firma las cookies; en producción, si falta, se genera la primera vez y se guarda en `ETH_DATA_DIR` (D-22) | — |
+| `ETH_DATA_DIR` | No | Directorio de datos persistentes (SDE, matrices, snapshots); la imagen de producción usa el volumen `/data` | `/data` |
 | `DATABASE_URL` | Sí | Conexión a PostgreSQL | `ecto://postgres:postgres@db/eth_dev` |
 | `PHX_BIND` | No | IP de escucha (por defecto `127.0.0.1`; `0.0.0.0` en contenedor) | `0.0.0.0` |
 | `ETH_FS_POLL` | No | `true` si el repo está en NTFS: live reload y Tailwind por polling (RNF-11.2) | `true` |
@@ -2180,6 +2192,7 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | D-19 | Interfaz como **tablón de caza**, gamificada con sobriedad | Hace más claro y motivador elegir un trade (contratos con rango, recompensa y peligro) sin perder la densidad ni la exactitud de una herramienta profesional | Gamificación con puntos y recompensas ficticias; o una tabla sin lenguaje propio |
 | D-20 | **Sin instancia pública ni multiusuario:** se descartan cuentas de terceros, suscripciones con ISK, reclamos de contratos y rankings entre usuarios (antes M11/F13) | La herramienta es personal: cada piloto la descarga y la usa con sus personajes; evita exponer datos y tokens, operar un servidor y el límite de ESI por IP compartido | Instancia pública con suscripciones (versión 1.5 del ERS) |
 | D-21 | Manual integrado en plantillas HEEx compiladas, no en Markdown | Muestra los valores vigentes de las reglas del juego, reutiliza los componentes de la interfaz y no suma dependencias | Markdown con una biblioteca de render (Earmark/MDEx) |
+| D-22 | Distribución con una imagen de producción propia (`Dockerfile` + `docker-compose.release.yml`, proyecto `eth-release`) separada del entorno de desarrollo; datos en el volumen `/data`; `SECRET_KEY_BASE` autogenerada; sin `force_ssl` | La release es más liviana y rápida que el modo desarrollo, las actualizaciones no pierden datos y la instalación queda en pocos pasos; al ser local y solo en 127.0.0.1, HTTPS no aporta y obligaría a un certificado | Usar `docker-compose.yml` de desarrollo para los pilotos; publicar la imagen en un registro (queda para cuando haya releases públicos) |
 
 ### 15.2 Pendientes de confirmar
 
@@ -2326,10 +2339,12 @@ Aproximación de la escala del cliente. En el tema claro se usan como fondo de i
 | `max_universal_opportunities` | 5,000 | Top N universal por TVS base |
 | `poll_jitter_s` | 1–5 | Espera extra tras `Expires` |
 | `pages_concurrency` | 8 por región · 16 global | Descarga paginada |
-| `snapshot_grace_s` | 60 | Vida de la generación anterior tras el swap |
+| `snapshot_grace_s` | 20 | Vida de la generación anterior tras el swap (solo la lee una evaluación en curso; con 60 s el pico de memoria del universo completo superaba RNF-1.5) |
+| `engine_min_interval_ms` / `engine_grace_ms` | 10.000 / 5.000 | Intervalo mínimo entre evaluaciones del motor y vida de la versión anterior de las oportunidades; con el universo completo evaluaba sin pausa y mantenía 4 versiones vivas (RNF-1.5) |
+| `engine_parallel_min` | 2.000 | Desde cuántos candidatos las consultas de Estación y Por órdenes se reparten entre los núcleos (RNF-1.1) |
 | `backoff` | base 2 s · ×2 · máx. 5 min · ±20 % | Reintentos |
 | `circuit_breaker` | 5 fallos ⇒ 10 min | Por poller |
-| `market_budget_reserve` | 10 % | Reserva del grupo de mercado |
+| Política por nivel (`Eth.Market.Policy`) | ≥ 40 % todo · 20–40 % N3 cada 2 ciclos · 10–20 % N2 cada 2 y N3 cada 3 · < 10 % solo hubs | Reparto del presupuesto del grupo `market-order` (§8.11); reemplaza a la reserva fija del 10 % del borrador |
 | `error_limit_pause_at` | 20 | `X-ESI-Error-Limit-Remain` |
 | `history_max_per_min` / `history_concurrency` | 250 / 4 | Cola de historial (RF-1.12) |
 | `history_announce_ms` | 5,000 | Agrupa los avisos de historial nuevo al Cazador |

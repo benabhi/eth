@@ -44,9 +44,10 @@ defmodule EthWeb.UI do
       >
         <h2 :if={@title} class="eth-kicker flex items-center gap-2">
           {@title}
-          <.help :if={@help} topic={@help} title={@title}>
+          <.help :if={@help && @help_body != []} topic={@help} title={@title}>
             {render_slot(@help_body)}
           </.help>
+          <.help :if={@help && @help_body == []} topic={@help} title={@title} />
         </h2>
         <div :if={@actions != []} class="flex items-center gap-2">{render_slot(@actions)}</div>
       </header>
@@ -170,10 +171,12 @@ defmodule EthWeb.UI do
       </button>
       <span role="tooltip" class={["eth-tip-body eth-raised", align_class(@align)]}>
         <span :if={@title} class="eth-kicker mb-1 block text-primary">{@title}</span>
-        <span :if={@inner_block != []} class="block">{render_slot(@inner_block)}</span>
-        <a href={@href} class="mt-2 block text-xs link link-primary">
+        <%!-- Sin texto propio, el resumen del tema: ningún "?" queda solo con el enlace. --%>
+        <span :if={@inner_block != []} class="block" data-tip-text>{render_slot(@inner_block)}</span>
+        <span :if={@inner_block == []} class="block" data-tip-text>{Docs.summary(@topic)}</span>
+        <.link navigate={@href} class="mt-2 block text-xs link link-primary">
           {gettext("Leer en el manual →")}
-        </a>
+        </.link>
       </span>
     </span>
     """
@@ -199,11 +202,11 @@ defmodule EthWeb.UI do
       </span>
       <span role="tooltip" class={["eth-tip-body eth-raised", align_class(@align)]}>
         <span class="eth-kicker mb-1 block text-primary">{@title}</span>
-        <span :if={@body != []} class="block">{render_slot(@body)}</span>
-        <span :if={@formula != []} class="eth-formula mt-2 block">{render_slot(@formula)}</span>
-        <a :if={@topic} href={Docs.href(@topic)} class="mt-2 block text-xs link link-primary">
+        <span :if={@body != []} class="block" data-tip-text>{render_slot(@body)}</span>
+        <span :if={@formula != []} class="eth-formula mt-2 block" data-tip-text>{render_slot(@formula)}</span>
+        <.link :if={@topic} navigate={Docs.href(@topic)} class="mt-2 block text-xs link link-primary">
           {gettext("Leer en el manual →")}
-        </a>
+        </.link>
       </span>
     </span>
     """

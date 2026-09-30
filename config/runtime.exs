@@ -87,98 +87,55 @@ if config_env() == :dev do
     ]
 end
 
+# Directorio de datos persistentes (SDE procesado, matrices, snapshots). En la imagen de
+# producción es un volumen (`/data`) fuera de la release, para que las actualizaciones no
+# lo pierdan (RNF-10.7). Sin la variable: `priv/data` (desarrollo).
+if data_dir = System.get_env("ETH_DATA_DIR") do
+  config :eth, :data_dir, data_dir
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """
-      environment variable DATABASE_URL is missing.
-      For example: ecto://USER:PASS@HOST/DATABASE
+      falta la variable DATABASE_URL (por ejemplo ecto://USUARIO:CLAVE@HOST/BASE).
+      docker-compose.release.yml ya la define.
       """
-
-  maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
   config :eth, Eth.Repo,
-    # ssl: true,
     url: database_url,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
-    # For machines with several cores, consider starting multiple pools of `pool_size`
-    # pool_count: 4,
-    socket_options: maybe_ipv6
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
 
-  # The secret key base is used to sign/encrypt cookies and other secrets.
-  # A default value is used in config/dev.exs and config/test.exs but you
-  # want to use a different value for prod and you most likely don't want
-  # to check this value into version control, so we use an environment
-  # variable instead.
+  # SECRET_KEY_BASE firma las cookies de sesión. Si no se define, se genera una vez y se
+  # guarda en el directorio de datos: la instalación queda en un solo paso y la clave
+  # sobrevive a las actualizaciones. (La clave de los tokens, ETH_VAULT_KEY, en cambio,
+  # la genera y guarda el piloto: ver .env.example.)
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||
-      raise """
-      environment variable SECRET_KEY_BASE is missing.
-      You can generate one by calling: mix phx.gen.secret
-      """
+      (
+        dir = System.get_env("ETH_DATA_DIR") || raise "falta ETH_DATA_DIR o SECRET_KEY_BASE"
+        path = Path.join(dir, "secret_key_base")
 
-  host = System.get_env("PHX_HOST") || "example.com"
+        case File.read(path) do
+          {:ok, key} when byte_size(key) >= 64 ->
+            String.trim(key)
 
-  config :eth, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
+          _ ->
+            key = :crypto.strong_rand_bytes(48) |> Base.encode64()
+            File.mkdir_p!(dir)
+            File.write!(path, key)
+            File.chmod!(path, 0o600)
+            key
+        end
+      )
+
+  # Uso personal y local (D-20): HTTP en el puerto publicado solo en 127.0.0.1 del host.
+  host = System.get_env("PHX_HOST", "localhost")
+  port = String.to_integer(System.get_env("PORT", "4000"))
 
   config :eth, EthWeb.Endpoint,
-    url: [host: host, port: 443, scheme: "https"],
-    http: [
-      # Enable IPv6 and bind on all interfaces.
-      # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
-      # See the documentation on https://bandit.hexdocs.pm/Bandit.html#t:options/0
-      # for details about using IPv6 vs IPv4 and loopback vs public addresses.
-      ip: {0, 0, 0, 0, 0, 0, 0, 0}
-    ],
+    url: [host: host, port: port, scheme: "http"],
+    http: [ip: {0, 0, 0, 0}, port: port],
+    check_origin: ["//localhost", "//127.0.0.1", "//#{host}"],
     secret_key_base: secret_key_base
-
-  # ## SSL Support
-  #
-  # To get SSL working, you will need to add the `https` key
-  # to your endpoint configuration:
-  #
-  #     config :eth, EthWeb.Endpoint,
-  #       https: [
-  #         ...,
-  #         port: 443,
-  #         cipher_suite: :strong,
-  #         keyfile: System.get_env("SOME_APP_SSL_KEY_PATH"),
-  #         certfile: System.get_env("SOME_APP_SSL_CERT_PATH")
-  #       ]
-  #
-  # The `cipher_suite` is set to `:strong` to support only the
-  # latest and more secure SSL ciphers. This means old browsers
-  # and clients may not be supported. You can set it to
-  # `:compatible` for wider support.
-  #
-  # `:keyfile` and `:certfile` expect an absolute path to the key
-  # and cert in disk or a relative path inside priv, for example
-  # "priv/ssl/server.key". For all supported SSL configuration
-  # options, see https://plug.hexdocs.pm/Plug.SSL.html#configure/1
-  #
-  # We also recommend setting `force_ssl` in your config/prod.exs,
-  # ensuring no data is ever sent via http, always redirecting to https:
-  #
-  #     config :eth, EthWeb.Endpoint,
-  #       force_ssl: [hsts: true]
-  #
-  # Check `Plug.SSL` for all available options in `force_ssl`.
-
-  # ## Configuring the mailer
-  #
-  # In production you need to configure the mailer to use a different adapter.
-  # Here is an example configuration for Mailgun:
-  #
-  #     config :eth, Eth.Mailer,
-  #       adapter: Swoosh.Adapters.Mailgun,
-  #       api_key: System.get_env("MAILGUN_API_KEY"),
-  #       domain: System.get_env("MAILGUN_DOMAIN")
-  #
-  # Most non-SMTP adapters require an API client. Swoosh supports Req, Hackney,
-  # and Finch out-of-the-box. This configuration is typically done at
-  # compile-time in your config/prod.exs:
-  #
-  #     config :swoosh, :api_client, Swoosh.ApiClient.Req
-  #
-  # See https://swoosh.hexdocs.pm/Swoosh.html#module-installation for details.
 end

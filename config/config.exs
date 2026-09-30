@@ -89,7 +89,16 @@ config :eth, Eth.GameRules,
   poll_jitter_ms: 1_000..5_000,
   pages_concurrency: 8,
   page_retries: 2,
-  snapshot_grace_ms: 60_000,
+  # Vida de la generación anterior de órdenes tras el swap: solo la lee una evaluación en
+  # curso (3–4 s con el universo completo; las consultas usan los datos ya copiados en las
+  # oportunidades). Con 60 s el pico de memoria superaba los 2 GB (RNF-1.5).
+  snapshot_grace_ms: 20_000,
+  # Motor (RNF-1.3, RNF-1.5): intervalo mínimo entre evaluaciones y vida de la versión
+  # anterior de las tablas de oportunidades (las consultas duran < 100 ms).
+  engine_min_interval_ms: 10_000,
+  engine_grace_ms: 5_000,
+  # Consultas de Estación y Por órdenes en paralelo desde esta cantidad de candidatos.
+  engine_parallel_min: 2_000,
   # Reinicio en caliente (RF-1.10): guardar cada 10 min; restaurar si tiene < 15 min.
   snapshot_save_interval_ms: 600_000,
   warm_restart_max_age_min: 15,

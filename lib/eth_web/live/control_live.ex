@@ -22,6 +22,8 @@ defmodule EthWeb.ControlLive do
   """
   use EthWeb, :live_view
 
+  import EthWeb.TradingComponents, only: [row_detail: 1, detail_col: 1]
+
   alias Eth.Characters.Sessions
   alias Eth.{Clock, Engine, Events, Market, Sde, Threat}
   alias Eth.Esi.{Budget, ServerStatus}
@@ -125,8 +127,11 @@ defmodule EthWeb.ControlLive do
   ## Eventos de la UI
 
   @impl true
+  # Clic en una región: abre su detalle bajo el nivel, o lo cierra si ya estaba abierto.
   def handle_event("select_region", %{"id" => id}, socket) do
-    {:noreply, assign(socket, :selected, String.to_integer(id))}
+    id = String.to_integer(id)
+    selected = if socket.assigns.selected == id, do: nil, else: id
+    {:noreply, assign(socket, :selected, selected)}
   end
 
   def handle_event("close_detail", _params, socket),
@@ -366,6 +371,16 @@ defmodule EthWeb.ControlLive do
   defp feed_label(%{status: :banned}), do: gettext("R2Z2 · bloqueado (403): pausa de 1 h")
   defp feed_label(%{status: :error}), do: gettext("R2Z2 · con errores, reintentando")
   defp feed_label(_feed), do: gettext("R2Z2 · conectando")
+
+  defp threat_type_label(:gate_camp), do: gettext("Gatecamp")
+  defp threat_type_label(:bubble_camp), do: gettext("Bubble camp")
+  defp threat_type_label(:smartbomb_camp), do: gettext("Smartbombs")
+  defp threat_type_label(:hauler_gank), do: gettext("Gank de transportes")
+  defp threat_type_label(_roaming), do: gettext("Actividad hostil")
+
+  # Cuántas veces más kills que lo esperado por la línea base.
+  defp over_normal(%{kills: kills, lambda: lambda}),
+    do: :erlang.float_to_binary(kills / max(lambda, 0.01), decimals: 0)
 
   defp system_name(id), do: (Sde.system(id) || %{name: "#{id}"}).name
 

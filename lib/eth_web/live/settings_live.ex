@@ -16,7 +16,18 @@ defmodule EthWeb.SettingsLive do
   """
   use EthWeb, :live_view
 
-  alias Eth.{Accounts, Characters, GameRules, Market, Notifications, Routing, Sde, Sso}
+  alias Eth.{
+    Accounts,
+    Characters,
+    ConfigTransfer,
+    GameRules,
+    Market,
+    Notifications,
+    Routing,
+    Sde,
+    Sso
+  }
+
   alias Eth.Characters.{Pilot, Session, Sessions, ShipProfile}
   alias EthWeb.{Format, HunterParams}
 
@@ -27,7 +38,8 @@ defmodule EthWeb.SettingsLive do
     radar: {"Radar", "/settings/radar"},
     markets: {"Regiones y estructuras", "/settings/markets"},
     notifications: {"Notificaciones", "/settings/notifications"},
-    setup: {"Primer arranque", "/settings/setup"}
+    setup: {"Primer arranque", "/settings/setup"},
+    backup: {"Respaldo", "/settings/backup"}
   ]
 
   @impl true
@@ -41,7 +53,8 @@ defmodule EthWeb.SettingsLive do
      socket
      |> assign(:page_title, gettext("Ajustes"))
      |> assign(:tabs, @tabs)
-     |> assign(:editing, nil)}
+     |> assign(:editing, nil)
+     |> allow_upload(:config, accept: ~w(.json), max_entries: 1, max_file_size: 1_000_000)}
   end
 
   @impl true
@@ -126,9 +139,34 @@ defmodule EthWeb.SettingsLive do
 
   defp load(socket, :setup), do: assign(socket, :checks, setup_checks(socket.assigns.pilot))
 
-  ## Personajes (RF-9.2)
+  defp load(socket, :backup), do: assign_new(socket, :import_result, fn -> nil end)
+
+  ## Respaldo (RF-9.7)
 
   @impl true
+  def handle_event("validate_import", _params, socket), do: {:noreply, socket}
+
+  # `path` es el archivo temporal que crea LiveView para la subida (nunca un dato del
+  # usuario): no hay traversal posible.
+  # sobelow_skip ["Traversal.FileModule"]
+  def handle_event("import", _params, socket) do
+    results =
+      consume_uploaded_entries(socket, :config, fn %{path: path}, _entry ->
+        {:ok, path |> File.read!() |> Jason.decode()}
+      end)
+
+    result =
+      case results do
+        [{:ok, config}] -> ConfigTransfer.import(config)
+        [{:error, _}] -> {:error, gettext("El archivo no es un JSON válido.")}
+        [] -> {:error, gettext("Elegí un archivo para importar.")}
+      end
+
+    {:noreply, assign(socket, :import_result, result)}
+  end
+
+  ## Personajes (RF-9.2)
+
   def handle_event("forget", %{"id" => id}, socket) do
     with {id, ""} <- Integer.parse(id),
          %{} = character <- Characters.get(id) do

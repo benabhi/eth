@@ -1,0 +1,58 @@
+# EVE Trade Hunter para uso personal (RNF-10.5): imagen de producción + PostgreSQL.
+#
+#   docker compose -f docker-compose.release.yml up -d --build
+#
+# Todo corre en contenedores: no hace falta instalar Elixir ni compilar nada en el host.
+# Los datos (base, SDE, snapshots) viven en volúmenes que sobreviven a las
+# actualizaciones (RNF-10.7). Guía completa en README.md.
+#
+# Nombre de proyecto propio: no se mezcla con los contenedores de desarrollo
+# (docker-compose.yml).
+name: eth-release
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: eth
+      POSTGRES_PASSWORD: eth
+      POSTGRES_DB: eth
+    volumes:
+      - pgdata:/var/lib/postgresql # PostgreSQL >= 18: montar aquí (no en .../data)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eth -d eth"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    # Sin puertos publicados: la base solo es accesible para la aplicación.
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: eth:latest
+    ports:
+      - "127.0.0.1:4000:4000" # solo loopback del host (RNF-4.5)
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      DATABASE_URL: ecto://eth:eth@db/eth
+      PHX_HOST: localhost
+      EVE_CALLBACK_URL: http://localhost:4000/auth/eve/callback
+      ETH_DATA_DIR: /data
+      # Regiones a escanear: la de .env (vacío = todo el universo) o la del shell.
+      ETH_REGIONS: ${ETH_REGIONS:-}
+    volumes:
+      - data:/data # SDE procesado, matrices, snapshots y clave de cookies
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    # Apagado ordenado: da tiempo a guardar los snapshots de mercado (RF-1.10).
+    stop_grace_period: 60s
+
+volumes:
+  pgdata:
+  data:

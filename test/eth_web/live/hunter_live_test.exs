@@ -108,6 +108,47 @@ defmodule EthWeb.HunterLiveTest do
     refute has_element?(view, "#detail")
   end
 
+  test "todos los \"?\" de la fila y de la ficha tienen texto de ayuda (RNF-5.14)", %{conn: conn} do
+    publish_market()
+    {:ok, view, _html} = live(conn, ~p"/")
+    view |> element("#opportunities [id^='opp-'] > [data-head]") |> render_click()
+    render_async(view)
+
+    tooltips = view |> render() |> LazyHTML.from_fragment() |> LazyHTML.query("[role=tooltip]")
+    assert Enum.count(tooltips) > 10
+
+    for tooltip <- tooltips do
+      text = tooltip |> LazyHTML.query("[data-tip-text]") |> LazyHTML.text() |> String.trim()
+      assert text != "", "tooltip sin texto: #{LazyHTML.to_html(tooltip)}"
+    end
+  end
+
+  test "las filas que cambian se resaltan un momento (RF-6.3)", %{conn: conn} do
+    publish_market()
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    # Primera carga: nada resaltado.
+    refute has_element?(view, "#opportunities [class*='eth-flash-']")
+
+    # Otra evaluación con otro precio: la fila cambia y se resalta.
+    publish_market(6.0)
+    assert has_element?(view, "#opportunities [id^='opp-'][class*='eth-flash-']")
+  end
+
+  test "los atajos de teclado tienen su hook y sus destinos marcados (RF-6.9)", %{conn: conn} do
+    publish_market()
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    assert has_element?(view, "#board-shortcuts[phx-hook]")
+    assert has_element?(view, "input[data-shortcut=search]")
+    assert has_element?(view, "#freeze[data-shortcut=freeze]")
+    assert has_element?(view, "[data-head][tabindex='0']")
+
+    view |> element("#opportunities [id^='opp-'] > [data-head]") |> render_click()
+    assert has_element?(view, "#copy-detail[data-shortcut=copy]")
+    assert has_element?(view, "#set-route[data-shortcut=route]")
+  end
+
   describe "anti-scam (RF-4.8)" do
     setup do
       start_supervised!(History)
@@ -193,7 +234,7 @@ defmodule EthWeb.HunterLiveTest do
 
       for mode <- ["secure", "evasive"] do
         {:ok, view, _html} = live(conn, ~p"/?route_mode=#{mode}")
-        assert has_element?(view, "#opportunities", "Gatecamp")
+        assert has_element?(view, "#opportunities", "Gatecamp · Perimeter")
 
         view |> element("#opportunities [id^='opp-'] > [data-head]") |> render_click()
         render_async(view)

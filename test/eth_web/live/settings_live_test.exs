@@ -187,4 +187,51 @@ defmodule EthWeb.SettingsLiveTest do
       assert render(view) =~ "Alerta de prueba"
     end
   end
+
+  describe "respaldo (RF-9.7)" do
+    test "descarga la configuración como JSON", %{conn: conn} do
+      conn = get(conn, ~p"/settings/export")
+
+      assert response(conn, 200)
+      assert [disposition] = get_resp_header(conn, "content-disposition")
+      assert disposition =~ "eth-config-"
+      assert %{"app" => "eth", "format" => 1} = Jason.decode!(conn.resp_body)
+    end
+
+    test "importa un archivo y muestra el resumen", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings/backup")
+
+      json =
+        Jason.encode!(%{
+          "app" => "eth",
+          "format" => 1,
+          "game_rules" => %{"sales_tax_base" => 0.05}
+        })
+
+      file =
+        file_input(view, "#config-import", :config, [
+          %{name: "eth-config.json", content: json, type: "application/json"}
+        ])
+
+      render_upload(file, "eth-config.json")
+      view |> form("#config-import") |> render_submit()
+
+      assert has_element?(view, "#import-result", "Configuración importada")
+      assert Eth.Accounts.game_rule_overrides() == %{sales_tax_base: 0.05}
+      Overrides.reload()
+    end
+
+    test "un archivo que no es JSON muestra el error", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings/backup")
+
+      file =
+        file_input(view, "#config-import", :config, [
+          %{name: "roto.json", content: "{no", type: "application/json"}
+        ])
+
+      render_upload(file, "roto.json")
+      view |> form("#config-import") |> render_submit()
+      assert has_element?(view, "#import-result", "no es un JSON válido")
+    end
+  end
 end

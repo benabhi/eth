@@ -6,7 +6,10 @@
   out: nil,
   private: false,
   router: nil,
-  # Respeta las excepciones puntuales `# sobelow_skip [...]` (cada una justificada en el código).
+  # Respeta las excepciones puntuales `# sobelow_skip [...]` (cada una justificada en el código)
+  # y las de `.sobelow-skips`, que son una por hallazgo. Hoy solo una:
+  # - Config.HTTPS en config/prod.exs: la app corre en la máquina del piloto por HTTP,
+  #   publicada solo en 127.0.0.1, sin certificado ni proxy (D-22, RNF-4.5).
   skip: true,
   threshold: :low,
   verbose: false

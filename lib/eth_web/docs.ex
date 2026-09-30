@@ -7,8 +7,10 @@ defmodule EthWeb.Docs do
   (`href(:certainty)`), que apunta a una página y un ancla. Un test verifica que cada
   tema apunta a una página existente y a un encabezado que existe en ella (RF-11.4).
 
-  Implementa: RF-11.1, RF-11.2, RF-11.4.
+  Implementa: RF-11.1, RF-11.2, RF-11.4, RNF-5.14.
   """
+
+  use Gettext, backend: EthWeb.Gettext
 
   # {slug, título, grupo del índice}, en el orden de lectura.
   @pages [
@@ -105,6 +107,138 @@ defmodule EthWeb.Docs do
       :error -> raise ArgumentError, "tema del manual desconocido: #{inspect(topic)}"
     end
   end
+
+  @doc """
+  Resumen breve de un tema, para el "?" que no trae un texto propio (RNF-5.14): ningún
+  tooltip queda solo con el enlace. Un test verifica que todos los temas tengan uno.
+  """
+  @spec summary(atom()) :: String.t()
+  def summary(:first_steps),
+    do: gettext("Cómo instalar la aplicación y registrar tu propia aplicación de EVE.")
+
+  def summary(:scopes),
+    do: gettext("Los permisos que pide la app a EVE y para qué usa cada uno.")
+
+  def summary(:board),
+    do: gettext("Cada fila es un contrato: qué comprar, dónde venderlo y cuánto ganás.")
+
+  def summary(:rank),
+    do: gettext("La letra resume el TVS: S ≥ 90, A ≥ 75, B ≥ 50, C ≥ 25; el resto, D.")
+
+  def summary(:seals),
+    do: gettext("Sellos del contrato: nuevo, en riesgo, sospechoso, ilíquido, estructura…")
+
+  def summary(:danger),
+    do: gettext("Riesgo de la ruta según el radar, tu nave y el valor de la carga.")
+
+  def summary(:families),
+    do:
+      gettext("Directo: comprás y vendés al instante. Por órdenes y Estación: publicás órdenes.")
+
+  def summary(:shortcuts),
+    do: gettext("/ buscar · j/k recorrer · Enter abrir · c copiar · w ruta · f congelar.")
+
+  def summary(:sales_tax),
+    do: gettext("Impuesto al vender, más bajo con Accounting.")
+
+  def summary(:broker),
+    do: gettext("Comisión por publicar una orden; baja con Broker Relations y los standings.")
+
+  def summary(:relist),
+    do: gettext("Cambiar el precio de una orden vuelve a cobrar parte del broker fee.")
+
+  def summary(:profit),
+    do: gettext("Lo que cobrás al vender, menos lo que pagás al comprar y los impuestos.")
+
+  def summary(:walk),
+    do: gettext("Se compra y se vende orden por orden, del mejor precio al peor.")
+
+  def summary(:range),
+    do: gettext("Órdenes de compra con rango: se puede vender desde sistemas cercanos.")
+
+  def summary(:tvs),
+    do: gettext("Puntaje 0–100: qué tan bueno es el contrato (utilidad × certeza).")
+
+  def summary(:certainty),
+    do: gettext("Qué tan probable es que el contrato salga como se calculó cuando llegues.")
+
+  def summary(:isk_per_hour),
+    do: gettext("Beneficio por hora contando los saltos desde tu ubicación.")
+
+  def summary(:shield),
+    do: gettext("Detecta órdenes trampa y precios irreales; las SCAM quedan bloqueadas.")
+
+  def summary(:liquidity),
+    do: gettext("Si el objeto se opera lo suficiente para venderlo sin esperar.")
+
+  def summary(:realism),
+    do: gettext("Precios comparados con la mediana de los últimos días.")
+
+  def summary(:radar),
+    do: gettext("Kills en vivo comparadas con lo habitual de cada sistema.")
+
+  def summary(:evasive),
+    do: gettext("Ruta que esquiva camps y ganks aunque sea más larga.")
+
+  def summary(:cargo),
+    do: gettext("La bodega real de tu nave, calculada con sus módulos y habilidades.")
+
+  def summary(:ship_profile),
+    do: gettext("Bodega y clase de evasión guardadas para una nave o un casco.")
+
+  def summary(:run),
+    do: gettext("El contrato que estás cazando: etapas, amenazas y resultado real.")
+
+  def summary(:hunter_log),
+    do: gettext("Tu historial real de contratos: rango, racha e hitos.")
+
+  def summary(:station),
+    do: gettext("Comprar y vender con órdenes propias en la misma estación.")
+
+  def summary(:competition),
+    do: gettext("Cuántas órdenes compiten cerca de tu precio: más competencia, menos certeza.")
+
+  def summary(:listing),
+    do: gettext("Listado: vendés con una orden en el hub. Compra por orden: comprás con una.")
+
+  def summary(:wait),
+    do: gettext("Días estimados hasta que tu orden se ejecute.")
+
+  def summary(:own_orders),
+    do: gettext("Tus órdenes abiertas y si otra te superó.")
+
+  def summary(:control),
+    do: gettext("Qué descarga la app, cuánto presupuesto de EVE le queda y cómo anda el radar.")
+
+  def summary(:pollers),
+    do: gettext("Anillo exterior: tiempo hasta datos nuevos. Interior: páginas descargadas.")
+
+  def summary(:budgets),
+    do:
+      gettext(
+        "Consultas usadas de cada presupuesto de EVE; cerca del límite la app baja el ritmo."
+      )
+
+  def summary(:history_queue),
+    do: gettext("Historial de precios que se descarga a demanda, con un tope por minuto.")
+
+  def summary(:radar_feed),
+    do: gettext("Kills en vivo de zKillboard; si se corta, el radar usa solo la línea base.")
+
+  def summary(:engine),
+    do: gettext("Cuánto tardó cada etapa de la última evaluación del mercado.")
+
+  def summary(:settings),
+    do: gettext("Personajes, naves, reglas del juego, radar, mercados y alertas.")
+
+  def summary(:esi_limits),
+    do: gettext("Los límites de consultas de EVE y cómo la app los respeta.")
+
+  def summary(:privacy),
+    do: gettext("Tus datos quedan en tu máquina; solo se consulta a EVE y a zKillboard.")
+
+  def summary(:glossary),
+    do: gettext("Términos de EVE y de la aplicación.")
 
   @doc "Página anterior y siguiente en el orden de lectura."
   @spec neighbors(String.t()) :: {tuple() | nil, tuple() | nil}

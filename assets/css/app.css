@@ -68,7 +68,7 @@
   --color-primary-content: #ffffff;
   --color-secondary: #6a4fc8;
   --color-secondary-content: #ffffff;
-  --color-accent: #b36a00;
+  --color-accent: #a26000; /* AA 4.6:1 sobre base-200 (RNF-5.2) */
   --color-accent-content: #ffffff;
   --color-neutral: #dde5ee;
   --color-neutral-content: #1b2735;
@@ -135,7 +135,7 @@
   --eth-surface-hi: #ffffff;
   --eth-grid: rgba(10, 111, 163, 0.04);
   --eth-muted: #536579;
-  --eth-faint: #7a8ba0;
+  --eth-faint: #647183; /* AA 4.6:1 sobre base-200 (RNF-5.2) */
   --eth-strong: #0e1b29;
   --eth-line: #dde5ee;
   --eth-shadow: 0 14px 32px rgba(14, 27, 41, 0.14);
@@ -193,6 +193,11 @@ body {
 }
 .eth-chamfer-xs {
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+/* El clip-path del chaflán también recorta lo que sobresale: mientras hay un tooltip
+   abierto adentro, se quita (la esquina queda recta ese instante) para que se vea entero. */
+:is(.eth-chamfer, .eth-chamfer-sm, .eth-chamfer-xs):has(.eth-tip:hover, .eth-tip:focus-within) {
+  clip-path: none;
 }
 
 /* Cabecera de panel: versalitas con tracking amplio. */
@@ -277,6 +282,11 @@ body {
   outline: none;
 }
 
+/* En rótulos en mayúsculas (sin descendentes) la caja del texto reserva espacio abajo y
+   las letras quedan altas: el "?" centrado en la caja parecía más bajo. Se sube hasta el
+   centro óptico de las mayúsculas. */
+.eth-kicker .eth-help, th .eth-help { translate: 0 -0.1em; }
+
 /* Fórmula con valores reales (RF-11.3). */
 .eth-formula {
   font-family: var(--font-mono);
@@ -317,9 +327,14 @@ body {
 @keyframes eth-flash-down {
   from { background-color: color-mix(in oklab, var(--color-error) 22%, transparent); }
 }
+@keyframes eth-flash-new {
+  from { background-color: color-mix(in oklab, var(--color-primary) 20%, transparent); }
+}
 .eth-enter { animation: eth-enter 180ms ease-out; }
-.eth-flash-up { animation: eth-flash-up 900ms ease-out; }
-.eth-flash-down { animation: eth-flash-down 900ms ease-out; }
+/* Filas nuevas y cambiadas (RF-6.3): el fondo se desvanece solo en ~2,4 s. */
+.eth-flash-new { animation: eth-flash-new 2400ms ease-out; }
+.eth-flash-up { animation: eth-flash-up 2400ms ease-out; }
+.eth-flash-down { animation: eth-flash-down 2400ms ease-out; }
 
 /* Ficha que se despliega bajo la fila (RF-6.5): se desenrolla de arriba hacia abajo. */
 @keyframes eth-unfold {
@@ -346,6 +361,9 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .eth-row-loading::after { animation: none; width: 100%; opacity: 0.6; }
 }
+
+/* Fila con foco de teclado (RF-6.9, RNF-5.2): contorno visible sin mover el layout. */
+[data-head]:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
 
 /* Barra de filtros acoplada a la tabla (RF-6.4): campo compacto con la etiqueta como prefijo. */
 .eth-filter {
@@ -404,7 +422,7 @@ body {
 .eth-pulse-ring { animation: eth-pulse 1.6s ease-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .eth-spin, .eth-skel, .eth-enter, .eth-unfold, .eth-pulse-bar, .eth-flash-up, .eth-flash-down, .eth-pulse-ring {
+  .eth-spin, .eth-skel, .eth-enter, .eth-unfold, .eth-pulse-bar, .eth-flash-new, .eth-flash-up, .eth-flash-down, .eth-pulse-ring {
     animation: none;
   }
   .eth-tip-body { transition: none; }

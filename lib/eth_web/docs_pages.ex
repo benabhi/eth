@@ -111,7 +111,7 @@ defmodule EthWeb.DocsPages do
 
   def doc_link(assigns) do
     ~H"""
-    <a href={Docs.href(@topic)} class="link link-primary">{render_slot(@inner_block)}</a>
+    <.link navigate={Docs.href(@topic)} class="link link-primary">{render_slot(@inner_block)}</.link>
     """
   end
 

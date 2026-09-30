@@ -390,175 +390,183 @@
         </.panel>
       </div>
     <% "market" -> %>
-      <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
-        <%!-- Mapa de regiones (RF-8.2) --%>
-        <.panel
-          id="regions"
-          title={gettext("Regiones (%{n})", n: totals(@regions).count)}
-          help={:pollers}
+      <%!-- Mapa de regiones (RF-8.2); el detalle se despliega bajo su nivel (RF-8.3) --%>
+      <.panel
+        id="regions"
+        title={gettext("Regiones (%{n})", n: totals(@regions).count)}
+        help={:pollers}
+        phx-window-keydown="close_detail"
+        phx-key="Escape"
+      >
+        <:help_body>
+          {gettext(
+            "Cada región con su estado, la cuenta regresiva hasta datos nuevos y las páginas. Tocá una para ver su detalle."
+          )}
+        </:help_body>
+        <:actions>
+          <span class="text-xs eth-muted">
+            {gettext("%{fresh} con datos frescos", fresh: totals(@regions).fresh)}
+          </span>
+        </:actions>
+
+        <p :if={@regions == %{}} class="text-sm eth-muted">
+          {gettext(
+            "Todavía no hay pollers corriendo. El mercado arranca unos segundos después del servidor."
+          )}
+        </p>
+
+        <div
+          :for={{tier, tier_title} <- @tiers}
+          :if={regions_in_tier(@regions, tier) != []}
+          class="mb-5 last:mb-0"
         >
-          <:help_body>
-            {gettext(
-              "Cada región con su estado, la cuenta regresiva hasta datos nuevos y las páginas."
-            )}
-          </:help_body>
-          <:actions>
-            <span class="text-xs eth-muted">
-              {gettext("%{fresh} con datos frescos", fresh: totals(@regions).fresh)}
-            </span>
-          </:actions>
-
-          <p :if={@regions == %{}} class="text-sm eth-muted">
-            {gettext(
-              "Todavía no hay pollers corriendo. El mercado arranca unos segundos después del servidor."
-            )}
-          </p>
-
-          <div
-            :for={{tier, tier_title} <- @tiers}
-            :if={regions_in_tier(@regions, tier) != []}
-            class="mb-4 last:mb-0"
-          >
-            <h3 class="eth-kicker mb-2 text-[11px]">{tier_title}</h3>
-            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-              <button
-                :for={{r, {_key, label, color}} <- tiles(@regions, tier, @now)}
-                id={"region-#{r.region_id}"}
-                type="button"
-                phx-click="select_region"
-                phx-value-id={r.region_id}
-                aria-label={"#{r.name}: #{label}"}
-                aria-pressed={to_string(@selected == r.region_id)}
-                class={[
-                  "flex items-center gap-3 border border-l-4 border-base-300 bg-base-200 p-2.5 text-left transition-colors hover:border-primary/60",
-                  tone_border(color),
-                  @selected == r.region_id && "border-primary bg-primary/10"
-                ]}
-              >
-                <.ring
-                  value={
-                    if(r.status == :fetching,
-                      do: pages_fraction(r),
-                      else: expires_fraction(r, @now)
-                    )
-                  }
-                  size={36}
-                  stroke={3}
-                  class={tone_text(color)}
-                />
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate text-sm font-semibold eth-strong">{r.name}</span>
-                  <span class={["block text-xs", tone_text(color)]}>
-                    {label} · <span class="font-mono">{timing(r, @now)}</span>
-                  </span>
-                  <span class="block font-mono text-[11px] eth-faint">
-                    {Format.compact(r.orders)} {gettext("órd.")} · {Format.ago(
-                      r.last_modified,
-                      @now
-                    )}
-                  </span>
+          <h3 class="eth-kicker mb-2 text-[11px]">{tier_title}</h3>
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            <button
+              :for={{r, {_key, label, color}} <- tiles(@regions, tier, @now)}
+              id={"region-#{r.region_id}"}
+              type="button"
+              phx-click="select_region"
+              phx-value-id={r.region_id}
+              aria-label={"#{r.name}: #{label}"}
+              aria-expanded={to_string(@selected == r.region_id)}
+              class={[
+                "flex items-center gap-3 border border-l-4 border-base-300 bg-base-200 p-2.5 text-left transition-colors hover:border-primary/60 phx-click-loading:opacity-70",
+                tone_border(color),
+                @selected == r.region_id && "border-primary bg-primary/10"
+              ]}
+            >
+              <.ring
+                value={
+                  if(r.status == :fetching,
+                    do: pages_fraction(r),
+                    else: expires_fraction(r, @now)
+                  )
+                }
+                size={36}
+                stroke={3}
+                class={tone_text(color)}
+              />
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm font-semibold eth-strong">{r.name}</span>
+                <span class={["block text-xs", tone_text(color)]}>
+                  {label} · <span class="font-mono">{timing(r, @now)}</span>
                 </span>
-              </button>
-            </div>
+                <span class="block font-mono text-[11px] eth-faint">
+                  {Format.compact(r.orders)} {gettext("órd.")} · {Format.ago(
+                    r.last_modified,
+                    @now
+                  )}
+                </span>
+              </span>
+              <.icon
+                name="hero-chevron-down"
+                class={[
+                  "size-4 shrink-0 eth-muted transition-transform duration-200",
+                  @selected == r.region_id && "rotate-180 text-primary"
+                ]}
+              />
+            </button>
           </div>
-        </.panel>
 
-        <%!-- Detalle de proceso (RF-8.3) --%>
-        <aside
-          aria-labelledby="detail-title"
-          class="eth-chamfer h-fit border border-base-300 bg-base-100 p-4 xl:sticky xl:top-20"
-        >
-          <%= if @selected && @regions[@selected] do %>
-            <div :for={r <- [@regions[@selected]]} id="region-detail">
-              <div class="flex items-start justify-between gap-3">
-                <div class="flex items-center gap-3">
-                  <% {_key, label, color} = display(r, @now) %>
-                  <.double_ring
-                    outer={expires_fraction(r, @now)}
-                    inner={pages_fraction(r)}
-                    size={64}
-                    outer_class={tone_text(color)}
-                    label={label}
-                  />
-                  <div>
-                    <h2 id="detail-title" class="font-display text-lg font-semibold eth-strong">
-                      {r.name}
-                    </h2>
-                    <div class="font-mono text-xs eth-faint">
-                      {r.region_id} · {tier_label(r.tier)}
-                    </div>
+          <%!-- Detalle de la región elegida, a todo el ancho (RF-8.3) --%>
+          <div
+            :for={r <- [@regions[@selected]]}
+            :if={@selected && @regions[@selected] && @regions[@selected].tier == tier}
+            class="mt-2 border border-base-300"
+          >
+            <% {_key, label, color} = display(r, @now) %>
+            <.row_detail id="region-detail" label={gettext("Detalle de %{name}", name: r.name)}>
+              <div class="flex items-center gap-4">
+                <.double_ring
+                  outer={expires_fraction(r, @now)}
+                  inner={pages_fraction(r)}
+                  size={88}
+                  outer_class={tone_text(color)}
+                  label={label}
+                >
+                  <span class="font-mono text-xs eth-strong">{timing(r, @now)}</span>
+                </.double_ring>
+                <div class="min-w-0">
+                  <h2 id="detail-title" class="font-display text-lg font-semibold eth-strong">
+                    {r.name}
+                  </h2>
+                  <div class={["text-sm", tone_text(color)]}>{label}</div>
+                  <div class="font-mono text-xs eth-faint">
+                    {r.region_id} · {tier_label(r.tier)} · {gettext("gen.")} {r.generation || "—"}
                   </div>
                 </div>
-                <button
-                  phx-click="close_detail"
-                  class="btn btn-ghost btn-xs"
-                  aria-label={gettext("Cerrar detalle")}
-                >
-                  <.icon name="hero-x-mark" class="size-4" />
-                </button>
               </div>
 
-              <dl class="mt-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-                <dt class="eth-muted">{gettext("Estado")}</dt>
-                <dd>
-                  {r |> display(@now) |> elem(1)}
-                  <span class="font-mono eth-faint">({r.status})</span>
-                </dd>
-                <dt class="eth-muted">{gettext("Generación")}</dt>
-                <dd class="font-mono">{r.generation || "—"}</dd>
-                <dt class="eth-muted">Last-Modified</dt>
-                <dd class="font-mono">
-                  {Format.eve_time(r.last_modified)} ({Format.ago(r.last_modified, @now)})
-                </dd>
-                <dt class="eth-muted">Expires</dt>
-                <dd class="font-mono">
-                  {Format.eve_time(r.expires)} (T-{Format.countdown(r.expires, @now)})
-                </dd>
-                <dt class="eth-muted">{gettext("Próximo ciclo")}</dt>
-                <dd class="font-mono">{Format.eve_time(r.next_at)}</dd>
-                <dt class="eth-muted">{gettext("Páginas")}</dt>
-                <dd class="font-mono">{r.pages || "—"} ({r.not_modified_pages || 0} × 304)</dd>
-                <dt class="eth-muted">{gettext("Órdenes")}</dt>
-                <dd class="font-mono">
-                  {Format.integer(r.orders)}
-                  <span class="eth-faint">
-                    ({gettext("venta")} {Format.compact(r.sell_orders)} · {gettext("compra")} {Format.compact(
-                      r.buy_orders
-                    )})
-                  </span>
-                </dd>
-                <dt class="eth-muted">{gettext("Memoria ETS")}</dt>
-                <dd class="font-mono">{Format.bytes(r.bytes)}</dd>
-                <dt class="eth-muted">{gettext("Fallos seguidos")}</dt>
-                <dd class="font-mono">{r.failures}</dd>
-                <dt :if={r.last_error} class="eth-muted">{gettext("Último error")}</dt>
-                <dd :if={r.last_error} class="text-error">{r.last_error}</dd>
-              </dl>
+              <.detail_col title={gettext("Caché de ESI")} topic={:pollers}>
+                <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
+                  <dt class="eth-muted">Last-Modified</dt>
+                  <dd class="text-right font-mono">
+                    {Format.eve_time(r.last_modified)}
+                    <span class="eth-faint">({Format.ago(r.last_modified, @now)})</span>
+                  </dd>
+                  <dt class="eth-muted">Expires</dt>
+                  <dd class="text-right font-mono">
+                    {Format.eve_time(r.expires)}
+                    <span class="eth-faint">(T-{Format.countdown(r.expires, @now)})</span>
+                  </dd>
+                  <dt class="eth-muted">{gettext("Próximo ciclo")}</dt>
+                  <dd class="text-right font-mono">{Format.eve_time(r.next_at)}</dd>
+                  <dt class="eth-muted">{gettext("Páginas")}</dt>
+                  <dd class="text-right font-mono">
+                    {r.pages || "—"} ({r.not_modified_pages || 0} × 304)
+                  </dd>
+                  <dt class="eth-muted">{gettext("Estado interno")}</dt>
+                  <dd class="text-right font-mono eth-faint">{r.status}</dd>
+                </dl>
+              </.detail_col>
 
-              <div :if={r.history != []} class="mt-4">
-                <div class="text-xs eth-faint">
-                  {gettext("Duración de los últimos %{n} ciclos", n: length(r.history))} · {gettext(
-                    "último"
-                  )}: {Format.duration(div(hd(r.history).duration_ms, 1000))}
-                </div>
-                <svg viewBox="0 0 100 20" class="h-10 w-full text-primary" aria-hidden="true">
-                  <polyline
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    vector-effect="non-scaling-stroke"
-                    points={sparkline_points(r.history)}
-                  />
-                </svg>
-              </div>
+              <.detail_col title={gettext("Órdenes en memoria")}>
+                <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
+                  <dt class="eth-muted">{gettext("Total")}</dt>
+                  <dd class="text-right font-mono eth-strong">{Format.integer(r.orders)}</dd>
+                  <dt class="eth-muted">{gettext("Venta")}</dt>
+                  <dd class="text-right font-mono">{Format.compact(r.sell_orders)}</dd>
+                  <dt class="eth-muted">{gettext("Compra")}</dt>
+                  <dd class="text-right font-mono">{Format.compact(r.buy_orders)}</dd>
+                  <dt class="eth-muted">{gettext("Memoria ETS")}</dt>
+                  <dd class="text-right font-mono">{Format.bytes(r.bytes)}</dd>
+                  <dt class="eth-muted">{gettext("Fallos seguidos")}</dt>
+                  <dd class={["text-right font-mono", r.failures > 0 && "text-warning"]}>
+                    {r.failures}
+                  </dd>
+                </dl>
+                <p :if={r.last_error} class="mt-2 text-xs text-error">{r.last_error}</p>
+              </.detail_col>
 
-              <div class="mt-4 flex flex-wrap gap-2">
+              <.detail_col title={gettext("Duración de los ciclos")}>
+                <%= if r.history != [] do %>
+                  <svg viewBox="0 0 100 20" class="h-12 w-full text-primary" aria-hidden="true">
+                    <polyline
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      vector-effect="non-scaling-stroke"
+                      points={sparkline_points(r.history)}
+                    />
+                  </svg>
+                  <p class="mt-1 text-xs eth-faint">
+                    {gettext("Últimos %{n} ciclos", n: length(r.history))} · {gettext("último")}: {Format.duration(
+                      div(hd(r.history).duration_ms, 1000)
+                    )}
+                  </p>
+                <% else %>
+                  <p class="text-xs eth-faint">{gettext("Todavía sin ciclos completos.")}</p>
+                <% end %>
+              </.detail_col>
+
+              <:footer>
                 <button
                   phx-click="refresh_now"
                   phx-value-id={r.region_id}
                   class="btn btn-primary btn-sm"
                 >
-                  {gettext("Actualizar ahora")}
+                  <.icon name="hero-arrow-path" class="size-4" /> {gettext("Actualizar ahora")}
                 </button>
                 <button
                   :if={r.status != :paused or r.pause_reason != :manual}
@@ -566,7 +574,7 @@
                   phx-value-id={r.region_id}
                   class="btn btn-outline btn-sm"
                 >
-                  {gettext("Pausar")}
+                  <.icon name="hero-pause" class="size-4" /> {gettext("Pausar")}
                 </button>
                 <button
                   :if={r.status == :paused and r.pause_reason == :manual}
@@ -574,135 +582,222 @@
                   phx-value-id={r.region_id}
                   class="btn btn-outline btn-sm"
                 >
-                  {gettext("Reanudar región")}
+                  <.icon name="hero-play" class="size-4" /> {gettext("Reanudar región")}
                 </button>
-              </div>
-              <p class="mt-2 text-xs eth-faint">
-                {gettext(
-                  "\"Actualizar ahora\" solo actúa si ESI ya publicó datos nuevos (Expires vencido) o si la región está en error."
-                )}
-              </p>
-            </div>
-          <% else %>
-            <h2 id="detail-title" class="eth-kicker">{gettext("Detalle")}</h2>
-            <p class="mt-2 text-sm eth-muted">
-              {gettext("Elegí una región del mapa para ver sus métricas y acciones.")}
-            </p>
-          <% end %>
-        </aside>
-      </div>
+                <span class="text-xs eth-faint">
+                  {gettext(
+                    "\"Actualizar ahora\" solo actúa si ESI ya publicó datos nuevos o si la región está en error."
+                  )}
+                </span>
+                <button
+                  type="button"
+                  phx-click="close_detail"
+                  class="btn btn-ghost btn-sm ml-auto eth-muted"
+                >
+                  <.icon name="hero-chevron-up" class="size-4" /> {gettext("Cerrar")}
+                  <kbd class="kbd kbd-xs">Esc</kbd>
+                </button>
+              </:footer>
+            </.row_detail>
+          </div>
+        </div>
+      </.panel>
     <% "radar" -> %>
-      <%!-- Panel del radar (RF-8.5) --%>
-      <.panel id="radar" title={gettext("Radar de amenazas")} help={:radar}>
-        <:help_body>
-          {gettext("Kills en vivo comparadas con la actividad habitual de cada sistema.")}
-        </:help_body>
-        <div class="flex flex-wrap items-center gap-4">
-          <.pulse live={not @radar_degraded} size={48} />
-          <p id="radar-feed" class="text-sm eth-muted">
-            <span class="eth-strong">{feed_label(@feed)}</span>
-            <span :if={@feed[:sequence]} class="font-mono">
-              · {gettext("secuencia")} {@feed.sequence}
-            </span>
-            <span :if={@feed[:lag_s]}>· {gettext("atraso %{s} s", s: @feed.lag_s)}</span>
-            <span :if={@feed[:processed]}>
-              · {gettext("%{n} kills leídas", n: Format.integer(@feed.processed))}
-            </span>
-            <br />
-            {gettext("Línea base: %{kills} h de kills, %{jumps} h de saltos",
-              kills: @baseline.kill_hours,
-              jumps: @baseline.jump_hours
-            )}
+      <%!-- Radar de amenazas (RF-8.5, RF-3.8) --%>
+      <% alerts = Enum.filter(@hot, & &1.alert) %>
+      <section
+        id="radar"
+        aria-label={gettext("Radar de amenazas")}
+        class="grid grid-cols-2 gap-3 lg:grid-cols-4"
+      >
+        <div class={[
+          "eth-chamfer flex items-center gap-3 border bg-base-100 p-3",
+          if(@radar_degraded, do: "border-warning/60", else: "border-base-300")
+        ]}>
+          <.pulse live={not @radar_degraded} size={44} />
+          <div id="radar-feed" class="min-w-0">
+            <div class="eth-kicker text-[10px]">{gettext("Feed")}</div>
+            <div class={[
+              "truncate text-sm font-semibold",
+              if(@radar_degraded, do: "text-warning", else: "eth-strong")
+            ]}>
+              {feed_label(@feed)}
+            </div>
+            <div class="font-mono text-[11px] eth-faint">
+              <span :if={@feed[:lag_s]}>{gettext("atraso %{s} s", s: @feed.lag_s)}</span>
+              <span :if={@feed[:processed]}>
+                · {gettext("%{n} leídas", n: Format.integer(@feed.processed))}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class={[
+          "eth-chamfer border bg-base-100 p-3",
+          if(alerts != [], do: "border-error/50", else: "border-base-300")
+        ]}>
+          <div class="eth-kicker text-[10px]">{gettext("Sistemas en alerta")}</div>
+          <div class={[
+            "font-mono text-2xl",
+            if(alerts != [], do: "text-error", else: "eth-strong")
+          ]}>
+            {length(alerts)}
+          </div>
+          <div class="text-[11px] eth-faint">
+            {gettext("de %{n} con kills PvP en 15 min", n: length(@hot))}
+          </div>
+        </div>
+        <div class="eth-chamfer border border-base-300 bg-base-100 p-3">
+          <div class="eth-kicker text-[10px]">{gettext("Kills en la ventana")}</div>
+          <div class="font-mono text-2xl eth-strong">{Enum.sum_by(@hot, & &1.kills)}</div>
+          <div class="text-[11px] eth-faint">
+            {gettext("%{n} relevantes recientes", n: length(@kills))}
+          </div>
+        </div>
+        <div class="eth-chamfer flex items-center gap-3 border border-base-300 bg-base-100 p-3">
+          <.ring
+            value={min(@baseline.kill_hours / (7 * 24), 1.0)}
+            size={44}
+            stroke={4}
+            class="text-info"
+            label={gettext("Cobertura de la línea base")}
+          >
+            <span class="font-mono text-[10px] eth-strong">{@baseline.kill_hours}h</span>
+          </.ring>
+          <div class="min-w-0">
+            <div class="eth-kicker flex items-center gap-1 text-[10px]">
+              {gettext("Línea base")}
+              <.help topic={:radar} title={gettext("Línea base")} align="end">
+                {gettext(
+                  "Kills y saltos por hora de cada sistema según ESI: así cada uno se compara con su propio normal. Con 7 días de muestras usa la franja horaria exacta."
+                )}
+              </.help>
+            </div>
+            <div class="text-[11px] eth-muted">
+              {gettext("%{kills} h de kills · %{jumps} h de saltos",
+                kills: @baseline.kill_hours,
+                jumps: @baseline.jump_hours
+              )}
+            </div>
             <.seal
               :if={@radar_degraded}
               kind={:risk}
               label={gettext("degradado: solo línea base")}
             />
+          </div>
+        </div>
+      </section>
+
+      <div class="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+        <.panel id="radar-hot" title={gettext("Sistemas calientes")} help={:radar}>
+          <:help_body>
+            {gettext(
+              "Kills PvP de los últimos 15 minutos frente a lo esperado (λ) según la línea base de cada sistema. Se alerta cuando es improbable que sea casualidad."
+            )}
+          </:help_body>
+          <p :if={@hot == []} class="text-sm eth-muted">
+            {gettext("Sin kills PvP en la ventana de 15 minutos.")}
           </p>
-        </div>
-
-        <div class="mt-5 grid gap-6 lg:grid-cols-2">
-          <div>
-            <h3 class="eth-kicker mb-2 flex items-center gap-2 text-[11px] text-primary">
-              {gettext("Sistemas calientes")}
-              <.help topic={:radar} title="λ">
-                {gettext("λ: kills esperadas en la ventana según la línea base del sistema.")}
-              </.help>
-            </h3>
-            <p :if={@hot == []} class="text-sm eth-muted">
-              {gettext("Sin kills PvP en la ventana de 15 minutos.")}
-            </p>
-            <table :if={@hot != []} class="table table-sm">
-              <thead>
-                <tr class="border-base-300">
-                  <th class="eth-kicker text-[10px]">{gettext("Sistema")}</th>
-                  <th class="eth-kicker text-right text-[10px]">{gettext("Kills")}</th>
-                  <th class="eth-kicker text-right text-[10px]">λ</th>
-                  <th class="eth-kicker text-[10px]">{gettext("Amenaza")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  :for={h <- @hot}
-                  id={"hot-#{h.system_id}"}
-                  class={["border-base-300/60", h.alert && "bg-error/5"]}
-                >
-                  <td>
-                    <span style={sec_style(h.system_id)} class="font-mono">
-                      {sec_label(h.system_id)}
-                    </span>
-                    {system_name(h.system_id)}
-                  </td>
-                  <td class="text-right font-mono">{h.kills}</td>
-                  <td class="text-right font-mono">
-                    {:erlang.float_to_binary(h.lambda / 1, decimals: 2)}
-                  </td>
-                  <td class="text-xs">
-                    <%= if h.alert do %>
-                      <span class="text-error">
-                        {round(h.threat * 100)} % · {h.classification.description}
-                      </span>
-                    <% else %>
-                      <span class="eth-faint">{gettext("dentro de lo habitual")}</span>
-                    <% end %>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div>
-            <h3 class="eth-kicker mb-2 text-[11px] text-primary">
-              {gettext("Últimas kills relevantes")}
-            </h3>
-            <p :if={@kills == []} class="text-sm eth-muted">
-              {gettext(
-                "Transportes destruidos, kills en gates y sistemas en alerta aparecen acá."
-              )}
-            </p>
-            <ol id="radar-kills" class="max-h-80 space-y-1 overflow-y-auto text-xs">
-              <li
-                :for={k <- @kills}
-                id={"kill-#{k.id}"}
-                class={[
-                  "flex flex-wrap items-center gap-x-1.5 border-l-2 pl-2",
-                  if(k.alert, do: "border-error", else: "border-base-300")
-                ]}
+          <ul :if={@hot != []} class="-mx-4 -my-4 divide-y divide-base-300/70">
+            <li
+              :for={h <- @hot}
+              id={"hot-#{h.system_id}"}
+              class={[
+                "flex items-center gap-3 border-l-4 px-4 py-2.5",
+                if(h.alert, do: "border-l-error bg-error/5", else: "border-l-transparent")
+              ]}
+            >
+              <.ring
+                value={if(h.alert, do: h.threat, else: 0.0)}
+                size={40}
+                class={if(h.alert, do: "text-error", else: "text-base-content/30")}
+                label={gettext("Amenaza %{p} %", p: round(h.threat * 100))}
               >
-                <span class="font-mono eth-faint">{Calendar.strftime(k.time, "%H:%M")}</span>
-                <span class="eth-strong">{k.system_name}</span>
-                <span :if={k.gate_to} class="eth-muted">
-                  · {gettext("gate a %{to}", to: k.gate_to)}
+                <span class="font-mono text-[10px] eth-strong">
+                  {if h.alert, do: round(h.threat * 100), else: "—"}
                 </span>
-                <.seal :if={k.victim_transport} kind={:risk} label={gettext("transporte")} />
-                <span class="font-mono eth-muted">
-                  · {k.attackers} {gettext("atacantes")} · {Format.compact(k.value)} ISK
-                </span>
-              </li>
-            </ol>
-          </div>
-        </div>
-      </.panel>
+              </.ring>
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span style={sec_style(h.system_id)} class="font-mono text-sm">
+                    {sec_label(h.system_id)}
+                  </span>
+                  <span class="font-semibold eth-strong">{system_name(h.system_id)}</span>
+                  <.seal
+                    :if={h.alert && h.classification}
+                    kind={:risk}
+                    label={threat_type_label(h.classification.type)}
+                  />
+                </div>
+                <div class="truncate text-xs eth-muted">
+                  <%= if h.alert && h.classification do %>
+                    {h.classification.description}
+                  <% else %>
+                    {gettext("dentro de lo habitual")}
+                  <% end %>
+                </div>
+              </div>
+              <div class="w-28 shrink-0 text-right">
+                <div class="font-mono text-sm eth-strong">
+                  {h.kills} <span class="text-xs eth-faint">kills</span>
+                </div>
+                <div class="font-mono text-[11px] eth-faint">
+                  λ {:erlang.float_to_binary(h.lambda / 1, decimals: 2)} · ×{over_normal(h)}
+                </div>
+              </div>
+            </li>
+          </ul>
+        </.panel>
+
+        <.panel id="radar-kills-panel" title={gettext("Últimas kills relevantes")}>
+          <:help_body>
+            {gettext("Transportes destruidos, kills en gates y sistemas en alerta.")}
+          </:help_body>
+          <p :if={@kills == []} class="text-sm eth-muted">
+            {gettext("Transportes destruidos, kills en gates y sistemas en alerta aparecen acá.")}
+          </p>
+          <ol
+            id="radar-kills"
+            class="-mx-4 -my-4 max-h-[34rem] divide-y divide-base-300/70 overflow-y-auto"
+          >
+            <li
+              :for={k <- Enum.sort_by(@kills, & &1.time, {:desc, DateTime})}
+              id={"kill-#{k.id}"}
+              class={[
+                "flex items-center gap-3 border-l-4 px-4 py-2",
+                if(k.alert, do: "border-l-error", else: "border-l-transparent")
+              ]}
+            >
+              <img
+                :if={k[:victim_type_id]}
+                src={"https://images.evetech.net/types/#{k.victim_type_id}/icon?size=32"}
+                alt=""
+                width="28"
+                height="28"
+                loading="lazy"
+                class="bg-base-300"
+              />
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-x-1.5">
+                  <span class="font-semibold eth-strong">{k.system_name}</span>
+                  <span :if={k.gate_to} class="text-xs eth-muted">
+                    · {gettext("gate a %{to}", to: k.gate_to)}
+                  </span>
+                  <.seal :if={k.victim_transport} kind={:risk} label={gettext("transporte")} />
+                </div>
+                <div class="font-mono text-[11px] eth-faint">
+                  {k.attackers} {gettext("atacantes")}
+                </div>
+              </div>
+              <div class="shrink-0 text-right">
+                <div class="font-mono text-sm text-accent">{Format.compact(k.value)}</div>
+                <div class="font-mono text-[11px] eth-faint">
+                  {Calendar.strftime(k.time, "%H:%M")}
+                </div>
+              </div>
+            </li>
+          </ol>
+        </.panel>
+      </div>
     <% "characters" -> %>
       <%!-- Sesiones de personajes (RF-8.6) --%>
       <.panel id="character-sessions" title={gettext("Personajes")} help={:privacy}>

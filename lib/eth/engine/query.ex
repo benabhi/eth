@@ -15,7 +15,7 @@ defmodule Eth.Engine.Query do
   Implementa: RF-2.8, RF-4.6, RF-4.7, RF-4.8, RF-4.12, RF-4.14, RF-6.2, RF-6.4.
   """
 
-  alias Eth.Engine.{Book, Fees, Liquidity, Opportunity, RouteRisk, Score, Shield}
+  alias Eth.Engine.{Book, Fees, Liquidity, Opportunity, RouteRisk, Score, Search, Shield}
   alias Eth.{GameRules, Routing}
   alias Eth.Market.{History, Prices, StructureManager}
 
@@ -305,30 +305,12 @@ defmodule Eth.Engine.Query do
   def shield_visible?(status, :safe), do: status in [:ok, :no_history]
 
   defp matches?(_opp, ""), do: true
-
-  defp matches?(opp, search) do
-    [
-      opp.type_name,
-      opp.origin.name,
-      opp.origin.system_name,
-      opp.origin.region_name,
-      opp.destination.name,
-      opp.destination.system_name,
-      opp.destination.region_name
-    ]
-    |> Enum.any?(&(&1 && String.contains?(normalize(&1), search)))
-  end
+  defp matches?(opp, search), do: Search.matches?(Opportunity.search_text(opp), search)
 
   @doc false
   # Sin mayúsculas ni acentos (RF-6.4).
   @spec normalize(String.t()) :: String.t()
-  def normalize(text) do
-    text
-    |> String.downcase()
-    |> :unicode.characters_to_nfd_binary()
-    |> String.replace(~r/\p{Mn}/u, "")
-    |> String.trim()
-  end
+  defdelegate normalize(text), to: Search
 
   defp sort(rows, :jumps), do: Enum.sort_by(rows, &{&1.total_jumps, -&1.tvs})
   defp sort(rows, :cost), do: Enum.sort_by(rows, &{-&1.cost, -&1.tvs})

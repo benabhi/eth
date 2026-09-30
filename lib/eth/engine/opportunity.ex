@@ -10,7 +10,7 @@ defmodule Eth.Engine.Opportunity do
   creación de la orden de compra más reciente del rango consumido (anti-scam AS-6).
   """
 
-  alias Eth.Engine.Locations
+  alias Eth.Engine.{Locations, Search}
 
   @enforce_keys [:id, :type_id, :type_name, :unit_volume, :origin, :destination]
   defstruct [
@@ -32,6 +32,7 @@ defmodule Eth.Engine.Opportunity do
     :last_modified,
     :bid_issued,
     remote_sale: false,
+    search_text: "",
     asks: [],
     bids: []
   ]
@@ -55,9 +56,32 @@ defmodule Eth.Engine.Opportunity do
           last_modified: DateTime.t(),
           bid_issued: DateTime.t() | nil,
           remote_sale: boolean(),
+          search_text: String.t(),
           asks: [{float(), pos_integer()}],
           bids: [{float(), pos_integer(), pos_integer()}]
         }
+
+  @doc "Guarda el texto buscable de una lista (una vez al publicar la evaluación, RNF-1.1)."
+  @spec index_search([t()]) :: [t()]
+  def index_search(opps),
+    do: Search.index(opps, &search_fields/1, &%{&1 | search_text: &2})
+
+  @doc "Texto buscable: el guardado o, si falta, el calculado."
+  @spec search_text(t()) :: String.t()
+  def search_text(%__MODULE__{search_text: text}) when text != "", do: text
+  def search_text(%__MODULE__{} = opp), do: Search.text(search_fields(opp))
+
+  defp search_fields(opp) do
+    [
+      opp.type_name,
+      opp.origin.name,
+      opp.origin.system_name,
+      opp.origin.region_name,
+      opp.destination.name,
+      opp.destination.system_name,
+      opp.destination.region_name
+    ]
+  end
 
   @doc "ID estable entre ciclos: modo, tipo, ubicación de compra y de venta (RF-4.9)."
   @spec id(pos_integer(), pos_integer(), pos_integer()) :: String.t()

@@ -28,6 +28,7 @@ defmodule Eth.Engine.OrderQuery do
     OrderRules,
     Query,
     Score,
+    Search,
     Shield,
     StationQuery,
     StationTrading
@@ -77,6 +78,16 @@ defmodule Eth.Engine.OrderQuery do
       |> Enum.filter(&(&1 && keep?(&1, p)))
 
     {rows |> sort(p.sort) |> Enum.take(p.limit), length(rows)}
+  end
+
+  @doc """
+  Primeras `limit` filas según el orden pedido. Sirve para combinar resultados parciales
+  de `run/3` calculados en paralelo (`Eth.Engine`, RNF-1.1).
+  """
+  @spec top([map()], params()) :: [map()]
+  def top(rows, params) do
+    p = Map.merge(defaults(), params)
+    rows |> sort(p.sort) |> Enum.take(p.limit)
   end
 
   @doc "Personaliza un candidato (`nil` si no es viable con estos parámetros)."
@@ -371,16 +382,8 @@ defmodule Eth.Engine.OrderQuery do
 
   defp matches?(_opp, ""), do: true
 
-  defp matches?(opp, search) do
-    [
-      opp.type_name,
-      opp.origin.name,
-      opp.origin.system_name,
-      opp.destination.name,
-      opp.destination.system_name
-    ]
-    |> Enum.any?(&(&1 && String.contains?(Query.normalize(&1), search)))
-  end
+  defp matches?(opp, search),
+    do: Search.matches?(OrderOpportunity.search_text(opp), search)
 
   defp sort(rows, :profit), do: Enum.sort_by(rows, &{-&1.profit, -&1.score})
   defp sort(rows, :margin), do: Enum.sort_by(rows, &{-&1.margin_pct, -&1.score})
