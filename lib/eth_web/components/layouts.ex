@@ -87,7 +87,9 @@ defmodule EthWeb.Layouts do
           navigate={~p"/control/radar"}
           class="hidden items-center gap-1.5 border border-warning/60 px-2 py-1 text-xs text-warning sm:flex"
           title={
-            gettext("Sin kills del feed en vivo: el riesgo de ruta usa solo la línea base horaria")
+            gettext(
+              "Sin kills del feed en vivo: el riesgo de ruta usa solo lo habitual de cada sistema (línea base)"
+            )
           }
         >
           <.icon name="hero-signal-slash" class="size-3.5" /> {gettext("Radar degradado")}
@@ -548,7 +550,7 @@ defmodule EthWeb.Layouts do
       {:run, gettext("Viaje"), ~p"/run"},
       {:control, gettext("Control"), ~p"/control"},
       {:settings, gettext("Ajustes"), ~p"/settings"},
-      {:docs, gettext("Manual"), ~p"/docs"}
+      {:docs, gettext("Documentación"), ~p"/docs"}
     ]
   end
 
@@ -571,7 +573,9 @@ defmodule EthWeb.Layouts do
       <.flash
         id="client-error"
         kind={:error}
-        title={gettext("Sin conexión a internet")}
+        icon="hero-signal-slash"
+        icon_class="motion-safe:animate-pulse"
+        title={gettext("Sin conexión con el servidor")}
         phx-disconnected={
           show(".phx-client-error #client-error")
           |> JS.remove_attribute("hidden", to: ".phx-client-error #client-error")
@@ -579,8 +583,10 @@ defmodule EthWeb.Layouts do
         phx-connected={hide("#client-error") |> JS.set_attribute({"hidden", ""})}
         hidden
       >
-        {gettext("Intentando reconectar")}
-        <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
+        <span class="inline-flex items-center gap-1.5">
+          <.icon name="hero-arrow-path" class="size-3.5 motion-safe:animate-spin" />
+          {gettext("Intentando reconectar…")}
+        </span>
       </.flash>
 
       <.flash
@@ -594,8 +600,10 @@ defmodule EthWeb.Layouts do
         phx-connected={hide("#server-error") |> JS.set_attribute({"hidden", ""})}
         hidden
       >
-        {gettext("Intentando reconectar")}
-        <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
+        <span class="inline-flex items-center gap-1.5">
+          <.icon name="hero-arrow-path" class="size-3.5 motion-safe:animate-spin" />
+          {gettext("Intentando reconectar…")}
+        </span>
       </.flash>
     </div>
     """

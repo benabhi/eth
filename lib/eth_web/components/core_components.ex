@@ -51,6 +51,8 @@ defmodule EthWeb.CoreComponents do
   attr :flash, :map, default: %{}, doc: "the map of flash messages to display"
   attr :title, :string, default: nil
   attr :kind, :atom, values: [:info, :error], doc: "used for styling and flash lookup"
+  attr :icon, :string, default: nil, doc: "ícono hero en lugar del de su tipo"
+  attr :icon_class, :any, default: nil
   attr :rest, :global, doc: "the arbitrary HTML attributes to add to the flash container"
 
   slot :inner_block, doc: "the optional inner block that renders the flash message"
@@ -73,11 +75,11 @@ defmodule EthWeb.CoreComponents do
         @kind == :error && "border-t-error"
       ]}>
         <span class={[
-          "flex size-5 shrink-0 items-center justify-center border font-display text-xs font-bold",
-          @kind == :info && "border-primary text-primary",
-          @kind == :error && "border-error text-error"
+          "flex size-8 shrink-0 items-center justify-center rounded-full",
+          @kind == :info && "bg-primary/15 text-primary",
+          @kind == :error && "bg-error/15 text-error"
         ]}>
-          {if @kind == :error, do: "×", else: "i"}
+          <.icon name={flash_icon(@icon, @kind)} class={["size-5", @icon_class]} />
         </span>
         <div class="flex-1 text-sm">
           <p :if={@title} class="font-semibold eth-strong">{@title}</p>
@@ -90,6 +92,10 @@ defmodule EthWeb.CoreComponents do
     </div>
     """
   end
+
+  defp flash_icon(nil, :error), do: "hero-exclamation-triangle"
+  defp flash_icon(nil, _info), do: "hero-information-circle"
+  defp flash_icon(icon, _kind), do: icon
 
   @doc """
   Renders a button with navigation support.
