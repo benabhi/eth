@@ -67,6 +67,21 @@ defmodule Eth.Threat.DetectorTest do
     end
   end
 
+  describe "tendencia (RF-8.5)" do
+    test "cuenta las kills por tramo de la ventana, del más viejo al más reciente" do
+      # Ventana de 15 min en 5 tramos de 3 min.
+      assert Detector.buckets([kill(14), kill(1), kill(0), kill(2)], @now) == [1, 0, 0, 0, 3]
+    end
+
+    test "sube, baja o se mantiene según los tramos recientes frente a los anteriores" do
+      assert Detector.trend([0, 0, 0, 1, 3]) == :rising
+      assert Detector.trend([3, 2, 1, 0, 0]) == :falling
+      assert Detector.trend([1, 1, 1, 1, 1]) == :steady
+      # Media kill por tramo de diferencia no alcanza: es ruido.
+      assert Detector.trend([1, 0, 0, 0, 1]) == :steady
+    end
+  end
+
   describe "clasificación (RF-3.6)" do
     test "gatecamp: kills en el mismo gate con atacantes repetidos" do
       kills =

@@ -382,6 +382,18 @@ defmodule EthWeb.ControlLive do
   defp over_normal(%{kills: kills, lambda: lambda}),
     do: :erlang.float_to_binary(kills / max(lambda, 0.01), decimals: 0)
 
+  # Tendencia de un sistema caliente (RF-8.5): sube en rojo, baja en verde.
+  defp trend_class(:rising), do: "text-error"
+  defp trend_class(:falling), do: "text-success"
+  defp trend_class(_steady), do: "text-base-content/40"
+
+  defp trend_label(:rising), do: gettext("En aumento: más kills en los últimos minutos")
+  defp trend_label(:falling), do: gettext("En baja: menos kills en los últimos minutos")
+  defp trend_label(_steady), do: gettext("Estable")
+
+  # Alto de cada barra (en un viewBox de 12): al menos 1 para que se vea el tramo vacío.
+  defp bar_height(n, buckets), do: max(round(n / max(Enum.max(buckets), 1) * 12), 1)
+
   defp system_name(id), do: (Sde.system(id) || %{name: "#{id}"}).name
 
   defp sec_style(system_id) do

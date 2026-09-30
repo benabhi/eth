@@ -173,6 +173,7 @@ defmodule EthWeb.ControlLiveTest do
       send(view.pid, :tick)
 
       assert has_element?(view, "#hot-30005196")
+      assert has_element?(view, "#hot-30005196-series rect")
       assert has_element?(view, "#kill-#{kill.id}", "transporte")
       refute has_element?(view, "#radar-degraded")
     end

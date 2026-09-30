@@ -741,9 +741,36 @@
                   <% end %>
                 </div>
               </div>
-              <div class="w-28 shrink-0 text-right">
-                <div class="font-mono text-sm eth-strong">
-                  {h.kills} <span class="text-xs eth-faint">kills</span>
+              <div class="w-36 shrink-0 text-right">
+                <div class="flex items-center justify-end gap-2 font-mono text-sm eth-strong">
+                  <%!-- Tendencia (RF-8.5): kills por tramo de la ventana, del más viejo al más reciente. --%>
+                  <svg
+                    :if={h[:buckets]}
+                    id={"hot-#{h.system_id}-series"}
+                    viewBox="0 0 24 12"
+                    class={["h-3 w-6", trend_class(h[:trend])]}
+                    role="img"
+                    aria-label={trend_label(h[:trend])}
+                  >
+                    <title>{trend_label(h[:trend])}</title>
+                    <rect
+                      :for={{n, i} <- Enum.with_index(h.buckets)}
+                      x={i * 5}
+                      y={12 - bar_height(n, h.buckets)}
+                      width="4"
+                      height={bar_height(n, h.buckets)}
+                      fill="currentColor"
+                    />
+                  </svg>
+                  <span
+                    :if={h[:trend] in [:rising, :falling]}
+                    id={"hot-#{h.system_id}-trend"}
+                    class={trend_class(h.trend)}
+                    title={trend_label(h.trend)}
+                  >
+                    {if h.trend == :rising, do: "▲", else: "▼"}
+                  </span>
+                  <span>{h.kills} <span class="text-xs eth-faint">kills</span></span>
                 </div>
                 <div class="font-mono text-[11px] eth-faint">
                   λ {:erlang.float_to_binary(h.lambda / 1, decimals: 2)} · ×{over_normal(h)}
