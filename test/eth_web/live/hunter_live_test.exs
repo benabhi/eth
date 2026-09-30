@@ -108,6 +108,20 @@ defmodule EthWeb.HunterLiveTest do
     refute has_element?(view, "#detail")
   end
 
+  test "los atajos de teclado tienen su hook y sus destinos marcados (RF-6.9)", %{conn: conn} do
+    publish_market()
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    assert has_element?(view, "#board-shortcuts[phx-hook]")
+    assert has_element?(view, "input[data-shortcut=search]")
+    assert has_element?(view, "#freeze[data-shortcut=freeze]")
+    assert has_element?(view, "[data-head][tabindex='0']")
+
+    view |> element("#opportunities [id^='opp-'] > [data-head]") |> render_click()
+    assert has_element?(view, "#copy-detail[data-shortcut=copy]")
+    assert has_element?(view, "#set-route[data-shortcut=route]")
+  end
+
   describe "anti-scam (RF-4.8)" do
     setup do
       start_supervised!(History)

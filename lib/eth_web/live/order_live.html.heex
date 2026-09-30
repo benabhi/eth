@@ -346,6 +346,7 @@
               <button
                 id="copy-order-price"
                 type="button"
+                data-shortcut="copy"
                 phx-hook=".CopyText"
                 data-text={price_text(row.price)}
                 class="btn btn-ghost btn-xs -ml-2"
@@ -456,6 +457,8 @@
       </span>
     </div>
   </section>
+
+  <.board_shortcuts />
 
   <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyText">
     export default {

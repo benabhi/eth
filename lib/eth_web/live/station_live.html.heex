@@ -422,6 +422,7 @@
                 <button
                   id="copy-buy-price"
                   type="button"
+                  data-shortcut="copy"
                   phx-hook=".CopyPrice"
                   data-text={price_text(row.quote.buy_price)}
                   class="btn btn-ghost btn-xs -ml-2"
@@ -573,6 +574,8 @@
       </span>
     </div>
   </section>
+
+  <.board_shortcuts />
 
   <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyPrice">
     export default {

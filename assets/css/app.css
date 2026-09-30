@@ -347,6 +347,9 @@ body {
   .eth-row-loading::after { animation: none; width: 100%; opacity: 0.6; }
 }
 
+/* Fila con foco de teclado (RF-6.9, RNF-5.2): contorno visible sin mover el layout. */
+[data-head]:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+
 /* Barra de filtros acoplada a la tabla (RF-6.4): campo compacto con la etiqueta como prefijo. */
 .eth-filter {
   display: flex;

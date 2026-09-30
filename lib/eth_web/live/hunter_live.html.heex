@@ -99,6 +99,7 @@
         <button
           id="freeze"
           type="button"
+          data-shortcut="freeze"
           phx-click="toggle_freeze"
           aria-pressed={to_string(@frozen)}
           class={[
@@ -625,6 +626,7 @@
               <button
                 id="copy-detail"
                 type="button"
+                data-shortcut="copy"
                 phx-hook=".Clipboard"
                 data-text={multibuy(row)}
                 class="btn btn-outline btn-primary btn-sm"
@@ -642,6 +644,7 @@
               <button
                 id="set-route"
                 type="button"
+                data-shortcut="route"
                 phx-click="set_route"
                 disabled={scam?(row) or action_blocked(@pilot, :waypoint) != nil}
                 class="btn btn-sm"
@@ -699,6 +702,8 @@
       </span>
     </div>
   </section>
+
+  <.board_shortcuts />
 
   <script :type={Phoenix.LiveView.ColocatedHook} name=".Clipboard">
     export default {

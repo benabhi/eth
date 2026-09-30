@@ -924,6 +924,8 @@ Menú por fila: ocultar objeto, estación o ruta (24 h o permanente) y "no me in
 
 `/` buscar · `j`/`k` navegar · `Enter` expandir · `c` copiar Multibuy · `w` fijar ruta · `f` congelar · `?` ayuda.
 
+*Implementación (F11):* `EthWeb.TradingComponents.board_shortcuts/1` en las tres familias: un hook escucha el teclado de la ventana (nunca mientras se escribe en un campo ni con modificadores) y actúa sobre elementos marcados con `data-shortcut`; `?` abre un diálogo con la lista; `Esc` cierra la ficha (RF-6.5). En Estación y Por órdenes, `c` copia el precio de la ficha. Las filas son enfocables con contorno visible (RNF-5.2).
+
 #### RF-6.10 · Estados vacíos, de carga y de error — M · F3
 
 Esqueletos de carga; mensajes accionables ("Sin resultados con ROI ≥ 20 % · Probar con 10 %"); progreso del arranque ("Preparando universo: SDE ✓ · Grafo ✓ · Hubs 3/5").
