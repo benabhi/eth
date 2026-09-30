@@ -146,7 +146,8 @@ defmodule EthWeb.TradingComponents do
     ~H"""
     <h3 class="eth-kicker mt-4 mb-1.5 flex items-center gap-2 text-[11px] text-primary">
       {render_slot(@inner_block)}
-      <.help :if={@topic} topic={@topic}>{@help}</.help>
+      <.help :if={@topic && @help} topic={@topic}>{@help}</.help>
+      <.help :if={@topic && !@help} topic={@topic} />
     </h3>
     """
   end
@@ -407,7 +408,8 @@ defmodule EthWeb.TradingComponents do
     <div class={["min-w-0", @class]}>
       <h3 class="eth-kicker mb-2 flex items-center gap-2 text-[11px] text-primary">
         {@title}
-        <.help :if={@topic} topic={@topic} title={@title}>{@help}</.help>
+        <.help :if={@topic && @help} topic={@topic} title={@title}>{@help}</.help>
+        <.help :if={@topic && !@help} topic={@topic} title={@title} />
       </h3>
       {render_slot(@inner_block)}
     </div>

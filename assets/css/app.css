@@ -194,6 +194,11 @@ body {
 .eth-chamfer-xs {
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
 }
+/* El clip-path del chaflán también recorta lo que sobresale: mientras hay un tooltip
+   abierto adentro, se quita (la esquina queda recta ese instante) para que se vea entero. */
+:is(.eth-chamfer, .eth-chamfer-sm, .eth-chamfer-xs):has(.eth-tip:hover, .eth-tip:focus-within) {
+  clip-path: none;
+}
 
 /* Cabecera de panel: versalitas con tracking amplio. */
 .eth-kicker {
@@ -276,6 +281,11 @@ body {
   color: var(--color-primary-content);
   outline: none;
 }
+
+/* En rótulos en mayúsculas (sin descendentes) la caja del texto reserva espacio abajo y
+   las letras quedan altas: el "?" centrado en la caja parecía más bajo. Se sube hasta el
+   centro óptico de las mayúsculas. */
+.eth-kicker .eth-help, th .eth-help { translate: 0 -0.1em; }
 
 /* Fórmula con valores reales (RF-11.3). */
 .eth-formula {

@@ -20,6 +20,12 @@ migraciones (corren solas al arrancar) o cambios en `.env`.
 
 ### Corregido
 
+- Algunos "?" mostraban solo el enlace al manual: ahora todos tienen un texto breve (si no
+  traen uno propio, el resumen del tema).
+- En los encabezados de las tablas, el "?" de ISK/h se pisaba con Certeza y algunos "?"
+  se veían más bajos que el texto.
+- Los tooltips dentro de paneles con esquinas en chaflán se cortaban (por ejemplo, Error
+  limit en el Centro de control).
 - El sello de amenaza del tablón no decía en qué sistema estaba ("Gatecamp" parecía del
   origen): ahora muestra el sistema, por ejemplo "Gatecamp · Hatakani".
 - Cambiar de sección recargaba la página y mostraba un instante "Sin conexión".

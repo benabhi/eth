@@ -242,7 +242,7 @@ defmodule EthWeb.StationLive do
   ## Presentación
 
   # Columnas de la grilla, iguales en el encabezado y en cada fila (RNF-5.9).
-  @grid "grid items-center gap-x-2.5 px-3 sm:gap-x-4 sm:px-4 grid-cols-[minmax(0,1fr)_6.5rem_2.75rem] md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_9rem_4.5rem_7rem_4.5rem_1.25rem] lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_9rem_4.5rem_5.5rem_7rem_4.5rem_1.25rem]"
+  @grid "grid items-center gap-x-2.5 px-3 sm:gap-x-4 sm:px-4 grid-cols-[minmax(0,1fr)_6.5rem_2.75rem] md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_9rem_4.5rem_7.5rem_5.75rem_1.25rem] lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_9rem_4.5rem_5.5rem_7.5rem_5.75rem_1.25rem]"
 
   defp grid_class, do: @grid
 

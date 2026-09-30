@@ -108,6 +108,21 @@ defmodule EthWeb.HunterLiveTest do
     refute has_element?(view, "#detail")
   end
 
+  test "todos los \"?\" de la fila y de la ficha tienen texto de ayuda (RNF-5.14)", %{conn: conn} do
+    publish_market()
+    {:ok, view, _html} = live(conn, ~p"/")
+    view |> element("#opportunities [id^='opp-'] > [data-head]") |> render_click()
+    render_async(view)
+
+    tooltips = view |> render() |> LazyHTML.from_fragment() |> LazyHTML.query("[role=tooltip]")
+    assert Enum.count(tooltips) > 10
+
+    for tooltip <- tooltips do
+      text = tooltip |> LazyHTML.query("[data-tip-text]") |> LazyHTML.text() |> String.trim()
+      assert text != "", "tooltip sin texto: #{LazyHTML.to_html(tooltip)}"
+    end
+  end
+
   test "las filas que cambian se resaltan un momento (RF-6.3)", %{conn: conn} do
     publish_market()
     {:ok, view, _html} = live(conn, ~p"/")

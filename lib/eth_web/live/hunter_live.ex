@@ -361,7 +361,7 @@ defmodule EthWeb.HunterLive do
 
   # Columnas de la grilla, iguales en el encabezado y en cada fila; las ocultas en
   # pantallas chicas no ocupan pista (RNF-5.9).
-  @grid "grid items-center gap-x-2.5 px-3 sm:gap-x-4 sm:px-4 grid-cols-[2.5rem_minmax(0,1fr)_6.5rem_2.75rem] md:grid-cols-[4rem_minmax(0,1.2fr)_minmax(0,1.4fr)_7rem_6.5rem_4.5rem_1.25rem] lg:grid-cols-[4rem_minmax(0,1.2fr)_minmax(0,1.4fr)_7.5rem_7rem_6.5rem_4.5rem_1.25rem]"
+  @grid "grid items-center gap-x-2.5 px-3 sm:gap-x-4 sm:px-4 grid-cols-[2.5rem_minmax(0,1fr)_6.5rem_2.75rem] md:grid-cols-[4.5rem_minmax(0,1.2fr)_minmax(0,1.4fr)_7.75rem_6.5rem_5.75rem_1.25rem] lg:grid-cols-[4.5rem_minmax(0,1.2fr)_minmax(0,1.4fr)_7.5rem_8rem_6.5rem_5.75rem_1.25rem]"
 
   defp grid_class, do: @grid
 
