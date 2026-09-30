@@ -25,7 +25,17 @@ defmodule Eth.Engine.OrderEvaluator do
   Implementa: RF-4.1.
   """
 
-  alias Eth.Engine.{Evaluator, Fees, Locations, OrderOpportunity, OrderQuery, OrderRules, Range}
+  alias Eth.Engine.{
+    Evaluator,
+    Fees,
+    Locations,
+    OrderOpportunity,
+    OrderQuery,
+    OrderRules,
+    PublishLocations,
+    Range
+  }
+
   alias Eth.{GameRules, Routing, Sde}
   alias Eth.Market.{History, OrderBook}
 
@@ -33,12 +43,12 @@ defmodule Eth.Engine.OrderEvaluator do
   Evalúa todos los tipos con las fuentes del motor. Devuelve los candidatos viables y los
   pares `(región, tipo)` de hubs sin historial.
   """
-  @spec run([map()], Enumerable.t()) :: %{
+  @spec run([map()], Enumerable.t(), [PublishLocations.location()]) :: %{
           candidates: [OrderOpportunity.t()],
           missing_history: [{pos_integer(), pos_integer()}]
         }
-  def run(sources, types) do
-    ctx = context(sources)
+  def run(sources, types, locations \\ PublishLocations.list()) do
+    ctx = context(sources, locations)
 
     results =
       if ctx.hubs == [] do
@@ -63,21 +73,16 @@ defmodule Eth.Engine.OrderEvaluator do
   defp missing(_ok), do: []
 
   @doc false
-  @spec context([map()]) :: map()
-  def context(sources) do
+  @spec context([map()], [PublishLocations.location()]) :: map()
+  def context(sources, locations \\ PublishLocations.hubs()) do
     rules = GameRules.get(:order_trading)
-    by_region = for %{source: {:region, id}} = src <- sources, into: %{}, do: {id, src}
+    by_source = Map.new(sources, &{&1.source, &1})
+    has_source? = &Map.has_key?(by_source, &1)
 
     hubs =
-      for id <- GameRules.get(:station_trading_location_ids),
-          %{} = station <- [Sde.station(id)],
-          %{} = src <- [Map.get(by_region, station.region_id)],
-          do: %{
-            location_id: id,
-            system_id: station.system_id,
-            region_id: station.region_id,
-            src: src
-          }
+      for place <- locations,
+          %{} = src <- [Map.get(by_source, PublishLocations.source(place, has_source?))],
+          do: Map.put(place, :src, src)
 
     %{
       sources: sources,
@@ -125,7 +130,7 @@ defmodule Eth.Engine.OrderEvaluator do
   defp listing(hub, asks, type_id, ctx) do
     with %{price: hub_ask} <- Enum.find(asks, &(&1.location_id == hub.location_id)),
          list_price when is_float(list_price) <- OrderRules.undercut(hub_ask) do
-      net = list_price * (1 - ctx.tax - ctx.broker)
+      net = list_price * (1 - ctx.tax - screen_broker(hub, ctx))
 
       asks
       |> Enum.reject(&(&1.location_id == hub.location_id))
@@ -164,7 +169,7 @@ defmodule Eth.Engine.OrderEvaluator do
 
       hub_bids ->
         best = Enum.max_by(hub_bids, & &1.price)
-        cost = OrderRules.outbid(best.price) * (1 + ctx.broker)
+        cost = OrderRules.outbid(best.price) * (1 + screen_broker(hub, ctx))
         floor = cost * (1 + ctx.rules.screen_margin)
 
         bids
@@ -205,6 +210,11 @@ defmodule Eth.Engine.OrderEvaluator do
 
   ## Común
 
+  # Broker más bajo posible en el lugar de la orden propia: el de la estructura si lo
+  # tiene (puede ser menor que el mínimo NPC), si no el mínimo NPC.
+  defp screen_broker(%{broker_override: broker}, _ctx) when is_number(broker), do: broker
+  defp screen_broker(_hub, ctx), do: ctx.broker
+
   # Por ahora la familia por órdenes solo usa estaciones NPC en las dos puntas: el acceso a
   # estructuras por personaje (AS-8) todavía no entra en su Certeza.
   defp npc_station?(%{location_id: id}), do: Sde.station(id) != nil
@@ -220,6 +230,8 @@ defmodule Eth.Engine.OrderEvaluator do
       destination: Locations.describe(destination.location_id, destination.system_id),
       hub_location_id:
         if(mode == :listing, do: destination.location_id, else: origin.location_id),
+      hub_broker_override:
+        Map.get(if(mode == :listing, do: destination, else: origin), :broker_override),
       jumps: jumps,
       secure_jumps: Routing.distance(origin.system_id, destination.system_id, :secure),
       last_modified:

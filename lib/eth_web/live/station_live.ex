@@ -24,7 +24,7 @@ defmodule EthWeb.StationLive do
 
   import EthWeb.TradingComponents
 
-  alias Eth.{Characters, Clock, Engine, GameRules, Market, Sde}
+  alias Eth.{Characters, Clock, Engine, Market}
   alias Eth.Characters.Pilot
   alias Eth.Engine.{OwnOrders, StationQuery}
   alias EthWeb.{Format, RowChanges, StationParams}
@@ -216,11 +216,9 @@ defmodule EthWeb.StationLive do
     end
   end
 
+  # Hubs NPC y estructuras con broker propio (RF-9.4).
   defp hubs do
-    for id <- GameRules.get(:station_trading_location_ids),
-        station = Sde.station(id),
-        station != nil,
-        do: {station.name, Integer.to_string(id)}
+    for {id, name} <- Engine.publish_locations(), do: {name, Integer.to_string(id)}
   end
 
   defp market_blocked(pilot) do

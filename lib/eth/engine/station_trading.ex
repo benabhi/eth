@@ -34,11 +34,12 @@ defmodule Eth.Engine.StationTrading do
 
   @doc """
   ¿Candidato universal? Margen neto con las comisiones más bajas posibles (sales tax con
-  Accounting V y el broker mínimo) al menos `:screen_margin`.
+  Accounting V y el broker mínimo, o el de la estructura si lo tiene) al menos
+  `:screen_margin`.
   """
-  @spec candidate?(float(), float()) :: boolean()
-  def candidate?(best_bid, best_ask) do
-    fees = %{tax: Fees.min_sales_tax(), broker: GameRules.get(:min_broker_fee)}
+  @spec candidate?(float(), float(), float() | nil) :: boolean()
+  def candidate?(best_bid, best_ask, broker_override \\ nil) do
+    fees = %{tax: Fees.min_sales_tax(), broker: broker_override || GameRules.get(:min_broker_fee)}
 
     case price(best_bid, best_ask, fees) do
       nil -> false

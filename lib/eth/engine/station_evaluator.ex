@@ -1,13 +1,13 @@
 defmodule Eth.Engine.StationEvaluator do
   @moduledoc """
-  Cruce universal del station trading (RF-4.16) en las estaciones de
-  `:station_trading_location_ids` (los hubs).
+  Cruce universal del station trading (RF-4.16) en los lugares de `Eth.Engine.PublishLocations` (los hubs y las estructuras con broker
+  propio, RF-9.4).
 
   Por estación, para cada tipo de su región (en paralelo por estación):
 
   1. **Screening** con los resúmenes: mejor venta de la estación y mejor compra ubicada en
      ella; pasa si el margen con las comisiones más bajas posibles llega a
-     `:screen_margin` (`Eth.Engine.StationTrading.candidate?/2`).
+     `:screen_margin` (`Eth.Engine.StationTrading.candidate?/3`).
   2. **Libro de la estación:** hasta `:book_depth` órdenes por lado, leídas de la tabla de
      órdenes (`ordered_set` por `{tipo, lado, precio}`: las primeras que coinciden son
      las mejores).
@@ -18,7 +18,7 @@ defmodule Eth.Engine.StationEvaluator do
   Implementa: RF-4.16.
   """
 
-  alias Eth.Engine.{Locations, StationOpportunity, StationTrading, Summary}
+  alias Eth.Engine.{Locations, PublishLocations, StationOpportunity, StationTrading, Summary}
   alias Eth.{GameRules, Sde}
   alias Eth.Market.OrderBook
 
@@ -26,27 +26,27 @@ defmodule Eth.Engine.StationEvaluator do
   Evalúa las estaciones de station trading. `entries` son las fuentes de
   `Eth.Market.TableOwner.all/0`; `types` los tipos presentes por fuente.
   """
-  @spec run([{term(), map()}], %{term() => [pos_integer()]}) :: [StationOpportunity.t()]
-  def run(entries, types) do
+  @spec run([{term(), map()}], %{term() => [pos_integer()]}, [PublishLocations.location()]) ::
+          [StationOpportunity.t()]
+  def run(entries, types, locations \\ PublishLocations.list()) do
     entries = Map.new(entries)
     depth = GameRules.get(:station_trading).book_depth
 
-    :station_trading_location_ids
-    |> GameRules.get()
-    |> Enum.flat_map(fn location_id ->
-      with %{} = station <- Sde.station(location_id),
-           source = {:region, station.region_id},
-           %{} = entry <- Map.get(entries, source) do
-        [{location_id, station, source, entry}]
-      else
-        _ -> []
+    locations
+    |> Enum.flat_map(fn place ->
+      source = PublishLocations.source(place, &Map.has_key?(entries, &1))
+
+      case Map.get(entries, source) do
+        %{} = entry -> [{place, source, entry}]
+        nil -> []
       end
     end)
     |> Task.async_stream(
-      fn {location_id, station, source, entry} ->
+      fn {place, source, entry} ->
         ctx = %{
-          location_id: location_id,
-          location: Locations.describe(location_id, station.system_id),
+          location_id: place.location_id,
+          location: Locations.describe(place.location_id, place.system_id),
+          broker_override: place.broker_override,
           source: source,
           tid: entry.tid,
           last_modified: entry.meta.last_modified,
@@ -69,7 +69,7 @@ defmodule Eth.Engine.StationEvaluator do
     with {best_ask, _loc, _sys} <- Enum.find(asks, &(elem(&1, 1) == ctx.location_id)),
          {best_bid, _loc, _sys, _r, _v, _m, _i} <-
            Enum.find(bids, &(elem(&1, 1) == ctx.location_id)),
-         true <- StationTrading.candidate?(best_bid, best_ask),
+         true <- StationTrading.candidate?(best_bid, best_ask, ctx.broker_override),
          %{} = type <- Sde.type(type_id) do
       [
         %StationOpportunity{
@@ -78,6 +78,7 @@ defmodule Eth.Engine.StationEvaluator do
           type_name: type.name,
           unit_volume: type.packaged_volume,
           location: ctx.location,
+          broker_override: ctx.broker_override,
           last_modified: ctx.last_modified,
           bids: book(ctx, type_id, :buy),
           asks: book(ctx, type_id, :sell)

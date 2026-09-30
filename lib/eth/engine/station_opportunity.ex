@@ -18,6 +18,8 @@ defmodule Eth.Engine.StationOpportunity do
     :unit_volume,
     :location,
     :last_modified,
+    # Broker fee de la estructura (RF-9.4); `nil` en los hubs NPC.
+    broker_override: nil,
     search_text: "",
     bids: [],
     asks: []
@@ -33,6 +35,7 @@ defmodule Eth.Engine.StationOpportunity do
           unit_volume: float(),
           location: Locations.t(),
           last_modified: DateTime.t(),
+          broker_override: float() | nil,
           search_text: String.t(),
           bids: [book_order()],
           asks: [book_order()]

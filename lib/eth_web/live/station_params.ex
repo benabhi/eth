@@ -73,11 +73,12 @@ defmodule EthWeb.StationParams do
     |> Map.new()
   end
 
-  # Solo estaciones configuradas para station trading (nunca un ID arbitrario de la URL).
+  # Solo lugares de station trading: hubs y estructuras con broker propio (nunca un ID
+  # arbitrario de la URL).
   defp parse_location(value) do
     with text when is_binary(text) and text != "" <- value,
          {id, ""} <- Integer.parse(text),
-         true <- id in Eth.GameRules.get(:station_trading_location_ids) do
+         true <- List.keymember?(Eth.Engine.publish_locations(), id, 0) do
       id
     else
       _ -> nil

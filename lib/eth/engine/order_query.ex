@@ -133,6 +133,17 @@ defmodule Eth.Engine.OrderQuery do
     })
   end
 
+  # Comisiones en el lugar de la orden propia: precalculadas para los hubs NPC; en una
+  # estructura, su broker propio (RF-9.4).
+  defp hub_fees(%{hub_broker_override: broker} = opp, p) when is_number(broker),
+    do: StationQuery.fees(opp.hub_location_id, p, broker)
+
+  defp hub_fees(opp, p),
+    do:
+      Map.get_lazy(p.hub_fees, opp.hub_location_id, fn ->
+        StationQuery.fees(opp.hub_location_id, p)
+      end)
+
   defp build(opp, p, now) do
     hub = if opp.mode == :listing, do: opp.destination, else: opp.origin
     hub_stats = History.stats(hub.region_id, opp.type_id)
@@ -147,9 +158,7 @@ defmodule Eth.Engine.OrderQuery do
            Routing.distance(opp.origin.system_id, opp.destination.system_id, mode),
          data_certainty when data_certainty > 0 <- Score.data_certainty(age_min),
          fees =
-           Map.get_lazy(p.hub_fees, opp.hub_location_id, fn ->
-             StationQuery.fees(opp.hub_location_id, p)
-           end),
+           hub_fees(opp, p),
          %{} = result <- trade(opp, fees, daily, p),
          true <- realistic?(result.price, hub_stats, p.rules.ratio) do
       finish(opp, result, %{
