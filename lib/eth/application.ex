@@ -29,6 +29,8 @@ defmodule Eth.Application do
   defp workers do
     if Application.get_env(:eth, :start_workers, true) do
       [
+        # Primero: cuenta la telemetría de ESI y del motor desde el arranque (RF-8.9).
+        Eth.Metrics,
         # Antes que el motor: las reglas con override deben estar publicadas al evaluar.
         Eth.GameRules.Overrides,
         Eth.Events.Pruner,

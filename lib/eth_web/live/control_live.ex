@@ -25,7 +25,7 @@ defmodule EthWeb.ControlLive do
   import EthWeb.TradingComponents, only: [row_detail: 1, detail_col: 1]
 
   alias Eth.Characters.Sessions
-  alias Eth.{Clock, Engine, Events, Market, Sde, Threat}
+  alias Eth.{Clock, Engine, Events, Market, Metrics, Sde, Threat}
   alias Eth.Esi.{Budget, ServerStatus}
   alias EthWeb.Format
 
@@ -206,12 +206,28 @@ defmodule EthWeb.ControlLive do
 
   # Lo que requiere atención ahora: {tipo, texto, ruta}.
   defp attention(assigns) do
+    # Agrupadas por estado: con muchas regiones (el primer escaneo del universo) un solo
+    # aviso por estado en lugar de uno por región.
     regions =
       for status <- Map.values(assigns.regions),
           {key, label, _color} = display(status, assigns.now),
           key in [:backoff, :excluded, :stale, :degraded] do
-        {:region, "#{status.name}: #{label}", ~p"/control/market?region=#{status.region_id}"}
+        {label, status}
       end
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+      |> Enum.map(fn
+        {label, [status]} ->
+          {:region, "#{status.name}: #{label}", ~p"/control/market?region=#{status.region_id}"}
+
+        {label, statuses} ->
+          {:region,
+           ngettext(
+             "%{count} región · %{label}",
+             "%{count} regiones · %{label}",
+             length(statuses),
+             label: String.downcase(label)
+           ), ~p"/control/market"}
+      end)
 
     sessions =
       for s <- assigns.sessions, s.status in [:relogin, :token_error] do
@@ -382,6 +398,18 @@ defmodule EthWeb.ControlLive do
   defp over_normal(%{kills: kills, lambda: lambda}),
     do: :erlang.float_to_binary(kills / max(lambda, 0.01), decimals: 0)
 
+  # Tendencia de un sistema caliente (RF-8.5): sube en rojo, baja en verde.
+  defp trend_class(:rising), do: "text-error"
+  defp trend_class(:falling), do: "text-success"
+  defp trend_class(_steady), do: "text-base-content/40"
+
+  defp trend_label(:rising), do: gettext("En aumento: más kills en los últimos minutos")
+  defp trend_label(:falling), do: gettext("En baja: menos kills en los últimos minutos")
+  defp trend_label(_steady), do: gettext("Estable")
+
+  # Alto de cada barra (en un viewBox de 12): al menos 1 para que se vea el tramo vacío.
+  defp bar_height(n, buckets), do: max(round(n / max(Enum.max(buckets), 1) * 12), 1)
+
   defp system_name(id), do: (Sde.system(id) || %{name: "#{id}"}).name
 
   defp sec_style(system_id) do
@@ -409,8 +437,135 @@ defmodule EthWeb.ControlLive do
       market_budget: Budget.group(Eth.GameRules.get(:market_budget_group)),
       history: Market.history_status(),
       memory: %{total: :erlang.memory(:total), ets: :erlang.memory(:ets)},
-      next_downtime: ServerStatus.next_downtime(now)
+      next_downtime: ServerStatus.next_downtime(now),
+      metrics: Metrics.series(),
+      viewers: Metrics.viewers()
     )
+  end
+
+  # Etapas del pipeline (RF-8.4). `flowing` dice si pasan datos hacia esa etapa: consultas
+  # en el último minuto, una evaluación reciente, pantallas conectadas.
+  defp pipeline_stages(assigns) do
+    meta = assigns.engine_meta
+    requests = assigns.metrics.requests |> Enum.at(-2, 0)
+    fresh_engine? = meta != nil and DateTime.diff(assigns.now, meta.evaluated_at) < 60
+    t = totals(assigns.regions)
+
+    [
+      %{
+        id: "esi",
+        title: "ESI",
+        value: gettext("%{n} consultas/s", n: Float.round(requests / 60, 1)),
+        detail: gettext("pedidos a los servidores de EVE"),
+        flowing: false
+      },
+      %{
+        id: "snapshots",
+        title: gettext("Mercados en memoria"),
+        value: gettext("%{fresh}/%{count} regiones al día", fresh: t.fresh, count: t.count),
+        detail: gettext("%{orders} órdenes guardadas", orders: Format.compact(t.orders)),
+        flowing: requests > 0
+      },
+      %{
+        id: "engine",
+        title: gettext("Motor"),
+        value:
+          if(meta,
+            do: gettext("%{s} s por cálculo", s: Float.round(meta.duration_ms / 1000, 1)),
+            else: "—"
+          ),
+        detail:
+          if(meta,
+            do: gettext("busca trades en todo el mercado"),
+            else: gettext("todavía no calculó")
+          ),
+        flowing: fresh_engine?
+      },
+      %{
+        id: "opportunities",
+        title: gettext("Oportunidades"),
+        value:
+          if(meta, do: gettext("%{n} directas", n: Format.integer(meta.opportunities)), else: "—"),
+        detail:
+          if(meta,
+            do:
+              gettext("%{s} estación · %{o} órdenes",
+                s: Format.compact(meta.station_candidates),
+                o: Format.compact(meta.order_candidates)
+              ),
+            else: ""
+          ),
+        flowing: fresh_engine?
+      },
+      %{
+        id: "viewers",
+        title: gettext("Pestañas abiertas"),
+        value: Format.integer(assigns.viewers),
+        detail: gettext("de la app, se actualizan solas"),
+        flowing: fresh_engine? and assigns.viewers > 0
+      }
+    ]
+  end
+
+  # Mosaicos de la última hora (RF-8.9): título, valor del último minuto con datos y serie.
+  defp metric_tiles(s) do
+    [
+      %{
+        id: "requests",
+        title: gettext("Consultas a EVE / min"),
+        values: s.requests,
+        value: last_complete(s.requests),
+        class: "text-primary"
+      },
+      %{
+        id: "errors",
+        title: gettext("Errores / min"),
+        values: s.errors,
+        value: last_complete(s.errors),
+        class: "text-error"
+      },
+      %{
+        id: "latency",
+        title: gettext("Latencia de EVE"),
+        values: s.latency_ms,
+        value: last(s.latency_ms, &"#{round(&1)} ms"),
+        class: "text-info"
+      },
+      %{
+        id: "evaluate",
+        title: gettext("Evaluación del motor"),
+        values: s.evaluate_ms,
+        value: last(s.evaluate_ms, &"#{Float.round(&1 / 1000, 1)} s"),
+        class: "text-accent"
+      },
+      %{
+        id: "query",
+        title: gettext("Consulta del tablón"),
+        values: s.query_ms,
+        value: last(s.query_ms, &"#{round(&1)} ms"),
+        class: "text-secondary"
+      },
+      %{
+        id: "tokens",
+        title: gettext("Tokens de mercado"),
+        values: s.market_tokens,
+        value: last(s.market_tokens, &"#{round(&1 * 100)} %"),
+        class: "text-success"
+      }
+    ]
+  end
+
+  # Contadores por minuto: el último minuto completo (el actual recién empieza).
+  defp last_complete(values) when length(values) >= 2,
+    do: values |> Enum.at(-2) |> Format.integer()
+
+  defp last_complete(_values), do: "—"
+
+  defp last(values, format) do
+    case values |> Enum.reject(&is_nil/1) |> List.last() do
+      nil -> "—"
+      value -> format.(value)
+    end
   end
 
   @doc false

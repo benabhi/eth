@@ -27,6 +27,44 @@ defmodule Eth.Threat.Detector do
     Enum.filter(kills, &(DateTime.compare(&1.time, from) != :lt))
   end
 
+  @trend_buckets 5
+
+  @doc """
+  Kills por tramo de la ventana, del más viejo al más reciente (`#{@trend_buckets}`
+  tramos de `W / #{@trend_buckets}`): la serie del sistema sin guardar nada aparte, porque
+  las kills de la ventana ya tienen su hora (RF-8.5).
+  """
+  @spec buckets([Killmail.t()], DateTime.t()) :: [non_neg_integer()]
+  def buckets(kills, now) do
+    window_s = rules().window_min * 60
+    size = window_s / @trend_buckets
+    empty = List.duplicate(0, @trend_buckets)
+
+    Enum.reduce(kills, empty, fn kill, acc ->
+      age = DateTime.diff(now, kill.time, :second) |> max(0) |> min(window_s - 1)
+      index = @trend_buckets - 1 - trunc(age / size)
+      List.update_at(acc, index, &(&1 + 1))
+    end)
+  end
+
+  @doc """
+  Tendencia de un sistema a partir de sus tramos: compara el promedio de los dos más
+  recientes con el de los anteriores. Hace falta una diferencia de al menos media kill
+  por tramo para no marcar ruido.
+  """
+  @spec trend([non_neg_integer()]) :: :rising | :falling | :steady
+  def trend(buckets) do
+    {earlier, recent} = Enum.split(buckets, length(buckets) - 2)
+    recent_avg = Enum.sum(recent) / max(length(recent), 1)
+    earlier_avg = Enum.sum(earlier) / max(length(earlier), 1)
+
+    cond do
+      recent_avg - earlier_avg >= 0.5 -> :rising
+      earlier_avg - recent_avg >= 0.5 -> :falling
+      true -> :steady
+    end
+  end
+
   @doc "Intensidad `I_s` con decaimiento exponencial y multiplicadores (§8.8)."
   @spec intensity([Killmail.t()], DateTime.t()) :: float()
   def intensity(kills, now) do

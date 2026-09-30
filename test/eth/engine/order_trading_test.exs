@@ -136,6 +136,42 @@ defmodule Eth.Engine.OrderTradingTest do
     assert opps == []
   end
 
+  test "Listado en una estructura con broker propio: publica ahí con esa comisión (RF-9.4)" do
+    put_history()
+
+    F.publish_orders([
+      {:sell, @tritanium, 5.5, 1_000_000, F.perimeter_station(), F.perimeter(), []},
+      {:sell, @tritanium, 4.0, 2_000_000, F.jita_44(), F.jita(), []}
+    ])
+
+    [{source, entry}] = TableOwner.all()
+    types = Summary.replace(source, entry.tid)
+
+    sources = [
+      %{
+        source: source,
+        tid: entry.tid,
+        region_id: 10_000_002,
+        last_modified: entry.meta.last_modified
+      }
+    ]
+
+    structure = %{
+      location_id: F.perimeter_station(),
+      system_id: F.perimeter(),
+      region_id: 10_000_002,
+      broker_override: 0.0
+    }
+
+    %{candidates: opps} = OrderEvaluator.run(sources, types, [structure])
+    {[row], 1} = OrderQuery.run(opps, %{mode: :listing}, DateTime.utc_now())
+
+    assert row.opportunity.destination.location_id == F.perimeter_station()
+    assert row.opportunity.hub_broker_override == 0.0
+    assert row.broker_rate == 0.0
+    assert_in_delta row.profit, row.quantity * (5.49 * (1 - 0.042) - 4.0), 1.0e-3
+  end
+
   test "la cota universal descarta lo que no llega al beneficio mínimo" do
     put_history()
 

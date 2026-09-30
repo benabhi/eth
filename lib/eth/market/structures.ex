@@ -73,6 +73,34 @@ defmodule Eth.Market.Structures do
     structure |> Structure.settings_changeset(attrs) |> Repo.update()
   end
 
+  @doc """
+  Estructuras con broker fee propio y ubicación conocida (RF-9.4): son las que el
+  operador marcó para operar con órdenes, así que el motor las suma como lugares de
+  publicación con esa comisión.
+  """
+  @spec broker_locations() :: [
+          %{
+            location_id: pos_integer(),
+            system_id: pos_integer(),
+            region_id: pos_integer(),
+            broker: float()
+          }
+        ]
+  def broker_locations do
+    Repo.all(
+      from s in Structure,
+        where:
+          not is_nil(s.broker_fee_override) and not is_nil(s.solar_system_id) and
+            not is_nil(s.region_id),
+        select: %{
+          location_id: s.id,
+          system_id: s.solar_system_id,
+          region_id: s.region_id,
+          broker: s.broker_fee_override
+        }
+    )
+  end
+
   @doc "Estructuras sin sistema conocido (falta resolver sus datos)."
   @spec unresolved() :: [Structure.t()]
   def unresolved, do: Repo.all(from s in Structure, where: is_nil(s.solar_system_id))

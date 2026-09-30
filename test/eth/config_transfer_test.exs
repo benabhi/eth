@@ -10,6 +10,22 @@ defmodule Eth.ConfigTransferTest do
     :ok
   end
 
+  test "exporta e importa los parámetros del motor; descarta los inválidos (RF-9.5)" do
+    :ok = Accounts.put_engine_params(%{"anti_scam.scam_bid_ratio" => 4.0})
+    json = Jason.encode!(ConfigTransfer.export())
+    :ok = Accounts.put_engine_params(%{"anti_scam.scam_bid_ratio" => nil})
+
+    config =
+      json
+      |> Jason.decode!()
+      |> put_in(["engine", "no.existe"], 1)
+
+    assert {:ok, summary} = ConfigTransfer.import(config)
+    assert "motor" in summary.applied
+    assert Enum.any?(summary.skipped, &(&1 =~ "motor: 1"))
+    assert Accounts.engine_overrides() == %{"anti_scam.scam_bid_ratio" => 4.0}
+  end
+
   test "exporta y vuelve a importar la configuración sin perder datos" do
     :ok = Accounts.put_game_rule(:sales_tax_base, 0.05)
     :ok = Accounts.put_radar_settings(35.0, [30_002_187])

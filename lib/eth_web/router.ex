@@ -18,7 +18,8 @@ defmodule EthWeb.Router do
     pipe_through :browser
 
     # El piloto activo se carga en todas las pantallas (RF-5.10, RF-6.1).
-    live_session :default, on_mount: [EthWeb.PilotHook, EthWeb.RadarHook, EthWeb.AlertsHook] do
+    live_session :default,
+      on_mount: [EthWeb.PilotHook, EthWeb.RadarHook, EthWeb.AlertsHook, EthWeb.ViewersHook] do
       live "/", HunterLive
       live "/station", StationLive
       live "/orders", OrderLive
@@ -30,6 +31,7 @@ defmodule EthWeb.Router do
       live "/settings", SettingsLive, :characters
       live "/settings/ships", SettingsLive, :ships
       live "/settings/rules", SettingsLive, :rules
+      live "/settings/engine", SettingsLive, :engine
       live "/settings/radar", SettingsLive, :radar
       live "/settings/markets", SettingsLive, :markets
       live "/settings/notifications", SettingsLive, :notifications

@@ -53,7 +53,7 @@ defmodule EthWeb.HunterLive do
       |> assign(:route_details, nil)
       |> assign(:route_loading, false)
       |> assign(:total, 0)
-      |> assign(known: nil, flashes: %{})
+      |> assign(flash_gen: 0, known: nil, flashes: %{}, ghosts: %{}, hovering: false)
       |> assign(:reward, 0.0)
       |> assign(:meta, Engine.meta())
       |> assign(:now, Clock.utc_now())
@@ -99,6 +99,15 @@ defmodule EthWeb.HunterLive do
     else
       {:noreply, assign(socket, :frozen, true)}
     end
+  end
+
+  # Puntero sobre la grilla (RF-6.3): congela; al salir se aplica lo pendiente.
+  def handle_event("hover_hold", %{"on" => on}, socket) do
+    socket = assign(socket, :hovering, on == true)
+
+    if not held?(socket) and socket.assigns.pending > 0,
+      do: {:noreply, socket |> assign(:pending, 0) |> load_rows()},
+      else: {:noreply, socket}
   end
 
   def handle_event("copied", _params, socket) do
@@ -250,10 +259,23 @@ defmodule EthWeb.HunterLive do
     end
   end
 
+  # Las filas expiradas salen después de mostrarse tachadas (RF-6.3); si una volvió en
+  # la última carga, se queda.
+  def handle_info({:drop_expired, ids}, socket) do
+    {:noreply,
+     Enum.reduce(ids, socket, fn id, acc ->
+       if Map.has_key?(acc.assigns.ghosts, id),
+         do: acc,
+         else: stream_delete_by_dom_id(acc, :rows, "opp-#{id}")
+     end)}
+  end
+
   def handle_info(_msg, socket), do: {:noreply, socket}
 
-  # Con la grilla congelada o una ficha abierta, los cambios quedan pendientes (RF-6.3).
-  defp held?(socket), do: socket.assigns.frozen or socket.assigns.selected != nil
+  # Con la grilla congelada, una ficha abierta o el puntero sobre la grilla, los cambios
+  # quedan pendientes (RF-6.3).
+  defp held?(socket),
+    do: socket.assigns.frozen or socket.assigns.selected != nil or socket.assigns.hovering
 
   defp refresh(socket) do
     if held?(socket), do: update(socket, :pending, &(&1 + 1)), else: load_rows(socket)
@@ -326,15 +348,26 @@ defmodule EthWeb.HunterLive do
 
   defp load_rows(socket) do
     {rows, total} = Engine.query(socket.assigns.query)
+    previous = socket.assigns.known && socket.assigns.ghosts
     {flashes, known} = RowChanges.diff(socket.assigns.known, rows, & &1.profit)
+    {shown, expired} = RowChanges.with_expired(rows, previous)
+
+    if expired != [],
+      do: Process.send_after(self(), {:drop_expired, expired}, RowChanges.expire_ms())
 
     socket
-    |> assign(flashes: flashes, known: known)
+    |> update(:flash_gen, &(&1 + 1))
+    |> assign(flashes: flashes, known: known, ghosts: RowChanges.ghosts(rows, &ghost/1))
     |> assign(total: total, meta: Engine.meta(), now: Clock.utc_now(), empty?: rows == [])
     |> assign(:reward, Enum.reduce(rows, 0.0, &(&1.profit + &2)))
     |> assign(:selected_row, selected_row(socket.assigns[:selected], socket.assigns.query))
     |> assign_route_details()
-    |> stream(:rows, rows, reset: true)
+    |> stream(:rows, shown, reset: true)
+  end
+
+  defp ghost(row) do
+    opp = row.opportunity
+    %{name: opp.type_name, detail: "#{opp.origin.name} → #{opp.destination.name}"}
   end
 
   # La fila seleccionada se recalcula aparte: puede no estar entre las 200 visibles.

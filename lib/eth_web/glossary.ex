@@ -230,6 +230,33 @@ defmodule EthWeb.Glossary do
         :broker
       ),
       e(
+        :pipeline,
+        "Pipeline",
+        [],
+        gettext(
+          "El camino de los datos dentro de la app: EVE, mercados en memoria, motor, oportunidades y tus pestañas abiertas."
+        ),
+        :pipeline
+      ),
+      e(
+        :market_tokens,
+        "Tokens de mercado",
+        ["tokens"],
+        gettext(
+          "La parte que queda del presupuesto de consultas de mercado que EVE da cada 15 minutos."
+        ),
+        :budgets
+      ),
+      e(
+        :ship_class,
+        "Clase de nave",
+        ["Freighter", "Industrial", "Deep Space Transport", "Blockade Runner", "Shuttle"],
+        gettext(
+          "Tipo de nave para el viaje y el riesgo: Freighter (carguero enorme y lento), Industrial, Deep Space Transport (transporte blindado), Blockade Runner (transporte que se camufla) o Shuttle (lanzadera rápida)."
+        ),
+        :ship_profile
+      ),
+      e(
         :poller,
         "Poller",
         ["pollers"],

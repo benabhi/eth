@@ -68,7 +68,8 @@ defmodule Eth.Engine.StationQuery do
     p = Map.merge(defaults(), params)
     search = Query.normalize(p.search)
 
-    # Comisiones una vez por estación (son pocas: los hubs).
+    # Comisiones una vez por estación (son pocas: los hubs y las estructuras con broker
+    # propio, que lo traen en el candidato).
     rows =
       opportunities
       |> Stream.filter(&(is_nil(p.location_id) or &1.location.location_id == p.location_id))
@@ -78,7 +79,7 @@ defmodule Eth.Engine.StationQuery do
       |> Stream.filter(fn {_opp, stats} -> liquid_enough?(stats, p) end)
       |> Enum.reduce({[], %{}}, fn {opp, stats}, {acc, fees_cache} ->
         loc = opp.location.location_id
-        fees = Map.get_lazy(fees_cache, loc, fn -> fees(loc, p) end)
+        fees = Map.get_lazy(fees_cache, loc, fn -> fees(loc, p, opp.broker_override) end)
         row = build(opp, stats, fees, p, now)
         acc = if row && keep?(row, p), do: [row | acc], else: acc
         {acc, Map.put(fees_cache, loc, fees)}
@@ -103,7 +104,7 @@ defmodule Eth.Engine.StationQuery do
   def personalize(%StationOpportunity{} = opp, p, now) do
     p = Map.merge(defaults(), p)
     stats = History.stats(opp.location.region_id, opp.type_id)
-    build(opp, stats, fees(opp.location.location_id, p), p, now)
+    build(opp, stats, fees(opp.location.location_id, p, opp.broker_override), p, now)
   end
 
   @doc """
@@ -160,11 +161,17 @@ defmodule Eth.Engine.StationQuery do
   end
 
   @doc """
-  Comisiones del piloto en una estación NPC: sales tax por Accounting y broker por Broker
-  Relations y standings (sin modificar) con la corporación dueña y su facción.
+  Comisiones del piloto en un lugar: sales tax por Accounting y broker por Broker
+  Relations y standings (sin modificar) con la corporación dueña y su facción; en una
+  estructura con broker propio (`broker_override`, RF-9.4), ese.
   """
-  @spec fees(pos_integer(), map()) :: %{tax: float(), broker: float()}
-  def fees(location_id, p) do
+  @spec fees(pos_integer(), map(), float() | nil) :: %{tax: float(), broker: float()}
+  def fees(location_id, p, broker_override \\ nil)
+
+  def fees(_location_id, p, broker) when is_number(broker),
+    do: %{tax: Fees.sales_tax(p.accounting), broker: broker / 1}
+
+  def fees(location_id, p, nil) do
     {corp_id, faction_id} = owner(location_id)
     standings = Map.get(p, :standings) || %{}
 

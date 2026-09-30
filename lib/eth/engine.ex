@@ -9,10 +9,12 @@ defmodule Eth.Engine do
 
   alias Eth.Engine.{
     Coordinator,
+    Locations,
     Opportunity,
     OrderOpportunity,
     OrderQuery,
     OwnOrders,
+    PublishLocations,
     Query,
     RouteRisk,
     SaleQuote,
@@ -251,6 +253,16 @@ defmodule Eth.Engine do
         keep_pair?.(pair),
         [{^id, _pair, opp}] <- [:ets.lookup(tid, id)],
         do: opp
+  end
+
+  @doc """
+  Lugares donde se publican órdenes propias: los hubs NPC y las estructuras con broker
+  propio (RF-9.4), como `[{id, nombre}]`.
+  """
+  @spec publish_locations() :: [{pos_integer(), String.t()}]
+  def publish_locations do
+    for place <- PublishLocations.list(),
+        do: {place.location_id, Locations.describe(place.location_id, place.system_id).name}
   end
 
   ## Por órdenes entre estaciones (RF-4.1)

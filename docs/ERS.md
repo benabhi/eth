@@ -871,7 +871,9 @@ Selector del personaje activo en la cabecera; los personajes no activos mantiene
 - **Congelar:** automático mientras haya una fila expandida o el puntero esté sobre la grilla (*configurable*) y manual (tecla `F`), con un contador "N cambios pendientes · Aplicar". Evita que las filas "salten" mientras se leen.
 - Las acciones sobre una fila congelada se revalidan contra la versión vigente antes de ejecutarse.
 
-*Implementación (F11, pedido del usuario):* `EthWeb.RowChanges` compara cada versión con la anterior en las tres familias: las filas nuevas se marcan con un fondo celeste y las que cambiaron su valor principal más de 1 % (beneficio; beneficio por día en Estación), en verde o rojo; el fondo se desvanece en ~2,4 s y las demás no se animan. La primera carga y los cambios de filtros o de piloto no se comparan (no se ilumina toda la tabla). Las filas expiradas tachadas antes de salir quedan para F12.
+*Implementación (F11, pedido del usuario):* `EthWeb.RowChanges` compara cada versión con la anterior en las tres familias: las filas nuevas se marcan con un fondo celeste y las que cambiaron su valor principal más de 1 % (beneficio; beneficio por día en Estación), en verde o rojo; el fondo se desvanece en ~2,4 s y las demás no se animan. La primera carga y los cambios de filtros o de piloto no se comparan (no se ilumina toda la tabla). Los resaltados alternan dos variantes de animación para repetirse si una fila cambia en dos cargas seguidas.
+
+*Implementación (F12):* una fila que desaparece queda tachada en su lugar 1,5 s antes de salir (`RowChanges.with_expired/2`: solo un "fantasma" liviano por fila, a lo sumo 20 a la vez). La grilla se congela sola con una ficha abierta o con el puntero del mouse sobre la tabla (`hover_hold`, desactivable con `:board_hover_freeze`); al salir se aplican los cambios pendientes.
 
 #### RF-6.4 · Búsqueda, filtros y presets — M · F3
 
@@ -884,6 +886,8 @@ Selector del personaje activo en la cabecera; los personajes no activos mantiene
   - regiones de origen y destino, categoría de mercado, "desde mi ubicación".
 - **URL:** el estado de los filtros vive en la URL, así la recarga y los marcadores conservan la vista (nunca incluye datos personales).
 - **Presets** guardados con nombre, opcionalmente con notificación (RF-10.3).
+
+*(F12: los presets quedan fuera por decisión del operador (2026-09-30); los marcadores del navegador cumplen ese papel porque los filtros viven en la URL.)*
 
 #### RF-6.5 · Ficha del contrato (detalle y explicabilidad) — M · F3 (ficha expandible en F10)
 
@@ -1054,6 +1058,8 @@ Panel lateral con:
 
 Diagrama ESI → Snapshots ETS → Motor → Oportunidades → Clientes con métricas por etapa (req/s, regiones frescas, ms por ciclo, oportunidades activas, sesiones LiveView) y una animación cuando fluyen datos.
 
+*Implementación (F12):* panel "Pipeline" en el Resumen del Centro de control con cinco etapas (ESI, mercados en memoria, motor, oportunidades, pestañas abiertas), cada una con su métrica y un texto que dice qué hace; la flecha hacia una etapa se anima mientras pasan datos (consultas en el último minuto, evaluación de hace menos de 60 s, pestañas conectadas). `EthWeb.ViewersHook` registra cada LiveView conectada en `Eth.Metrics`, que la monitorea y la descuenta al terminar.
+
 #### RF-8.10 · Pestañas y acabado de consola de operaciones — S · F10
 
 El Centro de control crece con cada fase: se organiza en **pestañas** con URL propia (`/control/<pestaña>`), con la barra de salud global (RF-8.1) siempre visible arriba:
@@ -1079,7 +1085,9 @@ Los procesos se muestran como **instrumentos** (§9.10), cada tipo con su forma:
 
 Estado del feed (fuente, secuencia, lag), sistemas calientes (tipo de amenaza, kills, tendencia) y feed de las últimas killmails relevantes (transportes, gates).
 
-*(F6: implementado sin la columna "tendencia", que requiere guardar la serie de cada sistema; queda para F10.)*
+*(F6: implementado sin la columna "tendencia".)*
+
+*Implementación (F12):* la tendencia sale de las horas de las kills de la ventana, sin guardar una serie aparte: `Detector.buckets/2` las cuenta en 5 tramos y `Detector.trend/1` compara el promedio de los 2 más recientes con el de los anteriores (sube o baja con al menos media kill por tramo de diferencia). El panel muestra la mini serie de barras y una flecha.
 
 #### RF-8.6 · Sesiones de personajes — S · F4
 
@@ -1098,6 +1106,8 @@ Línea de tiempo filtrable por nivel, fuente y texto (errores, backoffs, pausas,
 #### RF-8.9 · Métricas de corto plazo y LiveDashboard — S · F1
 
 Buffers circulares de 1 h en memoria (req/s, tokens, latencias, duración del motor) para las sparklines; enlaces a Phoenix LiveDashboard (métricas de la BEAM) y a Oban Web.
+
+*Implementación (F12):* `Eth.Metrics` guarda contadores por minuto en ETS (60 minutos, en anillo) que suman los handlers de telemetría con `:ets.update_counter/4` en el proceso que emite (consultas a ESI, errores, 304, latencia, duración de evaluaciones y de consultas del tablón) y cada minuto toma el error limit y los tokens del grupo de mercado. El Resumen del Centro de control muestra el panel "Última hora" con un mini gráfico por métrica (`EthWeb.UI.spark/1`); los contadores muestran el último minuto completo. El enlace a LiveDashboard está en la cabecera del Centro de control (solo en desarrollo); Oban Web no aplica: la aplicación no usa Oban.
 
 ### M9 · Configuración
 
@@ -1119,12 +1129,15 @@ Overrides de las reglas del juego (impuestos base, coeficientes del broker) y br
 
 - Implementación (F4): los overrides se guardan en `operators.settings["game_rules"]` (solo claves de una lista blanca, valores entre 0 y 1) y `Eth.GameRules.Overrides` los publica en ETS antes de que arranque el motor; guardar pide una nueva evaluación. La UI los edita en porcentaje.
 - El broker fee por estructura (`structures.broker_fee_override`) llega con la tabla de estructuras (F7).
+- *(F12)* El motor lo usa: las estructuras con broker propio se suman a los hubs NPC como lugares para publicar órdenes en Estación, Listado y Compra por orden (`Eth.Engine.PublishLocations`), con esa comisión.
 
 #### RF-9.5 · Parámetros del motor y del riesgo — S · F6
 
 Umbrales anti-scam, de liquidez y de frescura; pesos y referencias del TVS; matriz de vulnerabilidad; tiempos por salto; α del modo Evasiva; sistemas a evitar.
 
-*(F6: Ajustes → Radar edita α y los sistemas a evitar. El resto de los parámetros de esta lista sigue en `config.exs` (Anexo B.7): su edición, incluida la matriz de vulnerabilidad celda por celda, queda para el rediseño de F10.)*
+*(F6: Ajustes → Radar edita α y los sistemas a evitar.)*
+
+*Implementación (F12):* Ajustes → Motor edita el resto con explicación y rango: umbrales anti-scam, liquidez y frescura, vida media de las órdenes, pesos y referencias del TVS, segundos por salto y por parada, la matriz de vulnerabilidad celda por celda y el congelado del tablón. `Eth.GameRules.Tunable` los define por ruta dentro de la configuración; los valores guardados (`operators.settings["engine"]`) se fusionan con el valor por defecto de su clave y `Eth.GameRules.Overrides` los publica como override, así los módulos que los usan no cambian. Vacío vuelve al valor por defecto; el respaldo (RF-9.7) los exporta.
 
 #### RF-9.6 · Regiones y estructuras — S · F7
 
@@ -2102,7 +2115,7 @@ Antes de publicar v1.0 se hace un **relevamiento y auditoría completa** de todo
 | **F9** Trading por órdenes | Más estrategias | RF-4.1 (Listado y compra por orden), 4.16, 4.17; RF-6.12; RF-10.5; scope 13 | Station trading y órdenes propias con datos reales; familias diferenciadas en el Cazador; alertas de órdenes superadas |
 | **F10** Rediseño: tablón de caza | Interfaz final | RNF-5.4, 5.9–5.14; §9.9 y §9.10 en todas las vistas; RF-6.13 (tablón), RF-6.5 (ficha expandible), RF-7.7 (registro del cazador con hitos), RF-8.10 (Centro de control por pestañas e instrumentos); M11 (manual integrado, RF-11.1–11.4) | Mockups aprobados; todas las vistas migradas; manual con las secciones mínimas; CA de §9.9, RF-6.13, RF-8.10 y M11 |
 | **F11** Endurecimiento | **v1.0** | RNF de rendimiento, seguridad y accesibilidad; RF-6.9, 9.7; release descargable y guía de instalación (RNF-10.5–10.7); **última tarea: auditoría total (§11.6)** | Checklist §11.4 completo; benchmarks dentro de RNF-1; informe de auditoría sin hallazgos altos abiertos |
-| **F12** v1.x | Evolución | RF-10.4, vista geográfica de regiones, EVE-Scout/Thera | Según priorización |
+| **F12** v1.x | Evolución | Pendientes de la auditoría (A-08, A-11): RF-6.3 (filas expiradas, congelado con el puntero), RF-8.4, RF-8.5 (tendencia), RF-8.9, RF-9.4 (broker de estructuras en el motor), RF-9.5 (Ajustes → Motor), glosario (RF-11.2); después RF-10.4, vista geográfica de regiones, EVE-Scout/Thera | Pendientes hechos (2026-09-30) salvo RF-7.6 (calibración, necesita viajes) y RF-6.4 presets (descartados); el resto según priorización |
 
 
 El rediseño visual (F10) va después de completar las funciones y antes del endurecimiento, para que la verificación de accesibilidad y rendimiento de la v1.0 se haga sobre la interfaz definitiva (D-11).

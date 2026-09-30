@@ -221,237 +221,244 @@
       <span class="hidden md:block"></span>
     </div>
 
-    <div id="order-rows" phx-update="stream">
-      <div id="orders-empty" class="hidden px-4 py-12 text-center eth-muted only:block">
-        {gettext(
-          "Sin oportunidades con estos filtros. El historial de los hubs se descarga de a poco: puede tardar unos minutos en aparecer."
-        )}
-      </div>
-      <div
-        :for={{dom_id, row} <- @streams.rows}
-        id={dom_id}
-        class={[
-          "border-b border-base-300/70 last:border-b-0",
-          RowChanges.class(@flashes[row.id]),
-          @selected == row.id && "shadow-[inset_3px_0_0_var(--color-primary)]"
-        ]}
-      >
+    <.hover_hold id="board-hold">
+      <div id="order-rows" phx-update="stream">
+        <div id="orders-empty" class="hidden px-4 py-12 text-center eth-muted only:block">
+          {gettext(
+            "Sin oportunidades con estos filtros. El historial de los hubs se descarga de a poco: puede tardar unos minutos en aparecer."
+          )}
+        </div>
         <div
-          data-head
-          role="button"
-          tabindex="0"
-          aria-expanded={to_string(@selected == row.id)}
-          phx-click="select"
-          phx-value-id={row.id}
+          :for={{dom_id, row} <- @streams.rows}
+          id={dom_id}
           class={[
-            grid_class(),
-            "relative cursor-pointer py-2.5 transition-colors hover:bg-primary/5 phx-click-loading:cursor-wait phx-click-loading:bg-primary/10",
-            @selected == row.id && "bg-primary/10"
+            "border-b border-base-300/70 last:border-b-0",
+            RowChanges.class(@flashes[row.id], @flash_gen),
+            @selected == row.id && "shadow-[inset_3px_0_0_var(--color-primary)]"
           ]}
         >
-          <div class="min-w-0">
-            <div class="flex items-center gap-2">
-              <.type_icon
-                id={"icon-#{row.id}"}
-                type_id={row.opportunity.type_id}
-                class="max-sm:hidden"
-              />
-              <span class="line-clamp-2 font-semibold eth-strong md:truncate">
-                {row.opportunity.type_name}
-              </span>
-            </div>
-            <div class="mt-0.5 flex flex-wrap gap-1">
-              <.seal kind={:order} label={mode_label(row.mode)} />
-              <.shield_seal shield={row.shield} />
-            </div>
-          </div>
-          <div class="hidden min-w-0 text-sm md:block">
-            <div class="truncate" title={row.opportunity.origin.name}>
-              <span style={sec_style(row.opportunity.origin.security)} class="font-mono">
-                {sec_label(row.opportunity.origin.security)}
-              </span>
-              {row.opportunity.origin.name}
-            </div>
-            <div class="truncate" title={row.opportunity.destination.name}>
-              →
-              <span style={sec_style(row.opportunity.destination.security)} class="font-mono">
-                {sec_label(row.opportunity.destination.security)}
-              </span>
-              {row.opportunity.destination.name}
-            </div>
-          </div>
-          <div class="hidden text-right md:block">
-            <div class="font-mono text-sm">{Format.compact(row.price)}</div>
-            <div class="font-mono text-xs eth-faint">×{Format.integer(row.quantity)}</div>
-          </div>
-          <div class="text-right">
-            <div class="font-mono text-base font-medium text-accent">
-              {Format.compact(row.profit)}
-            </div>
-            <div class="font-mono text-xs eth-faint">
-              {Format.compact(row.cost)} · {pct(row.margin_pct)}
-            </div>
-          </div>
-          <div class="text-right font-mono text-sm">{days_label(row.days)}</div>
-          <div class="hidden text-right font-mono text-sm lg:block">
-            {row.jumps_to_origin}+{row.jumps}
-          </div>
-          <div class="flex justify-end"><.certainty_ring value={row.certainty} /></div>
-          <div class="hidden justify-end md:flex">
-            <.icon
-              name="hero-chevron-down"
-              class={[
-                "size-4 eth-muted transition-transform duration-200 phx-click-loading:hidden",
-                @selected == row.id && "rotate-180 text-primary"
-              ]}
-            />
-            <span class="hidden phx-click-loading:inline-flex"><.spinner size={16} /></span>
-          </div>
-          <span
-            aria-hidden="true"
-            class="eth-row-loading pointer-events-none absolute inset-x-0 bottom-0 hidden h-0.5 phx-click-loading:block"
-          ></span>
-        </div>
-
-        <%!-- Ficha bajo la fila (RF-6.5, RF-6.12) --%>
-        <.row_detail
-          :if={@selected == row.id}
-          id="orders-detail"
-          label={gettext("Ficha de %{name}", name: row.opportunity.type_name)}
-        >
+          <.expired_row :if={row[:expired]} name={row.name} detail={row.detail} />
           <div
-            :if={row.shield.status != :ok}
-            id="orders-shield-alert"
-            role={if row.shield.status == :scam, do: "alert", else: "status"}
+            :if={!row[:expired]}
+            data-head
+            role="button"
+            tabindex="0"
+            aria-expanded={to_string(@selected == row.id)}
+            phx-click="select"
+            phx-value-id={row.id}
             class={[
-              "border px-3 py-2 text-sm md:col-span-2 xl:col-span-4",
-              if(row.shield.status == :scam,
-                do: "border-error/50 bg-error/10 text-error",
-                else: "border-warning/50 bg-warning/10 text-warning"
-              )
+              grid_class(),
+              "relative cursor-pointer py-2.5 transition-colors hover:bg-primary/5 phx-click-loading:cursor-wait phx-click-loading:bg-primary/10",
+              @selected == row.id && "bg-primary/10"
             ]}
           >
-            <span class="font-semibold">{shield_label(row.shield.status)}</span>
-            <span class="eth-muted">· {Enum.join(row.shield.reasons, " · ")}</span>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <.type_icon
+                  id={"icon-#{row.id}"}
+                  type_id={row.opportunity.type_id}
+                  class="max-sm:hidden"
+                />
+                <span class="line-clamp-2 font-semibold eth-strong md:truncate">
+                  {row.opportunity.type_name}
+                </span>
+              </div>
+              <div class="mt-0.5 flex flex-wrap gap-1">
+                <.seal kind={:order} label={mode_label(row.mode)} />
+                <.shield_seal shield={row.shield} />
+              </div>
+            </div>
+            <div class="hidden min-w-0 text-sm md:block">
+              <div class="truncate" title={row.opportunity.origin.name}>
+                <span style={sec_style(row.opportunity.origin.security)} class="font-mono">
+                  {sec_label(row.opportunity.origin.security)}
+                </span>
+                {row.opportunity.origin.name}
+              </div>
+              <div class="truncate" title={row.opportunity.destination.name}>
+                →
+                <span style={sec_style(row.opportunity.destination.security)} class="font-mono">
+                  {sec_label(row.opportunity.destination.security)}
+                </span>
+                {row.opportunity.destination.name}
+              </div>
+            </div>
+            <div class="hidden text-right md:block">
+              <div class="font-mono text-sm">{Format.compact(row.price)}</div>
+              <div class="font-mono text-xs eth-faint">×{Format.integer(row.quantity)}</div>
+            </div>
+            <div class="text-right">
+              <div class="font-mono text-base font-medium text-accent">
+                {Format.compact(row.profit)}
+              </div>
+              <div class="font-mono text-xs eth-faint">
+                {Format.compact(row.cost)} · {pct(row.margin_pct)}
+              </div>
+            </div>
+            <div class="text-right font-mono text-sm">{days_label(row.days)}</div>
+            <div class="hidden text-right font-mono text-sm lg:block">
+              {row.jumps_to_origin}+{row.jumps}
+            </div>
+            <div class="flex justify-end"><.certainty_ring value={row.certainty} /></div>
+            <div class="hidden justify-end md:flex">
+              <.icon
+                name="hero-chevron-down"
+                class={[
+                  "size-4 eth-muted transition-transform duration-200 phx-click-loading:hidden",
+                  @selected == row.id && "rotate-180 text-primary"
+                ]}
+              />
+              <span class="hidden phx-click-loading:inline-flex"><.spinner size={16} /></span>
+            </div>
+            <span
+              aria-hidden="true"
+              class="eth-row-loading pointer-events-none absolute inset-x-0 bottom-0 hidden h-0.5 phx-click-loading:block"
+            ></span>
           </div>
 
-          <.detail_col title={gettext("Cómo se hace")} topic={:listing}>
-            <ol class="space-y-1.5 text-sm">
-              <li :for={{step, i} <- Enum.with_index(how_to(row), 1)} class="flex gap-2.5">
-                <span class="eth-chamfer-xs flex size-5 shrink-0 items-center justify-center border border-primary/60 font-display text-[11px] text-primary">
-                  {i}
-                </span>
-                <span>{step}</span>
-              </li>
-            </ol>
-          </.detail_col>
-
-          <.detail_col title={price_label(row.mode)} topic={:station}>
-            <div class="eth-chamfer-sm border border-base-300 bg-base-100 p-2.5">
-              <div class="font-mono text-lg eth-strong">{price_text(row.price)}</div>
-              <button
-                id="copy-order-price"
-                type="button"
-                data-shortcut="copy"
-                phx-hook=".CopyText"
-                data-text={price_text(row.price)}
-                class="btn btn-ghost btn-xs -ml-2"
-              >
-                <.icon name="hero-clipboard-document" class="size-4" /> {gettext("Copiar precio")}
-              </button>
-            </div>
-            <p class="mt-1.5 text-xs eth-faint">
-              {gettext("Supera a la mejor orden del hub (%{best}); %{n} órdenes compiten cerca.",
-                best: Format.compact(row.best_competitor),
-                n: row.competition
-              )}
-            </p>
-          </.detail_col>
-
-          <.detail_col title={gettext("Cálculo")} topic={:broker}>
-            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm tabular-nums">
-              <dt class="eth-muted">{gettext("Cantidad")}</dt>
-              <dd class="text-right font-mono">
-                {Format.integer(row.quantity)} ({Format.integer(round(row.cargo_m3))} m³)
-              </dd>
-              <dt class="eth-muted">{gettext("Inversión")}</dt>
-              <dd class="text-right font-mono">{Format.compact(row.cost)}</dd>
-              <dt class="eth-muted">{gettext("Ingreso neto")}</dt>
-              <dd class="text-right font-mono">{Format.compact(row.revenue)}</dd>
-              <dt class="eth-muted">
-                <.term name={:broker} align="start">{gettext("Broker fee")}</.term>
-                ·
-                <.term name={:sales_tax} align="start">{gettext("tax")}</.term>
-              </dt>
-              <dd class="text-right font-mono">
-                {pct2(row.broker_rate)} · {pct2(row.tax_rate)}
-              </dd>
-              <dt class="eth-muted">{gettext("Espera")}</dt>
-              <dd class="text-right font-mono">
-                {days_label(row.days)}
-                <span class="eth-faint">
-                  · {Format.integer(round(row.daily_volume))}/{gettext("día")}
-                </span>
-              </dd>
-              <dt class="eth-muted">{gettext("Viaje")}</dt>
-              <dd class="text-right font-mono">
-                {row.jumps_to_origin}+{row.jumps} · {Format.travel(row.seconds)}
-              </dd>
-              <div class="col-span-2 my-1 border-t border-base-300"></div>
-              <dt class="eth-muted">{gettext("Beneficio")}</dt>
-              <dd class="text-right font-mono font-semibold text-accent">
-                {Format.compact(row.profit)} · {pct(row.margin_pct)}
-              </dd>
-            </dl>
-          </.detail_col>
-
-          <.detail_col
-            title={gettext("¿Por qué Certeza %{c}?", c: pct(row.certainty))}
-            topic={:competition}
+          <%!-- Ficha bajo la fila (RF-6.5, RF-6.12) --%>
+          <.row_detail
+            :if={@selected == row.id}
+            id="orders-detail"
+            label={gettext("Ficha de %{name}", name: row.opportunity.type_name)}
           >
-            <ul class="space-y-0.5 text-xs tabular-nums">
-              <li class="flex justify-between gap-3">
-                <span class="eth-muted">{gettext("Competencia en el hub")}</span>
-                <span class="font-mono">{pct(row.breakdown.competition_certainty)}</span>
-              </li>
-              <li class="flex justify-between gap-3">
-                <span class="eth-muted">{gettext("Frescura de datos")}</span>
-                <span class="font-mono">{pct(row.breakdown.data_certainty)}</span>
-              </li>
-              <li class="flex justify-between gap-3">
-                <span class="eth-muted">{gettext("Anti-scam")}</span>
-                <span class="font-mono">{pct(row.breakdown.scam_certainty)}</span>
-              </li>
-            </ul>
-          </.detail_col>
+            <div
+              :if={row.shield.status != :ok}
+              id="orders-shield-alert"
+              role={if row.shield.status == :scam, do: "alert", else: "status"}
+              class={[
+                "border px-3 py-2 text-sm md:col-span-2 xl:col-span-4",
+                if(row.shield.status == :scam,
+                  do: "border-error/50 bg-error/10 text-error",
+                  else: "border-warning/50 bg-warning/10 text-warning"
+                )
+              ]}
+            >
+              <span class="font-semibold">{shield_label(row.shield.status)}</span>
+              <span class="eth-muted">· {Enum.join(row.shield.reasons, " · ")}</span>
+            </div>
 
-          <:footer>
-            <button
-              id="orders-open-market"
-              type="button"
-              phx-click="open_market"
-              disabled={is_nil(@pilot)}
-              class="eth-chamfer-sm btn btn-accent btn-sm px-5 font-display tracking-wide"
+            <.detail_col title={gettext("Cómo se hace")} topic={:listing}>
+              <ol class="space-y-1.5 text-sm">
+                <li :for={{step, i} <- Enum.with_index(how_to(row), 1)} class="flex gap-2.5">
+                  <span class="eth-chamfer-xs flex size-5 shrink-0 items-center justify-center border border-primary/60 font-display text-[11px] text-primary">
+                    {i}
+                  </span>
+                  <span>{step}</span>
+                </li>
+              </ol>
+            </.detail_col>
+
+            <.detail_col title={price_label(row.mode)} topic={:station}>
+              <div class="eth-chamfer-sm border border-base-300 bg-base-100 p-2.5">
+                <div class="font-mono text-lg eth-strong">{price_text(row.price)}</div>
+                <button
+                  id="copy-order-price"
+                  type="button"
+                  data-shortcut="copy"
+                  phx-hook=".CopyText"
+                  data-text={price_text(row.price)}
+                  class="btn btn-ghost btn-xs -ml-2"
+                >
+                  <.icon name="hero-clipboard-document" class="size-4" /> {gettext(
+                    "Copiar precio"
+                  )}
+                </button>
+              </div>
+              <p class="mt-1.5 text-xs eth-faint">
+                {gettext(
+                  "Supera a la mejor orden del hub (%{best}); %{n} órdenes compiten cerca.",
+                  best: Format.compact(row.best_competitor),
+                  n: row.competition
+                )}
+              </p>
+            </.detail_col>
+
+            <.detail_col title={gettext("Cálculo")} topic={:broker}>
+              <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm tabular-nums">
+                <dt class="eth-muted">{gettext("Cantidad")}</dt>
+                <dd class="text-right font-mono">
+                  {Format.integer(row.quantity)} ({Format.integer(round(row.cargo_m3))} m³)
+                </dd>
+                <dt class="eth-muted">{gettext("Inversión")}</dt>
+                <dd class="text-right font-mono">{Format.compact(row.cost)}</dd>
+                <dt class="eth-muted">{gettext("Ingreso neto")}</dt>
+                <dd class="text-right font-mono">{Format.compact(row.revenue)}</dd>
+                <dt class="eth-muted">
+                  <.term name={:broker} align="start">{gettext("Broker fee")}</.term>
+                  ·
+                  <.term name={:sales_tax} align="start">{gettext("tax")}</.term>
+                </dt>
+                <dd class="text-right font-mono">
+                  {pct2(row.broker_rate)} · {pct2(row.tax_rate)}
+                </dd>
+                <dt class="eth-muted">{gettext("Espera")}</dt>
+                <dd class="text-right font-mono">
+                  {days_label(row.days)}
+                  <span class="eth-faint">
+                    · {Format.integer(round(row.daily_volume))}/{gettext("día")}
+                  </span>
+                </dd>
+                <dt class="eth-muted">{gettext("Viaje")}</dt>
+                <dd class="text-right font-mono">
+                  {row.jumps_to_origin}+{row.jumps} · {Format.travel(row.seconds)}
+                </dd>
+                <div class="col-span-2 my-1 border-t border-base-300"></div>
+                <dt class="eth-muted">{gettext("Beneficio")}</dt>
+                <dd class="text-right font-mono font-semibold text-accent">
+                  {Format.compact(row.profit)} · {pct(row.margin_pct)}
+                </dd>
+              </dl>
+            </.detail_col>
+
+            <.detail_col
+              title={gettext("¿Por qué Certeza %{c}?", c: pct(row.certainty))}
+              topic={:competition}
             >
-              <.icon name="hero-building-storefront" class="size-4" /> {gettext("Abrir mercado")}
-            </button>
-            <span class="text-xs eth-faint">
-              {gettext(
-                "ESI no permite publicar órdenes: la aplicación sugiere el precio y la orden la publicás vos en el juego."
-              )}
-            </span>
-            <button
-              type="button"
-              phx-click="close_detail"
-              class="btn btn-ghost btn-sm ml-auto eth-muted"
-            >
-              <.icon name="hero-chevron-up" class="size-4" /> {gettext("Cerrar")}
-              <kbd class="kbd kbd-xs">Esc</kbd>
-            </button>
-          </:footer>
-        </.row_detail>
+              <ul class="space-y-0.5 text-xs tabular-nums">
+                <li class="flex justify-between gap-3">
+                  <span class="eth-muted">{gettext("Competencia en el hub")}</span>
+                  <span class="font-mono">{pct(row.breakdown.competition_certainty)}</span>
+                </li>
+                <li class="flex justify-between gap-3">
+                  <span class="eth-muted">{gettext("Frescura de datos")}</span>
+                  <span class="font-mono">{pct(row.breakdown.data_certainty)}</span>
+                </li>
+                <li class="flex justify-between gap-3">
+                  <span class="eth-muted">{gettext("Anti-scam")}</span>
+                  <span class="font-mono">{pct(row.breakdown.scam_certainty)}</span>
+                </li>
+              </ul>
+            </.detail_col>
+
+            <:footer>
+              <button
+                id="orders-open-market"
+                type="button"
+                phx-click="open_market"
+                disabled={is_nil(@pilot)}
+                class="eth-chamfer-sm btn btn-accent btn-sm px-5 font-display tracking-wide"
+              >
+                <.icon name="hero-building-storefront" class="size-4" /> {gettext("Abrir mercado")}
+              </button>
+              <span class="text-xs eth-faint">
+                {gettext(
+                  "ESI no permite publicar órdenes: la aplicación sugiere el precio y la orden la publicás vos en el juego."
+                )}
+              </span>
+              <button
+                type="button"
+                phx-click="close_detail"
+                class="btn btn-ghost btn-sm ml-auto eth-muted"
+              >
+                <.icon name="hero-chevron-up" class="size-4" /> {gettext("Cerrar")}
+                <kbd class="kbd kbd-xs">Esc</kbd>
+              </button>
+            </:footer>
+          </.row_detail>
+        </div>
       </div>
-    </div>
+    </.hover_hold>
 
     <div class="flex flex-wrap items-center justify-between gap-2 border-t border-base-300 px-4 py-2 text-xs eth-faint">
       <span id="orders-hint">

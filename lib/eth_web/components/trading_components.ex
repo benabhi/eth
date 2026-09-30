@@ -360,6 +360,67 @@ defmodule EthWeb.TradingComponents do
     """
   end
 
+  ## Estabilidad visual (RF-6.3)
+
+  @doc """
+  Fila que ya no está en la última actualización: queda tachada y se apaga en su lugar
+  un momento antes de salir (`EthWeb.RowChanges.with_expired/2`).
+  """
+  attr :name, :string, required: true
+  attr :detail, :string, default: nil
+
+  def expired_row(assigns) do
+    ~H"""
+    <div class="eth-row-expired flex items-center gap-3 px-4 py-2.5" data-expired>
+      <span class="truncate font-semibold line-through eth-muted">{@name}</span>
+      <span :if={@detail} class="truncate text-xs line-through eth-faint max-sm:hidden">
+        {@detail}
+      </span>
+      <span class="ml-auto shrink-0 eth-kicker text-[10px] text-error">{gettext("expiró")}</span>
+    </div>
+    """
+  end
+
+  @doc """
+  Envuelve la grilla y congela las actualizaciones mientras el puntero del mouse está
+  sobre ella (RF-6.3): avisa con el evento `hover_hold` (`%{"on" => boolean}`). No actúa
+  con toques (celular) y se desactiva con `:board_hover_freeze`.
+  """
+  attr :id, :string, required: true
+  slot :inner_block, required: true
+
+  def hover_hold(assigns) do
+    assigns = assign(assigns, :enabled, Eth.GameRules.get(:board_hover_freeze))
+
+    ~H"""
+    <div id={@id} phx-hook=".HoverHold" data-enabled={to_string(@enabled)}>
+      {render_slot(@inner_block)}
+    </div>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".HoverHold">
+      export default {
+        mounted() {
+          if (this.el.dataset.enabled !== "true") return
+          this.on = false
+          this.enter = (e) => { if (e.pointerType === "mouse") this.set(true) }
+          this.leave = (e) => { if (e.pointerType === "mouse") this.set(false) }
+          this.el.addEventListener("pointerenter", this.enter)
+          this.el.addEventListener("pointerleave", this.leave)
+        },
+        set(on) {
+          if (this.on === on) return
+          this.on = on
+          this.pushEvent("hover_hold", {on})
+        },
+        destroyed() {
+          if (!this.enter) return
+          this.el.removeEventListener("pointerenter", this.enter)
+          this.el.removeEventListener("pointerleave", this.leave)
+        }
+      }
+    </script>
+    """
+  end
+
   ## Ficha bajo la fila (RF-6.5)
 
   @doc """

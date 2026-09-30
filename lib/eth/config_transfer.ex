@@ -4,7 +4,7 @@ defmodule Eth.ConfigTransfer do
   otra instalación o guardarla antes de reinstalar.
 
   Incluye solo ajustes, **nunca secretos**: overrides de reglas del juego (RF-9.4),
-  radar (RF-9.5), regla de alertas (RF-10.3), perfiles de nave (RF-9.3) y estructuras
+  radar y parámetros del motor (RF-9.5), regla de alertas (RF-10.3), perfiles de nave (RF-9.3) y estructuras
   seguidas con su broker fee (RF-9.6). Los personajes y sus tokens no se exportan: en otra
   instalación hay que volver a iniciar sesión con EVE.
 
@@ -17,6 +17,7 @@ defmodule Eth.ConfigTransfer do
   """
 
   alias Eth.{Accounts, Characters, Clock, Events, GameRules, Market}
+  alias Eth.GameRules.Tunable
   alias Eth.Market.Structures
 
   @format 1
@@ -38,6 +39,7 @@ defmodule Eth.ConfigTransfer do
         Map.new(Accounts.game_rule_overrides(), fn {key, value} ->
           {Atom.to_string(key), value}
         end),
+      "engine" => Accounts.engine_overrides(),
       "radar" => %{
         "evasive_alpha" => radar.evasive_alpha,
         "avoid_system_ids" => radar.avoid_system_ids
@@ -83,6 +85,7 @@ defmodule Eth.ConfigTransfer do
       %{applied: [], skipped: []}
       |> section(config, "game_rules", &import_rules/2)
       |> section(config, "radar", &import_radar/2)
+      |> section(config, "engine", &import_engine/2)
       |> section(config, "notifications", &import_notifications/2)
       |> section(config, "ship_profiles", &import_ships/2)
       |> section(config, "structures", &import_structures/2)
@@ -143,6 +146,28 @@ defmodule Eth.ConfigTransfer do
   end
 
   defp import_radar(_other, summary), do: skipped(summary, "radar (formato inválido)")
+
+  # Parámetros del motor (RF-9.5): reemplaza todos; los desconocidos o fuera de rango se
+  # descartan y se informan.
+  defp import_engine(params, summary) when is_map(params) do
+    valid =
+      for {key, value} <- params,
+          %{} = entry <- [Tunable.fetch(key)],
+          {:ok, _} <- [Tunable.validate(entry, value)],
+          into: %{},
+          do: {key, value}
+
+    resets = Map.new(Tunable.entries(), &{&1.key, nil})
+    :ok = Accounts.put_engine_params(Map.merge(resets, valid))
+    summary = applied(summary, "motor")
+    dropped = map_size(params) - map_size(valid)
+
+    if dropped > 0,
+      do: skipped(summary, "motor: #{dropped} valores desconocidos o fuera de rango"),
+      else: summary
+  end
+
+  defp import_engine(_other, summary), do: skipped(summary, "motor (formato inválido)")
 
   defp import_notifications(
          %{"enabled" => enabled, "min_tvs" => tvs, "min_profit" => profit},

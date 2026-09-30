@@ -11,6 +11,7 @@ defmodule Eth.GameRules.Overrides do
   use GenServer
 
   alias Eth.{Accounts, GameRules}
+  alias Eth.GameRules.Tunable
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -37,7 +38,12 @@ defmodule Eth.GameRules.Overrides do
   end
 
   defp load do
-    overrides = Map.merge(Accounts.game_rule_overrides(), Accounts.radar_overrides())
+    # Los parámetros del motor (RF-9.5) se publican como el valor completo de su clave.
+    overrides =
+      Accounts.game_rule_overrides()
+      |> Map.merge(Accounts.radar_overrides())
+      |> Map.merge(Tunable.merge(Accounts.engine_overrides()))
+
     table = GameRules.overrides_table()
     :ets.delete_all_objects(table)
     :ets.insert(table, Map.to_list(overrides))

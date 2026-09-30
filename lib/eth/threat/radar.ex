@@ -191,10 +191,14 @@ defmodule Eth.Threat.Radar do
     lambda = Baseline.lambda(system_id, now)
     alert = Detector.alert?(n, lambda)
     security = (Sde.system(system_id) || %{})[:security]
+    buckets = Detector.buckets(kills, now)
 
     entry = %{
       system_id: system_id,
       kills: n,
+      # Serie por tramos de la ventana y su tendencia (RF-8.5).
+      buckets: buckets,
+      trend: Detector.trend(buckets),
       intensity: intensity,
       lambda: lambda,
       alert: alert,

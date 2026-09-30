@@ -234,6 +234,8 @@ body {
   translate: -50% 0;
   width: max-content;
   max-width: min(22rem, calc(100vw - 2rem));
+  /* Corrimiento para no salirse de la pantalla (lo calcula el hook .TipClamp). */
+  transform: translateX(var(--eth-tip-shift, 0px));
   padding: 0.75rem 0.875rem;
   opacity: 0;
   visibility: hidden;
@@ -335,6 +337,30 @@ body {
 .eth-flash-new { animation: eth-flash-new 2400ms ease-out; }
 .eth-flash-up { animation: eth-flash-up 2400ms ease-out; }
 .eth-flash-down { animation: eth-flash-down 2400ms ease-out; }
+/* Variantes -alt: mismo efecto con otro nombre de animación, para que una fila que
+   vuelve a cambiar en la carga siguiente se resalte de nuevo. */
+@keyframes eth-flash-up-alt {
+  from { background-color: color-mix(in oklab, var(--color-success) 22%, transparent); }
+}
+@keyframes eth-flash-down-alt {
+  from { background-color: color-mix(in oklab, var(--color-error) 22%, transparent); }
+}
+@keyframes eth-flash-new-alt {
+  from { background-color: color-mix(in oklab, var(--color-primary) 20%, transparent); }
+}
+.eth-flash-new-alt { animation: eth-flash-new-alt 2400ms ease-out; }
+.eth-flash-up-alt { animation: eth-flash-up-alt 2400ms ease-out; }
+.eth-flash-down-alt { animation: eth-flash-down-alt 2400ms ease-out; }
+/* Pipeline (RF-8.4): la flecha "corre" mientras pasan datos. */
+.eth-flow { stroke-dasharray: 4 3; }
+@keyframes eth-flow { to { stroke-dashoffset: -7; } }
+.eth-flow-on { animation: eth-flow 700ms linear infinite; }
+/* Filas expiradas (RF-6.3): tachadas, con un tinte rojo que se apaga antes de salir. */
+@keyframes eth-row-expire {
+  from { opacity: 1; background-color: color-mix(in oklab, var(--color-error) 14%, transparent); }
+  to { opacity: 0.35; background-color: transparent; }
+}
+.eth-row-expired { animation: eth-row-expire 1500ms ease-in forwards; }
 
 /* Ficha que se despliega bajo la fila (RF-6.5): se desenrolla de arriba hacia abajo. */
 @keyframes eth-unfold {
@@ -443,7 +469,7 @@ body {
 .eth-pulse-ring { animation: eth-pulse 1.6s ease-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .eth-spin, .eth-skel, .eth-enter, .eth-unfold, .eth-pulse-bar, .eth-flash-new, .eth-flash-up, .eth-flash-down, .eth-pulse-ring {
+  .eth-spin, .eth-skel, .eth-enter, .eth-unfold, .eth-pulse-bar, .eth-flash-new, .eth-flash-up, .eth-flash-down, .eth-flash-new-alt, .eth-flash-up-alt, .eth-flash-down-alt, .eth-pulse-ring, .eth-row-expired, .eth-flow-on {
     animation: none;
   }
   .eth-tip-body { transition: none; }

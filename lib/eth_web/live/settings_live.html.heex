@@ -335,6 +335,119 @@
   </section>
 
   <%!-- Radar (RF-9.5) --%>
+  <%!-- Parámetros del motor y del riesgo (RF-9.5) --%>
+  <section :if={@live_action == :engine} id="settings-engine" class="space-y-4">
+    <.form for={@engine_form} id="engine-form" phx-submit="save_engine" class="space-y-4">
+      <%= for group <- @engine_groups do %>
+        <.panel id={"engine-#{group.id}"} title={group.title} help={:settings}>
+          <:help_body>{group.help}</:help_body>
+
+          <%= if group.id == :vulnerability do %>
+            <div class="-mx-4 -mt-4 overflow-x-auto">
+              <table class="table table-sm">
+                <thead>
+                  <tr class="border-base-300">
+                    <th class="eth-kicker text-[10px]">{gettext("Clase de nave")}</th>
+                    <th :for={t <- Tunable.threats()} class="eth-kicker text-[10px]">
+                      {Tunable.threat_label(t)} (%)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    :for={class <- Tunable.ship_classes()}
+                    id={"vuln-#{class}"}
+                    class="border-base-300/60"
+                  >
+                    <td class="eth-strong">{Tunable.ship_class_label(class)}</td>
+                    <td :for={t <- Tunable.threats()} class="min-w-24">
+                      <% row =
+                        Enum.find(group.rows, &(&1.entry.path == [:vulnerability, class, t])) %>
+                      <.input
+                        field={@engine_form[row.entry.key]}
+                        placeholder={row.placeholder}
+                        inputmode="decimal"
+                        class={[
+                          "input input-sm w-full font-mono",
+                          row.custom? && "border-primary"
+                        ]}
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="mt-2 text-xs eth-faint">
+              {gettext(
+                "Freighter: carguero enorme y lento. Deep Space Transport: transporte blindado. Blockade Runner: transporte que se camufla. Shuttle: lanzadera rápida. Vacío: valor por defecto (el gris); un campo con borde de color tiene un valor propio."
+              )}
+            </p>
+          <% else %>
+            <div class="-mx-4 -mt-4 overflow-x-auto">
+              <table class="table table-sm">
+                <tbody>
+                  <tr
+                    :for={row <- group.rows}
+                    id={"param-#{row.dom_id}"}
+                    class="border-base-300/60"
+                  >
+                    <td>
+                      <div class="eth-strong">{row.entry.label}</div>
+                      <div class="text-xs eth-faint">{row.entry.help}</div>
+                    </td>
+                    <td class="w-48">
+                      <%= if row.entry.kind == :boolean do %>
+                        <.input
+                          field={@engine_form[row.entry.key]}
+                          type="select"
+                          options={[
+                            {gettext("Por defecto (%{v})", v: row.default_text), ""},
+                            {gettext("Sí"), "true"},
+                            {gettext("No"), "false"}
+                          ]}
+                        />
+                      <% else %>
+                        <.input
+                          field={@engine_form[row.entry.key]}
+                          placeholder={row.placeholder}
+                          inputmode="decimal"
+                        />
+                      <% end %>
+                    </td>
+                    <td class="w-8 font-mono text-xs eth-faint">{unit(row.entry)}</td>
+                    <td class="w-24 text-right">
+                      <button
+                        :if={row.custom?}
+                        id={"reset-param-#{row.dom_id}"}
+                        type="button"
+                        phx-click="reset_engine_param"
+                        phx-value-key={row.entry.key}
+                        class="btn btn-ghost btn-xs"
+                      >
+                        {gettext("Restablecer")}
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          <% end %>
+        </.panel>
+      <% end %>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <button id="engine-save" type="submit" class="btn btn-primary btn-sm">
+          {gettext("Guardar parámetros")}
+        </button>
+        <span class="text-xs eth-faint">
+          {gettext(
+            "Vacío = valor por defecto (el que se ve en gris). Guardar vuelve a evaluar el mercado."
+          )}
+        </span>
+      </div>
+    </.form>
+  </section>
+
   <section :if={@live_action == :radar} id="settings-radar" class="space-y-3">
     <.panel id="radar-panel" title={gettext("Radar y rutas")} help={:evasive}>
       <:help_body>
@@ -433,9 +546,12 @@
         for={@rule_form}
         id="rule-form"
         phx-submit="save_rule"
-        class="mt-3 flex flex-wrap items-end gap-3"
+        class="mt-3 flex flex-wrap items-end gap-3 [&_.fieldset]:mb-0"
       >
-        <.input field={@rule_form[:enabled]} type="checkbox" label={gettext("Activada")} />
+        <%!-- Casilla y botón en una caja del alto de los campos: todo queda alineado. --%>
+        <div class="flex h-10 items-center pt-0.5 pb-0.5 box-content">
+          <.input field={@rule_form[:enabled]} type="checkbox" label={gettext("Activada")} />
+        </div>
         <div class="w-32">
           <.input
             field={@rule_form[:min_tvs]}
@@ -452,7 +568,9 @@
             placeholder="20M"
           />
         </div>
-        <button type="submit" class="btn btn-primary btn-sm mb-2">{gettext("Guardar")}</button>
+        <div class="flex h-10 items-center pb-1 box-content">
+          <button type="submit" class="btn btn-primary btn-sm">{gettext("Guardar")}</button>
+        </div>
       </.form>
       <p class="text-xs eth-faint">
         {gettext(
@@ -584,7 +702,7 @@
       </div>
       <p class="mt-3 text-xs eth-faint">
         {gettext(
-          "El broker fee por estructura se usará en los modos por órdenes; en el arbitraje directo solo aplica el sales tax."
+          "Una estructura con broker fee cargado se suma como lugar para publicar órdenes en Estación, Listado y Compra por orden, con esa comisión. En el arbitraje directo solo aplica el sales tax."
         )}
       </p>
     </.panel>

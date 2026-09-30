@@ -19,5 +19,22 @@ defmodule EthWeb.RowChangesTest do
     assert known["d"] == 5.0
     assert RowChanges.class(:new) == "eth-flash-new"
     assert RowChanges.class(nil) == nil
+    # En la carga siguiente la variante cambia: la animación se repite.
+    assert RowChanges.class(:up, 1) == "eth-flash-up-alt"
+  end
+
+  test "las filas que desaparecieron vuelven tachadas en su posición anterior" do
+    previous = RowChanges.ghosts(rows([{"a", 1.0}, {"b", 2.0}, {"c", 3.0}]), &%{name: &1.id})
+
+    {shown, expired} =
+      RowChanges.with_expired(rows([{"a", 1.0}, {"c", 3.0}, {"d", 4.0}]), previous)
+
+    assert expired == ["b"]
+    assert Enum.map(shown, & &1.id) == ["a", "b", "c", "d"]
+    assert %{id: "b", expired: true, name: "b"} = Enum.at(shown, 1)
+  end
+
+  test "sin nada que comparar (primera carga o filtros nuevos) no hay expiradas" do
+    assert {[%{id: "a"}], []} = RowChanges.with_expired([%{id: "a"}], nil)
   end
 end

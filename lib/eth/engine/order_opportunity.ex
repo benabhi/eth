@@ -28,6 +28,8 @@ defmodule Eth.Engine.OrderOpportunity do
     :origin,
     :destination,
     :hub_location_id,
+    # Broker fee de la estructura donde se publica la orden (RF-9.4); `nil` en un hub NPC.
+    :hub_broker_override,
     :jumps,
     :secure_jumps,
     :last_modified,
@@ -46,6 +48,7 @@ defmodule Eth.Engine.OrderOpportunity do
           origin: Locations.t(),
           destination: Locations.t(),
           hub_location_id: pos_integer(),
+          hub_broker_override: float() | nil,
           jumps: non_neg_integer(),
           secure_jumps: non_neg_integer() | nil,
           last_modified: DateTime.t(),

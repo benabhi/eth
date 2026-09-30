@@ -1,7 +1,7 @@
 defmodule Eth.Engine.StationTradingTest do
   use Eth.DataCase, async: false
 
-  alias Eth.Engine.{StationEvaluator, StationQuery, StationTrading, Summary}
+  alias Eth.Engine.{PublishLocations, StationEvaluator, StationQuery, StationTrading, Summary}
   alias Eth.EngineFixture, as: F
   alias Eth.Market.{History, HistoryStats, TableOwner}
 
@@ -175,6 +175,39 @@ defmodule Eth.Engine.StationTradingTest do
       assert row.shield.status in [:suspicious, :scam]
       assert row.certainty < 1.0
       assert {[], 0} = StationQuery.run(opps, Map.put(params, :shield, :safe), now)
+    end
+
+    test "una estructura con broker propio es un lugar de station trading con esa comisión (RF-9.4)" do
+      Eth.Repo.insert!(%Eth.Market.Structure{
+        id: F.perimeter_station(),
+        name: "Perimeter - Tranquility Trading Tower",
+        solar_system_id: F.perimeter(),
+        region_id: 10_000_002,
+        broker_fee_override: 0.005
+      })
+
+      locations = PublishLocations.list()
+
+      assert %{broker_override: 0.005} =
+               Enum.find(locations, &(&1.location_id == F.perimeter_station()))
+
+      assert Enum.any?(locations, &(&1.location_id == F.jita_44() and is_nil(&1.broker_override)))
+
+      put_history(4.5, 1_000_000)
+
+      F.publish_orders([
+        {:buy, @tritanium, 4.0, 1_000_000, F.perimeter_station(), F.perimeter(), []},
+        {:sell, @tritanium, 5.0, 1_000_000, F.perimeter_station(), F.perimeter(), []}
+      ])
+
+      [{source, entry} = pair] = TableOwner.all()
+      types = Summary.replace(source, entry.tid)
+      [opp] = StationEvaluator.run([pair], %{source => types}, locations)
+
+      assert opp.location.location_id == F.perimeter_station()
+      assert opp.broker_override == 0.005
+      {[row], 1} = StationQuery.run([opp], %{capital: 1_000_000_000}, DateTime.utc_now())
+      assert_in_delta row.broker_rate, 0.005, 1.0e-12
     end
 
     test "los standings con la corporación dueña y su facción bajan el broker" do

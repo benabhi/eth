@@ -90,6 +90,28 @@ defmodule EthWeb.SettingsLiveTest do
     assert GameRules.get(:sales_tax_base) == 0.075
   end
 
+  test "motor: guarda parámetros, avisa los inválidos y restablece (RF-9.5)", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/settings/engine")
+    assert has_element?(view, "#engine-anti_scam")
+    assert has_element?(view, "#vuln-freighter")
+
+    view
+    |> form("#engine-form",
+      engine: %{"anti_scam.scam_bid_ratio" => "4", "tvs_weights.roi" => "20"}
+    )
+    |> render_submit()
+
+    assert GameRules.get(:anti_scam).scam_bid_ratio == 4.0
+    assert GameRules.get(:tvs_weights).roi == 0.2
+    assert has_element?(view, "#reset-param-anti_scam-scam_bid_ratio")
+
+    view |> form("#engine-form", engine: %{"jump_seconds.freighter" => "-5"}) |> render_submit()
+    assert render(view) =~ "Valores fuera de rango o inválidos"
+
+    view |> element("#reset-param-anti_scam-scam_bid_ratio") |> render_click()
+    assert GameRules.get(:anti_scam).scam_bid_ratio == 3.0
+  end
+
   test "primer arranque: checklist con el estado de cada paso", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/settings/setup")
 

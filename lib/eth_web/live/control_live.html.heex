@@ -150,13 +150,16 @@
       <% issues = attention(assigns) %>
       <div
         id="attention"
-        class={[
-          "flex flex-wrap items-center gap-x-4 gap-y-1 border px-4 py-2.5 text-sm",
-          if(issues == [],
-            do: "border-success/40 bg-success/5",
-            else: "border-warning/50 bg-warning/10"
-          )
-        ]}
+        class={
+          [
+            # Siempre una línea: si no entra, se corta en vez de crecer hacia abajo.
+            "flex min-w-0 items-center gap-x-4 overflow-hidden whitespace-nowrap border px-4 py-2 text-sm",
+            if(issues == [],
+              do: "border-success/40 bg-success/5",
+              else: "border-warning/50 bg-warning/10"
+            )
+          ]
+        }
       >
         <%= if issues == [] do %>
           <span class="font-semibold text-success">{gettext("Todo en orden")}</span>
@@ -164,16 +167,87 @@
             {gettext("Ningún proceso requiere atención ahora.")}
           </span>
         <% else %>
-          <span class="eth-kicker text-[11px] text-warning">{gettext("Requiere atención")}</span>
-          <.link
-            :for={{_kind, text, path} <- issues}
-            patch={path}
-            class="link link-hover eth-strong"
-          >
-            {text}
-          </.link>
+          <span class="eth-kicker shrink-0 text-[11px] text-warning">
+            {gettext("Requiere atención")}
+          </span>
+          <span class="flex min-w-0 items-center gap-x-4 truncate">
+            <.link
+              :for={{_kind, text, path} <- issues}
+              patch={path}
+              class="link link-hover eth-strong"
+            >
+              {text}
+            </.link>
+          </span>
         <% end %>
       </div>
+
+      <%!-- Pipeline en vivo (RF-8.4): de EVE a las pestañas abiertas; la flecha late si pasan datos --%>
+      <.panel id="pipeline" title={gettext("Pipeline")} help={:pipeline}>
+        <:help_body>
+          {gettext(
+            "Cómo viajan los datos: la app le pide el mercado a EVE, lo guarda en memoria, el motor busca trades y los muestra en cada pestaña abierta de la app. Cada flecha se anima mientras pasan datos por ella."
+          )}
+        </:help_body>
+        <ol class="flex flex-col items-stretch gap-2 md:flex-row md:items-center">
+          <%= for {stage, i} <- Enum.with_index(pipeline_stages(assigns)) do %>
+            <li
+              :if={i > 0}
+              aria-hidden="true"
+              class="flex justify-center md:w-10 md:shrink-0"
+            >
+              <svg viewBox="0 0 40 12" class="h-3 w-10 max-md:rotate-90">
+                <line
+                  x1="0"
+                  y1="6"
+                  x2="32"
+                  y2="6"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  class={[
+                    "eth-flow",
+                    if(stage.flowing,
+                      do: "text-primary eth-flow-on",
+                      else: "text-base-content/25"
+                    )
+                  ]}
+                />
+                <path
+                  d="M32 2 L39 6 L32 10 Z"
+                  fill="currentColor"
+                  class={if(stage.flowing, do: "text-primary", else: "text-base-content/25")}
+                />
+              </svg>
+            </li>
+            <li
+              id={"pipe-#{stage.id}"}
+              class="eth-chamfer-sm min-w-0 flex-1 border border-base-300 bg-base-200 px-3 py-2"
+            >
+              <div class="eth-kicker truncate text-[10px]">{stage.title}</div>
+              <div class="truncate whitespace-nowrap font-mono text-sm eth-strong">
+                {stage.value}
+              </div>
+              <div class="truncate text-[11px] eth-faint">{stage.detail}</div>
+            </li>
+          <% end %>
+        </ol>
+      </.panel>
+
+      <%!-- Métricas de la última hora (RF-8.9): lo primero para ver si algo empeora --%>
+      <.panel id="last-hour" title={gettext("Última hora")} help={:last_hour}>
+        <:help_body>
+          {gettext(
+            "Un punto por minuto de los últimos 60: consultas a EVE, errores, cuánto tardan, el motor y los tokens de mercado (la parte que queda del presupuesto de consultas de mercado que da EVE cada 15 minutos). Los contadores muestran el último minuto completo. Al reiniciar la aplicación la hora empieza vacía."
+          )}
+        </:help_body>
+        <div class="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3 xl:grid-cols-6">
+          <div :for={m <- metric_tiles(@metrics)} id={"metric-#{m.id}"} class="min-w-0">
+            <div class="eth-kicker truncate text-[10px]" title={m.title}>{m.title}</div>
+            <div class="truncate whitespace-nowrap font-mono text-sm eth-strong">{m.value}</div>
+            <.spark id={"spark-#{m.id}"} values={m.values} label={m.title} class={m.class} />
+          </div>
+        </div>
+      </.panel>
 
       <%!-- Pollers de los hubs como anillos dobles (§9.10) --%>
       <.panel id="pollers" title={gettext("Pollers de mercado")} help={:pollers}>
@@ -741,9 +815,36 @@
                   <% end %>
                 </div>
               </div>
-              <div class="w-28 shrink-0 text-right">
-                <div class="font-mono text-sm eth-strong">
-                  {h.kills} <span class="text-xs eth-faint">kills</span>
+              <div class="w-36 shrink-0 text-right">
+                <div class="flex items-center justify-end gap-2 font-mono text-sm eth-strong">
+                  <%!-- Tendencia (RF-8.5): kills por tramo de la ventana, del más viejo al más reciente. --%>
+                  <svg
+                    :if={h[:buckets]}
+                    id={"hot-#{h.system_id}-series"}
+                    viewBox="0 0 24 12"
+                    class={["h-3 w-6", trend_class(h[:trend])]}
+                    role="img"
+                    aria-label={trend_label(h[:trend])}
+                  >
+                    <title>{trend_label(h[:trend])}</title>
+                    <rect
+                      :for={{n, i} <- Enum.with_index(h.buckets)}
+                      x={i * 5}
+                      y={12 - bar_height(n, h.buckets)}
+                      width="4"
+                      height={bar_height(n, h.buckets)}
+                      fill="currentColor"
+                    />
+                  </svg>
+                  <span
+                    :if={h[:trend] in [:rising, :falling]}
+                    id={"hot-#{h.system_id}-trend"}
+                    class={trend_class(h.trend)}
+                    title={trend_label(h.trend)}
+                  >
+                    {if h.trend == :rising, do: "▲", else: "▼"}
+                  </span>
+                  <span>{h.kills} <span class="text-xs eth-faint">kills</span></span>
                 </div>
                 <div class="font-mono text-[11px] eth-faint">
                   λ {:erlang.float_to_binary(h.lambda / 1, decimals: 2)} · ×{over_normal(h)}

@@ -8,6 +8,32 @@
   Arriba, la barra de salud (servidor de EVE, error limit, presupuesto, radar, memoria y
   próximo downtime). Debajo, pestañas por tema. Cada instrumento tiene su forma y su "?".
 </p>
+<p>
+  <strong>Requiere atención</strong> junta en una sola línea lo que necesita que lo mires;
+  las regiones con el mismo problema van agrupadas ("14 regiones · degradado") y el aviso
+  lleva al mapa de regiones.
+</p>
+
+<.section_title id="pipeline">Pipeline</.section_title>
+<p>
+  El camino de los datos, de izquierda a derecha: la aplicación le pide el mercado a EVE
+  (<strong>ESI</strong>), lo guarda en memoria, el <strong>motor</strong>
+  busca los trades,
+  quedan las <strong>oportunidades</strong>
+  y llegan a cada <strong>pestaña abierta</strong>
+  de la aplicación. Cada etapa muestra su número y la flecha hacia ella se anima mientras
+  pasan datos: consultas a EVE en el último minuto, una evaluación reciente del motor,
+  pestañas conectadas.
+</p>
+
+<.section_title id="ultima-hora">Última hora</.section_title>
+<p>
+  Un mini gráfico por métrica, con un punto por minuto de los últimos 60: consultas a EVE,
+  errores, latencia de EVE, duración de cada evaluación del motor, de cada consulta del
+  tablón y los <strong>tokens de mercado</strong> (la parte que queda del presupuesto de
+  consultas de mercado que EVE da cada 15 minutos). Los contadores muestran el último
+  minuto completo. Se guarda en memoria: al reiniciar la aplicación la hora empieza vacía.
+</p>
 
 <.section_title id="pollers">Pollers de mercado</.section_title>
 <p>
@@ -36,6 +62,14 @@
 <p>
   El <strong>pulso</strong>
   late con cada kill recibida. Si el feed se corta, el radar pasa a degradado y usa solo la línea base.
+</p>
+<p>
+  En <strong>Sistemas calientes</strong>, cada sistema tiene una mini serie de barras con sus
+  kills en cinco tramos de la ventana (del más viejo al más reciente) y una flecha:
+  <span class="text-error">▲</span>
+  si la actividad sube, <span class="text-success">▼</span>
+  si baja. Hace falta al menos media kill por tramo de
+  diferencia para marcarla, así el ruido no mueve la flecha.
 </p>
 
 <.section_title id="motor">Motor</.section_title>
