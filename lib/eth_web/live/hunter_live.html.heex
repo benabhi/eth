@@ -123,14 +123,14 @@
           type="number"
           min="0"
           label={gettext("Saltos ≤")}
-          class="w-32"
+          class="w-28 min-[100rem]:w-32"
         />
         <.filter_field
           field={@form[:min_profit]}
           label={gettext("Beneficio ≥")}
           placeholder="1M"
           phx-debounce="400"
-          class="w-40"
+          class="w-36 min-[100rem]:w-40"
         />
         <.filter_field
           field={@form[:min_roi]}
@@ -138,14 +138,15 @@
           min="0"
           step="0.1"
           label={gettext("ROI ≥ %")}
-          class="w-32"
+          term={:roi}
+          class="w-28 min-[100rem]:w-32"
         />
         <.filter_field
           field={@form[:capital]}
           label={gettext("Capital")}
           placeholder={gettext("sin límite")}
           phx-debounce="400"
-          class="w-44"
+          class="w-38 min-[100rem]:w-44"
         />
         <.filter_field
           field={@form[:cargo_m3]}
@@ -154,31 +155,42 @@
           label={gettext("Bodega m³")}
           placeholder={gettext("sin límite")}
           phx-debounce="400"
-          class="w-44"
+          class="w-38 min-[100rem]:w-44"
         />
         <.filter_field
           field={@form[:accounting]}
           type="select"
           label="Accounting"
+          term={:accounting}
+          class="max-[100rem]:w-30"
           options={for level <- 0..5, do: {"#{level}", "#{level}"}}
         />
         <.filter_field
           field={@form[:shield]}
           type="select"
           label={gettext("Anti-scam")}
+          term={:scam}
           options={[
             {gettext("Ocultar SCAM"), "hide_scam"},
-            {gettext("Ocultar SCAM y sospechosas"), "safe"},
+            {gettext("Solo seguras"), "safe"},
             {gettext("Mostrar todo"), "all"}
           ]}
         />
-        <.filter_field field={@form[:liquid_only]} type="toggle" label={gettext("Solo líquidos")} />
+        <.filter_field
+          field={@form[:liquid_only]}
+          type="toggle"
+          label={gettext("Solo líquidos")}
+          term={:liquidity}
+        />
         <button
           type="button"
           phx-click="reset_filters"
-          class="btn btn-ghost btn-sm h-8 min-h-8 eth-muted"
+          title={gettext("Restablecer filtros")}
+          aria-label={gettext("Restablecer filtros")}
+          class="btn btn-ghost btn-sm h-8 min-h-8 eth-muted max-[100rem]:px-2"
         >
-          <.icon name="hero-arrow-uturn-left" class="size-4" /> {gettext("Restablecer")}
+          <.icon name="hero-arrow-uturn-left" class="size-4" />
+          <span class="max-[100rem]:hidden">{gettext("Restablecer")}</span>
         </button>
       </div>
     </.form>
@@ -258,13 +270,10 @@
           <.rank_badge tvs={row.tvs} />
           <div class="min-w-0">
             <div class="flex items-center gap-2">
-              <img
-                src={"https://images.evetech.net/types/#{row.opportunity.type_id}/icon?size=32"}
-                alt=""
-                width="24"
-                height="24"
-                loading="lazy"
-                class="bg-base-300 max-sm:hidden"
+              <.type_icon
+                id={"icon-#{row.id}"}
+                type_id={row.opportunity.type_id}
+                class="max-sm:hidden"
               />
               <span class="line-clamp-2 font-semibold eth-strong md:truncate">
                 {row.opportunity.type_name}
@@ -413,14 +422,18 @@
               <dt class="eth-muted">{gettext("Ingreso neto")}</dt>
               <dd class="text-right font-mono">{Format.compact(row.revenue)}</dd>
               <div class="col-span-2 my-1 border-t border-base-300"></div>
-              <dt class="eth-muted">{gettext("Beneficio")}</dt>
+              <dt class="eth-muted">
+                {gettext("Beneficio")} · <.term name={:roi} align="start" />
+              </dt>
               <dd class="text-right font-mono font-semibold text-accent">
                 {Format.compact(row.profit)} · {pct(row.roi)}
               </dd>
-              <dt class="eth-muted">ISK/h</dt>
+              <dt class="eth-muted"><.term name={:isk_per_hour} align="start" /></dt>
               <dd class="text-right font-mono">
                 {Format.compact(row.isk_per_hour)}
-                <span class="eth-faint">· ETA {Format.travel(row.seconds)}</span>
+                <span class="eth-faint">
+                  · <.term name={:eta} align="end" /> {Format.travel(row.seconds)}
+                </span>
               </dd>
             </dl>
           </.detail_col>
@@ -630,6 +643,7 @@
                 data-shortcut="copy"
                 phx-hook=".Clipboard"
                 data-text={multibuy(row)}
+                title={EthWeb.Glossary.fetch!(:multibuy).definition}
                 class="btn btn-outline btn-primary btn-sm"
               >
                 <.icon name="hero-clipboard-document" class="size-4" /> {gettext(

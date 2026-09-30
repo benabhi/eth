@@ -17,7 +17,7 @@ defmodule EthWeb.UI do
   use Gettext, backend: EthWeb.Gettext
 
   alias Eth.Engine.Grade
-  alias EthWeb.Docs
+  alias EthWeb.{Docs, Glossary}
 
   ## Estructura
 
@@ -146,6 +146,69 @@ defmodule EthWeb.UI do
     """
   end
 
+  @doc """
+  Ícono de un tipo del juego (servidor de imágenes de EVE) con respaldo: algunos tipos,
+  como muchos SKINs, no tienen ícono (404) y en su lugar se muestra una caja genérica en el
+  mismo recuadro. El hook `.TypeIcon` detecta la falla aunque haya ocurrido antes de que
+  cargue el JS (el CSP no permite `onerror` inline).
+  """
+  attr :id, :string, required: true
+  attr :type_id, :integer, required: true
+  attr :size, :integer, default: 24, doc: "lado en px del recuadro"
+  attr :class, :any, default: nil
+
+  def type_icon(assigns) do
+    assigns = assign(assigns, :src_size, if(assigns.size > 32, do: 64, else: 32))
+
+    ~H"""
+    <span
+      id={@id}
+      phx-hook=".TypeIcon"
+      phx-update="ignore"
+      data-type-id={@type_id}
+      class={["relative inline-flex shrink-0 items-center justify-center bg-base-300", @class]}
+      style={"width: #{@size}px; height: #{@size}px"}
+    >
+      <img
+        src={"https://images.evetech.net/types/#{@type_id}/icon?size=#{@src_size}"}
+        alt=""
+        width={@size}
+        height={@size}
+        loading="lazy"
+      />
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        class="text-base-content/40"
+        style={"display: none; width: #{round(@size * 0.7)}px; height: #{round(@size * 0.7)}px"}
+      >
+        <path
+          d="M12 3 20 7.5v9L12 21l-8-4.5v-9L12 3Zm0 0v18M4 7.5l8 4.5 8-4.5"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </span>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".TypeIcon">
+      export default {
+        // El contenido va con phx-update="ignore": LiveView no revierte el respaldo.
+        mounted() {
+          const img = this.el.querySelector("img")
+          const fallback = this.el.querySelector("svg")
+          const fail = () => {
+            img.style.display = "none"
+            fallback.style.display = "block"
+          }
+          if (img.complete && img.naturalWidth === 0) fail()
+          else img.addEventListener("error", fail, { once: true })
+        }
+      }
+    </script>
+    """
+  end
+
   ## Explicabilidad
 
   @doc """
@@ -175,7 +238,7 @@ defmodule EthWeb.UI do
         <span :if={@inner_block != []} class="block" data-tip-text>{render_slot(@inner_block)}</span>
         <span :if={@inner_block == []} class="block" data-tip-text>{Docs.summary(@topic)}</span>
         <.link navigate={@href} class="mt-2 block text-xs link link-primary">
-          {gettext("Leer en el manual →")}
+          {gettext("Leer en la documentación →")}
         </.link>
       </span>
     </span>
@@ -205,7 +268,46 @@ defmodule EthWeb.UI do
         <span :if={@body != []} class="block" data-tip-text>{render_slot(@body)}</span>
         <span :if={@formula != []} class="eth-formula mt-2 block" data-tip-text>{render_slot(@formula)}</span>
         <.link :if={@topic} navigate={Docs.href(@topic)} class="mt-2 block text-xs link link-primary">
-          {gettext("Leer en el manual →")}
+          {gettext("Leer en la documentación →")}
+        </.link>
+      </span>
+    </span>
+    """
+  end
+
+  @doc """
+  Sigla o término del juego explicado donde aparece (RNF-5.14): subrayado punteado
+  tenue y, al pasar el cursor o con el foco, la definición del glosario
+  (`EthWeb.Glossary`) con el enlace a la documentación. Sin JS.
+
+  Se usa en la **primera** aparición de un término en cada vista (etiquetas y títulos),
+  no en cada repetición: el objetivo es que nada quede sin explicar sin llenar la
+  pantalla de ayudas.
+  """
+  attr :name, :atom, required: true, doc: "clave del término en `EthWeb.Glossary`"
+  attr :align, :string, default: "center", values: ~w(center start end)
+  attr :class, :any, default: nil
+  slot :inner_block, doc: "texto visible; por defecto, el nombre del término"
+
+  def term(assigns) do
+    entry = Glossary.fetch!(assigns.name)
+
+    assigns =
+      assign(assigns,
+        entry: entry,
+        href: if(entry.topic, do: Docs.href(entry.topic), else: Glossary.href(entry.key))
+      )
+
+    ~H"""
+    <span class={["eth-tip", @class]}>
+      <span tabindex="0" class="cursor-help border-b border-dotted border-current/40">
+        {if @inner_block != [], do: render_slot(@inner_block), else: @entry.term}
+      </span>
+      <span role="tooltip" class={["eth-tip-body eth-raised", align_class(@align)]}>
+        <span class="eth-kicker mb-1 block text-primary">{@entry.term}</span>
+        <span class="block normal-case tracking-normal" data-tip-text>{@entry.definition}</span>
+        <.link navigate={@href} class="mt-2 block text-xs link link-primary">
+          {gettext("Leer en la documentación →")}
         </.link>
       </span>
     </span>

@@ -139,7 +139,7 @@
             <dd class="font-mono text-lg text-accent">{Format.compact(stats.reward)}</dd>
           </div>
           <div>
-            <dt class="eth-kicker text-[10px]">ISK/h</dt>
+            <dt class="eth-kicker text-[10px]"><.term name={:isk_per_hour} /></dt>
             <dd class="font-mono text-lg eth-strong">
               {(stats.isk_per_hour && Format.compact(stats.isk_per_hour)) || "—"}
             </dd>
@@ -230,13 +230,11 @@
       >
         <div class="flex flex-wrap items-start justify-between gap-4 border-b border-base-300 p-4">
           <div class="flex min-w-0 items-start gap-3">
-            <img
+            <.type_icon
               :if={@run.plan["type_id"]}
-              src={"https://images.evetech.net/types/#{@run.plan["type_id"]}/icon?size=64"}
-              alt=""
-              width="48"
-              height="48"
-              class="bg-base-300"
+              id={"run-type-icon-#{@run.plan["type_id"]}"}
+              type_id={@run.plan["type_id"]}
+              size={48}
             />
             <div class="min-w-0">
               <div class="eth-kicker text-[10px] text-accent">{gettext("Contrato en curso")}</div>
@@ -390,7 +388,7 @@
           </div>
           <p class="text-xs eth-faint">
             {gettext(
-              "Las etapas avanzan solas con tu ubicación y tu billetera; el P&L exacto llega con las transacciones de ESI (hasta 1 h de demora)."
+              "Las etapas avanzan solas con tu ubicación y tu billetera; el resultado exacto (ganancia o pérdida) llega con las transacciones de ESI (hasta 1 h de demora)."
             )}
           </p>
         </div>

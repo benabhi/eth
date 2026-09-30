@@ -521,7 +521,9 @@
               <th class="eth-kicker text-right text-[10px]">{gettext("Órdenes")}</th>
               <th class="eth-kicker text-[10px]">{gettext("Acceso")}</th>
               <th class="eth-kicker text-[10px]">{gettext("Seguida")}</th>
-              <th class="eth-kicker w-44 text-[10px]">{gettext("Broker fee (%)")}</th>
+              <th class="eth-kicker w-44 text-[10px]">
+                <.term name={:broker} align="end">{gettext("Broker fee (%)")}</.term>
+              </th>
             </tr>
           </thead>
           <tbody>

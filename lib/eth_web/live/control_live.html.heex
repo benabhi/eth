@@ -17,7 +17,7 @@
       </.help>
     </h1>
     <div class="font-mono text-xs eth-muted tabular-nums">
-      EVE {Format.eve_time(@now)} UTC
+      EVE {Format.eve_time(@now)} <.term name={:utc} align="end" />
       <a :if={@dev_routes} href="/dev/dashboard" class="link ml-3">LiveDashboard</a>
     </div>
   </div>
@@ -29,7 +29,7 @@
     class="eth-chamfer grid grid-cols-2 border border-base-300 bg-base-100 md:grid-cols-4 xl:grid-cols-7 [&>div]:border-base-300 [&>div]:px-4 [&>div]:py-3 xl:[&>div:not(:last-child)]:border-r"
   >
     <div>
-      <div class="eth-kicker text-[10px]">Tranquility</div>
+      <div class="eth-kicker text-[10px]"><.term name={:tranquility} align="start" /></div>
       <%= cond do %>
         <% is_nil(@server) -> %>
           <div class="text-sm eth-muted">{gettext("Consultando…")}</div>
@@ -42,7 +42,7 @@
           </div>
           <div class="font-mono text-xs eth-muted">
             {Format.integer(@server.players)} {gettext("pilotos")}
-            <span :if={@server.vip} class="text-warning">· VIP</span>
+            <span :if={@server.vip} class="text-warning">· <.term name={:vip} /></span>
           </div>
         <% true -> %>
           <div class="text-sm font-semibold text-error">{gettext("Sin respuesta")}</div>
@@ -65,7 +65,7 @@
     </div>
 
     <div>
-      <div class="eth-kicker text-[10px]">ESI</div>
+      <div class="eth-kicker text-[10px]"><.term name={:esi} /></div>
       <%= if @budget.paused_until do %>
         <div class="text-sm font-semibold text-warning">{gettext("En pausa")}</div>
         <div class="text-xs eth-faint">{gettext("motivo")}: {@budget.pause_reason}</div>
@@ -90,9 +90,9 @@
       <div class="eth-kicker text-[10px]">{gettext("Memoria")}</div>
       <div class="font-mono text-sm eth-strong">{Format.bytes(@memory.total)}</div>
       <div class="font-mono text-xs eth-faint">
-        ETS {Format.bytes(@memory.ets)} · {Format.compact(totals(@regions).orders)} {gettext(
-          "órdenes"
-        )}
+        <.term name={:ets} /> {Format.bytes(@memory.ets)} · {Format.compact(
+          totals(@regions).orders
+        )} {gettext("órdenes")}
       </div>
     </div>
 
@@ -101,7 +101,7 @@
       <% {sde_text, sde_class} = sde_label(@sde) %>
       <div class={["text-sm font-semibold", sde_class]}>{sde_text}</div>
       <div :if={@sde[:build]} class="font-mono text-xs eth-faint">
-        SDE {@sde.build}
+        <.term name={:sde} /> {@sde.build}
         <span :if={@sde[:routable_systems]}>
           · {Format.integer(@sde.routable_systems)} {gettext("sistemas")}
         </span>
@@ -128,7 +128,10 @@
     </div>
 
     <div>
-      <div class="eth-kicker text-[10px]">{gettext("Próximo downtime")}</div>
+      <div class="eth-kicker text-[10px]">
+        {gettext("Próximo")}
+        <.term name={:downtime} align="end">{gettext("downtime")}</.term>
+      </div>
       <div class="font-mono text-sm eth-strong">{Format.countdown(@next_downtime, @now)}</div>
       <div class="font-mono text-xs eth-faint">11:00 UTC</div>
     </div>
@@ -493,7 +496,9 @@
                   </h2>
                   <div class={["text-sm", tone_text(color)]}>{label}</div>
                   <div class="font-mono text-xs eth-faint">
-                    {r.region_id} · {tier_label(r.tier)} · {gettext("gen.")} {r.generation || "—"}
+                    {r.region_id} · {tier_label(r.tier)} ·
+                    <.term name={:generation}>{gettext("gen.")}</.term>
+                    {r.generation || "—"}
                   </div>
                 </div>
               </div>

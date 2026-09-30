@@ -9,11 +9,11 @@
 >
   <div class="grid gap-8 lg:grid-cols-[17rem_minmax(0,1fr)] xl:grid-cols-[17rem_minmax(0,1fr)_13rem]">
     <aside
-      aria-label={gettext("Índice del manual")}
+      aria-label={gettext("Índice de la documentación")}
       class="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start"
     >
       <form id="docs-search" phx-change="search" phx-submit="search" class="flex flex-col gap-1.5">
-        <label for="docs-q" class="eth-kicker text-[11px]">{gettext("Buscar en el manual")}</label>
+        <label for="docs-q" class="eth-kicker text-[11px]">{gettext("Buscar en la documentación")}</label>
         <input
           id="docs-q"
           name="q"
@@ -27,6 +27,18 @@
       </form>
 
       <%= if @results do %>
+        <div :if={@terms != []} id="docs-terms" class="flex flex-col gap-1">
+          <span class="text-xs eth-faint">{gettext("En el glosario")}</span>
+          <.link
+            :for={t <- @terms}
+            id={"docs-term-#{t.key}"}
+            patch={Glossary.href(t.key)}
+            class="border-l-2 border-primary/40 px-3 py-1.5 text-sm hover:border-primary"
+          >
+            <span class="block font-semibold eth-strong">{t.term}</span>
+            <span class="line-clamp-3 block text-xs eth-muted">{t.definition}</span>
+          </.link>
+        </div>
         <div id="docs-results" class="flex flex-col gap-1">
           <span class="text-xs eth-faint">
             {ngettext("%{count} página", "%{count} páginas", length(@results))}
@@ -64,7 +76,7 @@
 
     <article id="docs-page" phx-hook=".ScrollToAnchor" class="eth-prose min-w-0 max-w-3xl">
       <div class="mb-2 text-xs eth-faint">
-        {gettext("Manual")} › {Docs.title(@slug)}
+        {gettext("Documentación")} › {Docs.title(@slug)}
       </div>
       <h1 class="font-display text-3xl font-semibold eth-strong sm:text-4xl">
         {Docs.title(@slug)}

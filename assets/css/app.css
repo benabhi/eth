@@ -400,9 +400,30 @@ body {
   font-family: var(--font-mono);
   font-size: 12px;
 }
-.eth-filter select { padding-right: 1.4rem; cursor: pointer; }
+.eth-filter select {
+  appearance: none;
+  padding-right: 1.4rem;
+  cursor: pointer;
+  /* Chevron propio: la flecha nativa ocupa más y cambia según el navegador. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 10 6%27%3E%3Cpath d=%27M1 1l4 4 4-4%27 fill=%27none%27 stroke=%27%238593a6%27 stroke-width=%271.4%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 0.55rem;
+}
 .eth-filter select option { background: var(--color-base-100); }
 .eth-filter input::placeholder { color: var(--eth-faint); }
+/* Sin las flechas nativas de los números: ocupan lugar y rompen el estilo (las flechas
+   del teclado siguen funcionando). */
+.eth-filter input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+.eth-filter input[type="number"]::-webkit-inner-spin-button,
+.eth-filter input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+/* Pantallas de menos de 1600 px (1366, 1440): etiquetas y campos más ajustados para que
+   la barra entre en dos filas. */
+@media (width < 100rem) {
+  .eth-filter > .eth-filter-label { padding: 0 0.4rem; letter-spacing: 0.04em; }
+  .eth-filter input:not([type="checkbox"]), .eth-filter select { padding: 0 0.4rem; }
+  .eth-filter select { padding-right: 1.1rem; background-position: right 0.35rem center; }
+}
 .eth-filter-toggle { cursor: pointer; user-select: none; }
 .eth-filter-toggle:has(input:checked) { border-color: var(--color-primary); }
 .eth-filter-toggle:has(input:checked) > .eth-filter-label { color: var(--color-primary); }

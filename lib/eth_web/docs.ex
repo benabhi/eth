@@ -211,7 +211,10 @@ defmodule EthWeb.Docs do
     do: gettext("Qué descarga la app, cuánto presupuesto de EVE le queda y cómo anda el radar.")
 
   def summary(:pollers),
-    do: gettext("Anillo exterior: tiempo hasta datos nuevos. Interior: páginas descargadas.")
+    do:
+      gettext(
+        "Procesos que descargan el mercado de cada región: N1 los hubs, N2 las activas y N3 el resto. Anillo exterior: tiempo hasta datos nuevos; interior: páginas descargadas."
+      )
 
   def summary(:budgets),
     do:
@@ -223,7 +226,10 @@ defmodule EthWeb.Docs do
     do: gettext("Historial de precios que se descarga a demanda, con un tope por minuto.")
 
   def summary(:radar_feed),
-    do: gettext("Kills en vivo de zKillboard; si se corta, el radar usa solo la línea base.")
+    do:
+      gettext(
+        "Kills en vivo de zKillboard por su feed R2Z2; si se corta, el radar usa solo la línea base."
+      )
 
   def summary(:engine),
     do: gettext("Cuánto tardó cada etapa de la última evaluación del mercado.")

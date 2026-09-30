@@ -160,6 +160,7 @@ defmodule EthWeb.TradingComponents do
   """
   attr :field, Phoenix.HTML.FormField, required: true
   attr :label, :string, required: true
+  attr :term, :atom, default: nil, doc: "término del glosario que explica la etiqueta"
   attr :type, :string, default: "text", values: ~w(text number select toggle)
   attr :options, :list, default: []
   attr :class, :any, default: nil
@@ -168,7 +169,7 @@ defmodule EthWeb.TradingComponents do
   def filter_field(%{type: "select"} = assigns) do
     ~H"""
     <label class={["eth-filter", @class]}>
-      <span class="eth-filter-label">{@label}</span>
+      <span class="eth-filter-label"><.filter_label label={@label} term={@term} /></span>
       <select id={@field.id} name={@field.name} {@rest}>
         {Form.options_for_select(@options, @field.value)}
       </select>
@@ -196,7 +197,7 @@ defmodule EthWeb.TradingComponents do
           checked={@checked}
           class="checkbox checkbox-primary checkbox-xs"
         />
-        {@label}
+        <.filter_label label={@label} term={@term} />
       </span>
     </label>
     """
@@ -205,7 +206,7 @@ defmodule EthWeb.TradingComponents do
   def filter_field(assigns) do
     ~H"""
     <label class={["eth-filter", @class]}>
-      <span class="eth-filter-label">{@label}</span>
+      <span class="eth-filter-label"><.filter_label label={@label} term={@term} /></span>
       <input
         type={@type}
         id={@field.id}
@@ -214,6 +215,17 @@ defmodule EthWeb.TradingComponents do
         {@rest}
       />
     </label>
+    """
+  end
+
+  attr :label, :string, required: true
+  attr :term, :atom, default: nil
+
+  defp filter_label(%{term: nil} = assigns), do: ~H"{@label}"
+
+  defp filter_label(assigns) do
+    ~H"""
+    <.term name={@term} align="start">{@label}</.term>
     """
   end
 
