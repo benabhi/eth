@@ -13,7 +13,7 @@ defmodule Eth.Accounts do
   alias Eth.Accounts.Operator
   alias Eth.Engine.Coordinator
   alias Eth.{Events, GameRules, Repo}
-  alias Eth.GameRules.Overrides
+  alias Eth.GameRules.{Overrides, Tunable}
 
   @default_name "Operador"
   # Operador único con ID fijo: la creación concurrente no puede duplicarlo.
@@ -65,6 +65,73 @@ defmodule Eth.Accounts do
     if Keyword.has_key?(GameRules.overridable(), key),
       do: update_rules(&Map.delete(&1, Atom.to_string(key)), key, nil),
       else: {:error, :unknown_rule}
+  end
+
+  ## Parámetros del motor (RF-9.5)
+
+  @doc """
+  Parámetros del motor guardados: `%{clave => valor}` con las claves de
+  `Eth.GameRules.Tunable` (solo los que siguen existiendo y son válidos).
+  """
+  @spec engine_overrides() :: %{String.t() => term()}
+  def engine_overrides do
+    stored = Map.get(operator().settings, "engine", %{})
+
+    for {key, value} <- stored,
+        %{} = entry <- [Tunable.fetch(key)],
+        {:ok, value} <- [Tunable.validate(entry, value)],
+        into: %{},
+        do: {key, value}
+  end
+
+  @doc """
+  Guarda de una vez varios parámetros del motor (`%{clave => valor | nil}`; `nil` vuelve
+  al valor por defecto). Valida todo antes de guardar: si uno es inválido no se guarda
+  ninguno. Publica el cambio y pide una nueva evaluación.
+  """
+  @spec put_engine_params(%{String.t() => term()}) :: :ok | {:error, [String.t()]}
+  def put_engine_params(changes) do
+    checked =
+      Enum.map(changes, fn {key, value} -> check_param(Tunable.fetch(key), key, value) end)
+
+    case for({:error, key} <- checked, do: key) do
+      [] ->
+        operator = operator()
+
+        engine =
+          Enum.reduce(checked, Map.get(operator.settings, "engine", %{}), fn
+            {:reset, key}, acc -> Map.delete(acc, key)
+            {:set, key, value}, acc -> Map.put(acc, key, value)
+          end)
+
+        operator
+        |> Operator.settings_changeset(Map.put(operator.settings, "engine", engine))
+        |> Repo.update!()
+
+        Overrides.reload()
+        if GenServer.whereis(Coordinator), do: Coordinator.request()
+
+        Events.emit(
+          :action,
+          "Usuario",
+          "Parámetros del motor: #{map_size(engine)} con valor propio"
+        )
+
+        :ok
+
+      invalid ->
+        {:error, invalid}
+    end
+  end
+
+  defp check_param(nil, key, _value), do: {:error, key}
+  defp check_param(_entry, key, nil), do: {:reset, key}
+
+  defp check_param(entry, key, value) do
+    case Tunable.validate(entry, value) do
+      {:ok, value} -> {:set, key, value}
+      :error -> {:error, key}
+    end
   end
 
   ## Notificaciones (RF-10.3)

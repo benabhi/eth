@@ -29,12 +29,14 @@ defmodule EthWeb.SettingsLive do
   }
 
   alias Eth.Characters.{Pilot, Session, Sessions, ShipProfile}
-  alias EthWeb.{Format, HunterParams}
+  alias Eth.GameRules.Tunable
+  alias EthWeb.{EngineParams, Format, HunterParams}
 
   @tabs [
     characters: {"Personajes", "/settings"},
     ships: {"Naves", "/settings/ships"},
     rules: {"Reglas", "/settings/rules"},
+    engine: {"Motor", "/settings/engine"},
     radar: {"Radar", "/settings/radar"},
     markets: {"Regiones y estructuras", "/settings/markets"},
     notifications: {"Notificaciones", "/settings/notifications"},
@@ -92,6 +94,33 @@ defmodule EthWeb.SettingsLive do
     |> assign(:rules, rules)
     |> assign(:rules_form, form)
     |> assign(:verified_on, GameRules.get(:rules_verified_on, nil))
+  end
+
+  defp load(socket, :engine) do
+    stored = Accounts.engine_overrides()
+
+    groups =
+      for {id, title, help} <- Tunable.groups() do
+        rows =
+          for entry <- Tunable.entries(id) do
+            %{
+              entry: entry,
+              dom_id: String.replace(entry.key, ".", "-"),
+              placeholder: EngineParams.input(entry, Tunable.default(entry)),
+              default_text: EngineParams.display(entry, Tunable.default(entry)),
+              custom?: Map.has_key?(stored, entry.key)
+            }
+          end
+
+        %{id: id, title: title, help: help, rows: rows}
+      end
+
+    form =
+      Tunable.entries()
+      |> Map.new(&{&1.key, EngineParams.input(&1, Map.get(stored, &1.key))})
+      |> to_form(as: :engine)
+
+    assign(socket, engine_groups: groups, engine_form: form)
   end
 
   defp load(socket, :notifications) do
@@ -278,6 +307,51 @@ defmodule EthWeb.SettingsLive do
         {:noreply, socket |> put_flash(:info, gettext("Regla restablecida")) |> load(:rules)}
 
       nil ->
+        {:noreply, socket}
+    end
+  end
+
+  ## Parámetros del motor (RF-9.5)
+
+  def handle_event("save_engine", %{"engine" => params}, socket) do
+    parsed =
+      for entry <- Tunable.entries() do
+        {entry, EngineParams.parse(entry, params[entry.key], Tunable.default(entry))}
+      end
+
+    invalid = for {entry, :error} <- parsed, do: entry.label
+    changes = for {entry, {:ok, value}} <- parsed, into: %{}, do: {entry.key, value}
+
+    result = if invalid == [], do: Accounts.put_engine_params(changes), else: {:error, invalid}
+
+    socket =
+      case result do
+        :ok ->
+          put_flash(
+            socket,
+            :info,
+            gettext("Parámetros guardados: el mercado se vuelve a evaluar")
+          )
+
+        {:error, bad} ->
+          put_flash(
+            socket,
+            :error,
+            gettext("Valores fuera de rango o inválidos: %{list}",
+              list: Enum.join(labels(bad), ", ")
+            )
+          )
+      end
+
+    {:noreply, load(socket, :engine)}
+  end
+
+  def handle_event("reset_engine_param", %{"key" => key}, socket) do
+    case Accounts.put_engine_params(%{key => nil}) do
+      :ok ->
+        {:noreply, socket |> put_flash(:info, gettext("Parámetro restablecido")) |> load(:engine)}
+
+      {:error, _} ->
         {:noreply, socket}
     end
   end
@@ -522,6 +596,20 @@ defmodule EthWeb.SettingsLive do
   end
 
   ## Presentación
+
+  # Errores de validación: etiquetas (del formulario) o claves (del contexto).
+  defp labels(list) do
+    Enum.map(list, fn item ->
+      case Tunable.fetch(item) do
+        %{label: label} -> label
+        nil -> item
+      end
+    end)
+  end
+
+  defp unit(%{kind: :percent}), do: "%"
+  defp unit(%{kind: :isk}), do: "ISK"
+  defp unit(_entry), do: ""
 
   @doc false
   @spec percent_input(float()) :: String.t()
