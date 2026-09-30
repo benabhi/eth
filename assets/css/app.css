@@ -351,6 +351,15 @@ body {
 .eth-flash-new-alt { animation: eth-flash-new-alt 2400ms ease-out; }
 .eth-flash-up-alt { animation: eth-flash-up-alt 2400ms ease-out; }
 .eth-flash-down-alt { animation: eth-flash-down-alt 2400ms ease-out; }
+/* Filas que solo cambiaron de lugar: destello neutro y más corto. */
+@keyframes eth-flash-moved {
+  from { background-color: color-mix(in oklab, var(--color-base-content) 10%, transparent); }
+}
+@keyframes eth-flash-moved-alt {
+  from { background-color: color-mix(in oklab, var(--color-base-content) 10%, transparent); }
+}
+.eth-flash-moved { animation: eth-flash-moved 1600ms ease-out; }
+.eth-flash-moved-alt { animation: eth-flash-moved-alt 1600ms ease-out; }
 /* Pipeline (RF-8.4): la flecha "corre" mientras pasan datos. */
 .eth-flow { stroke-dasharray: 4 3; }
 @keyframes eth-flow { to { stroke-dashoffset: -7; } }
@@ -469,7 +478,7 @@ body {
 .eth-pulse-ring { animation: eth-pulse 1.6s ease-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .eth-spin, .eth-skel, .eth-enter, .eth-unfold, .eth-pulse-bar, .eth-flash-new, .eth-flash-up, .eth-flash-down, .eth-flash-new-alt, .eth-flash-up-alt, .eth-flash-down-alt, .eth-pulse-ring, .eth-row-expired, .eth-flow-on {
+  .eth-spin, .eth-skel, .eth-enter, .eth-unfold, .eth-pulse-bar, .eth-flash-new, .eth-flash-up, .eth-flash-down, .eth-flash-new-alt, .eth-flash-up-alt, .eth-flash-down-alt, .eth-flash-moved, .eth-flash-moved-alt, .eth-pulse-ring, .eth-row-expired, .eth-flow-on {
     animation: none;
   }
   .eth-tip-body { transition: none; }

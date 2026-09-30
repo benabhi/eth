@@ -349,7 +349,8 @@ defmodule EthWeb.HunterLive do
   defp load_rows(socket) do
     {rows, total} = Engine.query(socket.assigns.query)
     previous = socket.assigns.known && socket.assigns.ghosts
-    {flashes, known} = RowChanges.diff(socket.assigns.known, rows, & &1.profit)
+    {flashes, known} = RowChanges.diff(socket.assigns.known, rows, &{&1.profit, &1.tvs})
+    flashes = RowChanges.with_moved(flashes, previous, rows)
     {shown, expired} = RowChanges.with_expired(rows, previous)
 
     if expired != [],

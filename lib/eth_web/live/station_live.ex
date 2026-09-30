@@ -205,7 +205,12 @@ defmodule EthWeb.StationLive do
   defp load_rows(socket) do
     {rows, total} = Engine.station_query(socket.assigns.query)
     previous = socket.assigns.known && socket.assigns.ghosts
-    {flashes, known} = RowChanges.diff(socket.assigns.known, rows, & &1.profit_day)
+
+    {flashes, known} =
+      RowChanges.diff(socket.assigns.known, rows, &{&1.profit_day, round(&1.certainty * 100)})
+
+    flashes = RowChanges.with_moved(flashes, previous, rows)
+
     {shown, expired} = RowChanges.with_expired(rows, previous)
 
     if expired != [],
