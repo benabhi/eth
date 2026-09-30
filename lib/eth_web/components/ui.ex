@@ -698,29 +698,35 @@ defmodule EthWeb.UI do
   # por cada corrida de valores sin `nil`; un valor aislado se dibuja como un trazo corto.
   @spec spark_segments([number() | nil]) :: [String.t()]
   def spark_segments(values) do
-    present = Enum.reject(values, &is_nil/1)
+    case Enum.reject(values, &is_nil/1) do
+      [] ->
+        []
 
-    if present == [] do
-      []
-    else
-      {low, high} = Enum.min_max(present)
-      span = if high - low > 0, do: high - low, else: 1.0
-      step = 120 / max(length(values) - 1, 1)
-      y = fn v -> if high == low, do: 14.0, else: 27 - (v - low) / span * 26 end
+      present ->
+        scale = spark_scale(present, length(values))
 
-      values
-      |> Enum.with_index()
-      |> Enum.chunk_by(fn {v, _i} -> is_nil(v) end)
-      |> Enum.reject(fn [{v, _} | _] -> is_nil(v) end)
-      |> Enum.map(fn
-        [{v, i}] ->
-          "#{r1(max(i * step - 1.5, 0))},#{r1(y.(v))} #{r1(min(i * step + 1.5, 120))},#{r1(y.(v))}"
-
-        run ->
-          Enum.map_join(run, " ", fn {v, i} -> "#{r1(i * step)},#{r1(y.(v))}" end)
-      end)
+        values
+        |> Enum.with_index()
+        |> Enum.chunk_by(fn {v, _i} -> is_nil(v) end)
+        |> Enum.reject(fn [{v, _} | _] -> is_nil(v) end)
+        |> Enum.map(&spark_run(&1, scale))
     end
   end
+
+  # Paso horizontal y función de alto para la escala de la serie.
+  defp spark_scale(present, count) do
+    {low, high} = Enum.min_max(present)
+    span = if high - low > 0, do: high - low, else: 1.0
+    y = if high == low, do: fn _v -> 14.0 end, else: fn v -> 27 - (v - low) / span * 26 end
+    %{step: 120 / max(count - 1, 1), y: y}
+  end
+
+  # Un valor aislado se dibuja como un trazo corto; una corrida, como línea.
+  defp spark_run([{v, i}], %{step: step, y: y}),
+    do: "#{r1(max(i * step - 1.5, 0))},#{r1(y.(v))} #{r1(min(i * step + 1.5, 120))},#{r1(y.(v))}"
+
+  defp spark_run(run, %{step: step, y: y}),
+    do: Enum.map_join(run, " ", fn {v, i} -> "#{r1(i * step)},#{r1(y.(v))}" end)
 
   defp r1(x), do: Float.round(x / 1, 1)
 

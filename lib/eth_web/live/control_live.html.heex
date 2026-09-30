@@ -175,6 +175,22 @@
         <% end %>
       </div>
 
+      <%!-- Métricas de la última hora (RF-8.9): lo primero para ver si algo empeora --%>
+      <.panel id="last-hour" title={gettext("Última hora")} help={:control}>
+        <:help_body>
+          {gettext(
+            "Un punto por minuto de los últimos 60: consultas a EVE, errores, cuánto tardan, el motor y el presupuesto de mercado. Al reiniciar la aplicación la hora empieza vacía."
+          )}
+        </:help_body>
+        <div class="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3 xl:grid-cols-6">
+          <div :for={m <- metric_tiles(@metrics)} id={"metric-#{m.id}"} class="min-w-0">
+            <div class="eth-kicker truncate text-[10px]" title={m.title}>{m.title}</div>
+            <div class="truncate whitespace-nowrap font-mono text-sm eth-strong">{m.value}</div>
+            <.spark id={"spark-#{m.id}"} values={m.values} label={m.title} class={m.class} />
+          </div>
+        </div>
+      </.panel>
+
       <%!-- Pollers de los hubs como anillos dobles (§9.10) --%>
       <.panel id="pollers" title={gettext("Pollers de mercado")} help={:pollers}>
         <:help_body>
@@ -392,22 +408,6 @@
           </div>
         </.panel>
       </div>
-
-      <%!-- Métricas de la última hora (RF-8.9) --%>
-      <.panel id="last-hour" title={gettext("Última hora")} help={:control}>
-        <:help_body>
-          {gettext(
-            "Un punto por minuto de los últimos 60: consultas a EVE, errores, cuánto tardan, el motor y el presupuesto de mercado. Al reiniciar la aplicación la hora empieza vacía."
-          )}
-        </:help_body>
-        <div class="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3 xl:grid-cols-6">
-          <div :for={m <- metric_tiles(@metrics)} id={"metric-#{m.id}"} class="min-w-0">
-            <div class="eth-kicker truncate text-[10px]" title={m.title}>{m.title}</div>
-            <div class="truncate whitespace-nowrap font-mono text-sm eth-strong">{m.value}</div>
-            <.spark id={"spark-#{m.id}"} values={m.values} label={m.title} class={m.class} />
-          </div>
-        </div>
-      </.panel>
     <% "market" -> %>
       <%!-- Mapa de regiones (RF-8.2); el detalle se despliega bajo su nivel (RF-8.3) --%>
       <.panel
