@@ -1,0 +1,34 @@
+<p class="lead">
+  Un trade no se hace al "precio del mercado": se hace orden por orden. EVE Trade Hunter
+  recorre el libro como lo harías vos en el juego.
+</p>
+
+<.section_title id="como-se-recorre-el-libro">Cómo se recorre el libro</.section_title>
+<p>
+  Se compran primero las órdenes de venta más baratas del origen y se venden primero a las
+  órdenes de compra más altas del destino. Se sigue mientras cada unidad deje margen y
+  mientras entren en tu capital y en tu bodega. Cuando la próxima unidad ya no deja ganancia,
+  se para.
+</p>
+<.formula title="Beneficio">
+  <div>costo = Σ cantidad × precio de venta del origen</div>
+  <div>ingreso = Σ cantidad × precio de compra del destino × (1 − sales tax)</div>
+  <div>beneficio = ingreso − costo</div>
+</.formula>
+
+<.section_title id="beneficio">Beneficio, ROI e inversión</.section_title>
+<ul>
+  <li><strong>Beneficio</strong> (la recompensa del contrato): el neto, ya con impuestos.</li>
+  <li><strong>Inversión</strong>: lo que pagás al comprar.</li>
+  <li><strong>ROI</strong>: beneficio ÷ inversión.</li>
+</ul>
+<p>
+  La ficha muestra el libro que se consumió: cada precio con su cantidad, para que puedas comprobarlo en el juego.
+</p>
+
+<.section_title id="venta-por-rango">Venta por rango</.section_title>
+<p>
+  Una orden de compra puede tener rango (sistema, saltos o región): entonces te compra aunque
+  estés en otra estación dentro de ese rango. Si alguna cubre el origen, podés vender "en el
+  lugar", sin viajar. Esas filas llevan el sello <.seal kind={:range} />.
+</p>

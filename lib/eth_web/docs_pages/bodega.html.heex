@@ -1,0 +1,32 @@
+<p class="lead">
+  La cantidad de cada contrato se ajusta a tu bodega real: nada de trades que necesitan un
+  freighter cuando volás una Iteron.
+</p>
+
+<.section_title id="bodega-calculada">Bodega calculada</.section_title>
+<p>
+  Con los datos estáticos de EVE (dogma) se calcula tu bodega general: la capacidad del casco,
+  los bonos por tus habilidades (por ejemplo, 5 % por nivel de Gallente Hauler en una Iteron
+  Mark V) y los módulos montados (expansores, rigs, subsistemas), que se leen de tus assets.
+  Las bodegas especializadas (mineral, PI, combustible) no cuentan.
+</p>
+<.callout>
+  EVE informa los módulos montados una vez por hora: si cambiás el fit, la bodega puede tardar
+  hasta una hora en actualizarse. Mientras tanto podés confirmarla a mano.
+</.callout>
+<p>Junto a la bodega, en la barra del piloto, ves de dónde sale:</p>
+<ul>
+  <li><strong>calculada</strong>: casco + habilidades + módulos.</li>
+  <li><strong>manual</strong>: un perfil que guardaste vos.</li>
+  <li>
+    <strong>estimada</strong>: casco + habilidades, sin los módulos (falta el permiso de assets o EVE todavía no los informó).
+  </li>
+  <li><strong>sin confirmar</strong>: la capacidad base del casco.</li>
+</ul>
+
+<.section_title id="perfiles-de-nave">Perfiles de nave</.section_title>
+<p>
+  Un perfil guarda la bodega, la clase de evasión (que define el tiempo por salto y el riesgo)
+  y un valor máximo de carga opcional, por nave o para todas las del mismo casco. Se editan en
+  Ajustes → Naves. En modo invitado se usa una bodega de {isk(rule(:guest_cargo_m3))} m³.
+</p>

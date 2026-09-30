@@ -1,0 +1,36 @@
+<p class="lead">
+  El radar lee en vivo las kills de zKillboard y las compara con la actividad normal de cada
+  sistema. Así distingue un sistema peligroso de siempre de uno que se puso caliente ahora.
+</p>
+
+<.section_title id="mapa-de-calor">Mapa de calor</.section_title>
+<p>
+  Cada kill suma calor al sistema y el calor se enfría con el tiempo. Cuando un sistema
+  supera claramente su línea base horaria, entra en alerta y se clasifica: gatecamp, bubble
+  camp, smartbombs, gank de transportes o actividad hostil.
+</p>
+
+<.section_title id="peligro">Peligro de la ruta</.section_title>
+<p>
+  La Certeza de ruta combina las alertas de los sistemas que cruzás, tu nave (un Blockade
+  Runner tolera más que un freighter) y el valor de la carga. El tablón la muestra como
+  peligro:
+</p>
+<div class="not-prose my-4 flex flex-col gap-3">
+  <div :for={{level, max} <- rule(:danger_levels)} class="flex items-center gap-4">
+    <div class="w-40"><.danger_meter level={level} /></div>
+    <span class="font-mono text-sm">riesgo ≤ {pct(max, 0)}</span>
+  </div>
+  <div class="flex items-center gap-4">
+    <div class="w-40"><.danger_meter level={:extreme} /></div>
+    <span class="font-mono text-sm">{gettext("más que eso")}</span>
+  </div>
+</div>
+
+<.section_title id="ruta-evasiva">Ruta evasiva</.section_title>
+<p>
+  En modo Evasiva la ruta esquiva los sistemas en alerta aunque sea más larga (cada amenaza
+  cuesta como {rule(:evasive_alpha)} saltos extra). "Fijar ruta" pone los waypoints
+  necesarios para que el autopiloto siga ese camino. El autopiloto usa su propia preferencia
+  (segura o corta), que ESI no permite leer ni cambiar.
+</p>

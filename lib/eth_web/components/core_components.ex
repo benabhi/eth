@@ -68,19 +68,23 @@ defmodule EthWeb.CoreComponents do
       {@rest}
     >
       <div class={[
-        "alert w-80 sm:w-96 max-w-80 sm:max-w-96 text-wrap",
-        @kind == :info && "alert-info",
-        @kind == :error && "alert-error"
+        "eth-raised flex w-80 items-start gap-3 border-t-2 px-3.5 py-3 text-wrap sm:w-96",
+        @kind == :info && "border-t-primary",
+        @kind == :error && "border-t-error"
       ]}>
-        <.icon :if={@kind == :info} name="hero-information-circle" class="size-5 shrink-0" />
-        <.icon :if={@kind == :error} name="hero-exclamation-circle" class="size-5 shrink-0" />
-        <div>
-          <p :if={@title} class="font-semibold">{@title}</p>
-          <p>{msg}</p>
+        <span class={[
+          "flex size-5 shrink-0 items-center justify-center border font-display text-xs font-bold",
+          @kind == :info && "border-primary text-primary",
+          @kind == :error && "border-error text-error"
+        ]}>
+          {if @kind == :error, do: "×", else: "i"}
+        </span>
+        <div class="flex-1 text-sm">
+          <p :if={@title} class="font-semibold eth-strong">{@title}</p>
+          <p class="eth-muted">{msg}</p>
         </div>
-        <div class="flex-1" />
-        <button type="button" class="group self-start cursor-pointer" aria-label={gettext("close")}>
-          <.icon name="hero-x-mark" class="size-5 opacity-40 group-hover:opacity-70" />
+        <button type="button" class="group self-start cursor-pointer" aria-label={gettext("Cerrar")}>
+          <.icon name="hero-x-mark" class="size-4 opacity-50 group-hover:opacity-80" />
         </button>
       </div>
     </div>

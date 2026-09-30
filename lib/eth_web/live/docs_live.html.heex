@@ -1,0 +1,117 @@
+<Layouts.app
+  flash={@flash}
+  radar_degraded={@radar_degraded}
+  active={:docs}
+  wide
+  pilot={@pilot}
+  characters={@characters}
+  ship_form={@ship_form}
+>
+  <div class="grid gap-8 lg:grid-cols-[17rem_minmax(0,1fr)] xl:grid-cols-[17rem_minmax(0,1fr)_13rem]">
+    <aside
+      aria-label={gettext("Índice del manual")}
+      class="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start"
+    >
+      <form id="docs-search" phx-change="search" phx-submit="search" class="flex flex-col gap-1.5">
+        <label for="docs-q" class="eth-kicker text-[11px]">{gettext("Buscar en el manual")}</label>
+        <input
+          id="docs-q"
+          name="q"
+          value={@query}
+          type="search"
+          phx-debounce="200"
+          autocomplete="off"
+          placeholder={gettext("TVS, broker, walk-the-book…")}
+          class="input input-sm w-full font-sans"
+        />
+      </form>
+
+      <%= if @results do %>
+        <div id="docs-results" class="flex flex-col gap-1">
+          <span class="text-xs eth-faint">
+            {ngettext("%{count} página", "%{count} páginas", length(@results))}
+          </span>
+          <.link
+            :for={r <- @results}
+            patch={~p"/docs/#{r.slug}"}
+            class="border-l-2 border-transparent px-3 py-1.5 text-sm hover:border-primary hover:text-base-content eth-muted"
+          >
+            {r.title}
+          </.link>
+        </div>
+      <% else %>
+        <nav id="docs-toc" class="flex flex-col gap-3">
+          <div :for={{group, pages} <- groups()} class="flex flex-col gap-0.5">
+            <span class="eth-kicker mt-1 text-[10px]">{group}</span>
+            <.link
+              :for={{slug, title, _group} <- pages}
+              patch={~p"/docs/#{slug}"}
+              aria-current={@slug == slug && "page"}
+              class={[
+                "border-l-2 px-3 py-1.5 text-sm transition-colors",
+                if(@slug == slug,
+                  do: "border-primary bg-primary/10 eth-strong",
+                  else: "border-transparent eth-muted hover:text-base-content"
+                )
+              ]}
+            >
+              {title}
+            </.link>
+          </div>
+        </nav>
+      <% end %>
+    </aside>
+
+    <article id="docs-page" class="eth-prose min-w-0 max-w-3xl">
+      <div class="mb-2 text-xs eth-faint">
+        {gettext("Manual")} › {Docs.title(@slug)}
+      </div>
+      <h1 class="font-display text-3xl font-semibold eth-strong sm:text-4xl">
+        {Docs.title(@slug)}
+      </h1>
+      {DocsPages.render_page(@slug, %{})}
+
+      <nav
+        aria-label={gettext("Páginas vecinas")}
+        class="mt-12 flex justify-between gap-4 border-t border-base-300 pt-5 text-sm"
+      >
+        <%= case @neighbors do %>
+          <% {prev, next} -> %>
+            <.link
+              :if={prev}
+              id="docs-prev"
+              patch={~p"/docs/#{elem(prev, 0)}"}
+              class="link link-primary"
+            >
+              ← {elem(prev, 1)}
+            </.link>
+            <span :if={!prev}></span>
+            <.link
+              :if={next}
+              id="docs-next"
+              patch={~p"/docs/#{elem(next, 0)}"}
+              class="link link-primary text-right"
+            >
+              {elem(next, 1)} →
+            </.link>
+        <% end %>
+      </nav>
+    </article>
+
+    <aside
+      :if={@headings != []}
+      aria-label={gettext("En esta página")}
+      class="hidden flex-col gap-2 text-sm xl:sticky xl:top-20 xl:flex xl:self-start"
+    >
+      <span class="eth-kicker text-[10px]">{gettext("En esta página")}</span>
+      <a :for={{id, text} <- @headings} href={"##{id}"} class="eth-muted hover:text-primary">
+        {text}
+      </a>
+      <p class="mt-4 border border-base-300 bg-base-100 p-3 text-xs leading-relaxed eth-muted">
+        {gettext(
+          "Los valores de las reglas del juego que ves acá salen de la configuración en vivo."
+        )}
+      </p>
+    </aside>
+  </div>
+</Layouts.app>

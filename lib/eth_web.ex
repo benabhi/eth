@@ -86,6 +86,8 @@ defmodule EthWeb do
       import Phoenix.HTML
       # Core UI components
       import EthWeb.CoreComponents
+      # Componentes del diseño "puente de mando" (ERS §9.9)
+      import EthWeb.UI
 
       # Common modules used in templates
       alias EthWeb.Layouts

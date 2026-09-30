@@ -47,42 +47,50 @@ defmodule EthWeb.Layouts do
     assigns = assign(assigns, :sections, sections())
 
     ~H"""
-    <header class="navbar border-b border-base-300 px-4 sm:px-6 lg:px-8">
-      <div class="flex-1 items-center gap-6">
-        <a href={~p"/"} class="text-lg font-bold tracking-wide">EVE Trade Hunter</a>
-        <nav aria-label={gettext("Navegación principal")}>
-          <ul class="menu menu-horizontal gap-1 p-0">
-            <li :for={{id, label, path} <- @sections}>
-              <a
-                :if={path}
-                href={path}
-                class={[@active == id && "menu-active"]}
-                aria-current={@active == id && "page"}
-              >
-                {label}
-              </a>
-              <span
-                :if={!path}
-                class="menu-disabled opacity-50 cursor-not-allowed"
-                title={gettext("Próximamente")}
-              >
-                {label}
-              </span>
-            </li>
-          </ul>
+    <header class="sticky top-0 z-30 border-b border-base-300 bg-base-200/95 backdrop-blur">
+      <div class="flex h-14 items-center gap-4 px-4 lg:gap-7 lg:px-7">
+        <a href={~p"/"} class="flex items-center gap-2.5" aria-label="EVE Trade Hunter">
+          <svg width="24" height="24" viewBox="0 0 26 26" aria-hidden="true" class="text-primary">
+            <path
+              d="M13 2 L24 8 L24 18 L13 24 L2 18 L2 8 Z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+            <path d="M13 7 L19 13 L13 19 L7 13 Z" fill="currentColor" opacity="0.85" />
+          </svg>
+          <span class="hidden font-display text-[15px] font-bold tracking-[0.14em] eth-strong sm:inline">
+            TRADE HUNTER
+          </span>
+        </a>
+        <nav aria-label={gettext("Navegación principal")} class="hidden h-14 md:flex">
+          <%= for {id, label, path} <- @sections do %>
+            <a
+              href={path}
+              aria-current={@active == id && "page"}
+              class={[
+                "flex items-center border-b-2 px-3 font-display text-[13px] tracking-[0.12em] uppercase transition-colors lg:px-4",
+                if(@active == id,
+                  do: "border-primary eth-strong",
+                  else: "border-transparent eth-muted hover:text-base-content"
+                )
+              ]}
+            >
+              {label}
+            </a>
+          <% end %>
         </nav>
-      </div>
-      <div class="flex flex-none items-center gap-3">
+        <div class="flex-1"></div>
         <a
           :if={@radar_degraded}
           id="radar-degraded"
           href={~p"/control"}
-          class="badge badge-warning gap-1"
+          class="hidden items-center gap-1.5 border border-warning/60 px-2 py-1 text-xs text-warning sm:flex"
           title={
             gettext("Sin kills del feed en vivo: el riesgo de ruta usa solo la línea base horaria")
           }
         >
-          <.icon name="hero-signal-slash" class="size-3" /> {gettext("Radar degradado")}
+          <.icon name="hero-signal-slash" class="size-3.5" /> {gettext("Radar degradado")}
         </a>
         <.character_menu pilot={@pilot} characters={@characters} />
         <.theme_toggle />
@@ -92,11 +100,30 @@ defmodule EthWeb.Layouts do
     <.pilot_bar :if={@pilot} pilot={@pilot} />
     <.ship_dialog :if={@pilot && @pilot.ship && @ship_form} pilot={@pilot} form={@ship_form} />
 
-    <main class="px-4 py-6 sm:px-6 lg:px-8">
-      <div class={["mx-auto space-y-6", if(@wide, do: "max-w-screen-2xl", else: "max-w-5xl")]}>
+    <main class="eth-grid-bg min-h-[calc(100vh-3.5rem)] px-4 pt-5 pb-24 sm:px-6 md:pb-8 lg:px-7">
+      <div class={["mx-auto space-y-5", if(@wide, do: "max-w-[1600px]", else: "max-w-5xl")]}>
         {render_slot(@inner_block)}
       </div>
     </main>
+
+    <%!-- Navegación inferior en el teléfono (RNF-5.4) --%>
+    <nav
+      aria-label={gettext("Navegación principal")}
+      class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-base-300 bg-base-200/95 backdrop-blur md:hidden"
+    >
+      <a
+        :for={{id, label, path} <- @sections}
+        href={path}
+        aria-current={@active == id && "page"}
+        class={[
+          "flex h-16 flex-col items-center justify-center gap-1.5 text-[11px]",
+          if(@active == id, do: "eth-strong", else: "eth-muted")
+        ]}
+      >
+        <span class={["h-0.5 w-5", if(@active == id, do: "bg-primary", else: "bg-transparent")]}></span>
+        {label}
+      </a>
+    </nav>
 
     <.flash_group flash={@flash} />
 
@@ -184,9 +211,14 @@ defmodule EthWeb.Layouts do
         <summary class="btn btn-ghost btn-sm">{gettext("Personajes")}</summary>
         <.character_list characters={@characters} />
       </details>
-      <a id="login-eve" href={~p"/auth/eve"} class="btn btn-primary btn-sm">
+      <a
+        id="login-eve"
+        href={~p"/auth/eve"}
+        class="eth-chamfer-sm btn btn-primary btn-sm font-display tracking-wide"
+      >
         <.icon name="hero-arrow-right-end-on-rectangle" class="size-4" />
-        {gettext("Iniciar sesión con EVE")}
+        <span class="hidden sm:inline">{gettext("Iniciar sesión con EVE")}</span>
+        <span class="sm:hidden">{gettext("Entrar")}</span>
       </a>
     </div>
     """
@@ -202,7 +234,7 @@ defmodule EthWeb.Layouts do
             alt=""
             width="32"
             height="32"
-            class="size-8 rounded-full ring-1 ring-base-300"
+            class="size-8 ring-1 ring-primary/60"
           />
           <span
             class={[
@@ -212,7 +244,7 @@ defmodule EthWeb.Layouts do
             title={online_label(@pilot.online)}
           ></span>
         </span>
-        <span id="pilot-name" class="max-w-40 truncate">{@pilot.name}</span>
+        <span id="pilot-name" class="hidden max-w-40 truncate sm:inline">{@pilot.name}</span>
       </summary>
       <.character_list characters={@characters} active_id={@pilot.id} />
     </details>
@@ -224,7 +256,7 @@ defmodule EthWeb.Layouts do
 
   defp character_list(assigns) do
     ~H"""
-    <ul class="menu dropdown-content z-20 mt-2 w-64 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
+    <ul class="eth-raised menu dropdown-content z-40 mt-2 w-64 p-2">
       <li :for={c <- @characters}>
         <.link
           id={"activate-#{c.id}"}
@@ -268,25 +300,25 @@ defmodule EthWeb.Layouts do
     <section
       id="pilot-bar"
       aria-label={gettext("Contexto del piloto")}
-      class="border-b border-base-300 bg-base-200/60 px-4 py-2 text-sm sm:px-6 lg:px-8"
+      class="border-b border-base-300 bg-base-100 px-4 py-2.5 text-sm sm:px-6 lg:px-7"
     >
       <div
         :if={@pilot.status == :relogin}
         id="pilot-relogin"
         role="alert"
-        class="alert alert-warning mb-2 py-2"
+        class="mb-2 flex flex-wrap items-center gap-3 border border-warning/50 bg-warning/10 px-3 py-2 text-warning"
       >
         <.icon name="hero-exclamation-triangle" class="size-5" />
         <span>
           {gettext("La autorización de EVE de %{name} venció o fue revocada.", name: @pilot.name)}
         </span>
-        <a href={~p"/auth/eve"} class="btn btn-sm">{gettext("Volver a iniciar sesión")}</a>
+        <a href={~p"/auth/eve"} class="btn btn-warning btn-sm">{gettext("Volver a iniciar sesión")}</a>
       </div>
 
-      <div class="flex flex-wrap items-center gap-x-6 gap-y-2 tabular-nums">
-        <div id="pilot-wallet" class="flex items-center gap-2" title={gettext("Billetera")}>
-          <.icon name="hero-wallet" class="size-4 text-base-content/60" />
-          <span class="font-semibold">{Format.compact(@pilot.wallet)} ISK</span>
+      <div class="flex flex-wrap items-center gap-x-7 gap-y-2 tabular-nums">
+        <div id="pilot-wallet" class="flex flex-col" title={gettext("Billetera")}>
+          <span class="eth-kicker text-[10px]">{gettext("Billetera")}</span>
+          <span class="font-mono eth-strong">{Format.compact(@pilot.wallet)} ISK</span>
         </div>
 
         <div :if={ship = @pilot.ship} id="pilot-ship" class="flex items-center gap-2">
@@ -295,11 +327,11 @@ defmodule EthWeb.Layouts do
             alt=""
             width="32"
             height="32"
-            class="size-8 rounded bg-base-300"
+            class="size-9 bg-base-300"
           />
           <div class="leading-tight">
             <div>
-              <span class="font-semibold">{ship.type_name}</span>
+              <span class="font-semibold eth-strong">{ship.type_name}</span>
               <span :if={ship.ship_name} class="text-base-content/60">· {ship.ship_name}</span>
             </div>
             <div class="text-xs text-base-content/70">
@@ -313,7 +345,10 @@ defmodule EthWeb.Layouts do
                 type="button"
                 phx-click="pilot_ship_open"
                 title={cargo_source_hint(ship, @pilot)}
-                class={["badge badge-xs ml-1 cursor-pointer", cargo_source_class(ship.cargo_source)]}
+                class={[
+                  "badge badge-xs ml-1 cursor-pointer font-display tracking-wide",
+                  cargo_source_class(ship.cargo_source)
+                ]}
               >
                 {cargo_source_label(ship.cargo_source)}
               </button>
@@ -321,11 +356,15 @@ defmodule EthWeb.Layouts do
           </div>
         </div>
 
-        <div :if={loc = @pilot.location} id="pilot-location" class="flex items-center gap-2">
-          <.icon name="hero-map-pin" class="size-4 text-base-content/60" />
+        <div :if={loc = @pilot.location} id="pilot-location" class="flex flex-col">
+          <span class="eth-kicker text-[10px]">{gettext("Ubicación")}</span>
           <span>
-            <span class="font-semibold">{loc.system_name}</span>
-            <span :if={loc.security} style={"color: #{Sde.security_color(loc.security)}"}>
+            <span class="font-semibold eth-strong">{loc.system_name}</span>
+            <span
+              :if={loc.security}
+              class="font-mono"
+              style={"color: #{Sde.security_color(loc.security)}"}
+            >
               {:erlang.float_to_binary(Sde.security_display(loc.security), decimals: 1)}
             </span>
             <span :if={loc.docked_name} class="text-base-content/60">
@@ -337,15 +376,16 @@ defmodule EthWeb.Layouts do
           </span>
         </div>
 
-        <div
-          :if={@pilot.sales_tax}
-          id="pilot-tax"
-          class="flex items-center gap-2"
-          title={tax_tooltip(@pilot.accounting)}
-        >
-          <.icon name="hero-receipt-percent" class="size-4 text-base-content/60" />
-          {gettext("Sales tax %{pct}", pct: percent(@pilot.sales_tax))}
-          <span class="text-base-content/60">(Accounting {@pilot.accounting})</span>
+        <div :if={@pilot.sales_tax} id="pilot-tax" class="flex flex-col">
+          <span class="eth-kicker text-[10px]">{gettext("Sales tax")}</span>
+          <.tip title={gettext("Sales tax")} topic={:sales_tax} align="start">
+            <span class="font-mono eth-strong">
+              {gettext("Sales tax %{pct}", pct: percent(@pilot.sales_tax))}
+            </span>
+            <span class="eth-muted">(Accounting {@pilot.accounting})</span>
+            <:body>{gettext("Impuesto al vender. Baja con tu nivel de Accounting.")}</:body>
+            <:formula>{tax_tooltip(@pilot.accounting)} = {percent(@pilot.sales_tax)}</:formula>
+          </.tip>
         </div>
 
         <div
@@ -367,7 +407,7 @@ defmodule EthWeb.Layouts do
   def ship_dialog(assigns) do
     ~H"""
     <section id="ship-dialog" aria-labelledby="ship-dialog-title" class="mx-4 mt-4 sm:mx-6 lg:mx-8">
-      <div class="card mx-auto max-w-2xl border border-warning/40 bg-base-100 p-4 shadow-lg">
+      <div class="eth-chamfer eth-raised mx-auto max-w-2xl p-4">
         <div class="flex items-start justify-between gap-4">
           <div>
             <h2 id="ship-dialog-title" class="font-semibold">
@@ -501,13 +541,14 @@ defmodule EthWeb.Layouts do
     )
   end
 
-  # Secciones de la navegación (ERS §9.2); las que aún no existen se muestran deshabilitadas.
+  # Secciones de la navegación (ERS §9.2).
   defp sections do
     [
-      {:hunter, gettext("Cazador"), ~p"/"},
-      {:run, gettext("Viaje activo"), ~p"/run"},
-      {:control, gettext("Centro de control"), ~p"/control"},
-      {:settings, gettext("Ajustes"), ~p"/settings"}
+      {:hunter, gettext("Tablón"), ~p"/"},
+      {:run, gettext("Viaje"), ~p"/run"},
+      {:control, gettext("Control"), ~p"/control"},
+      {:settings, gettext("Ajustes"), ~p"/settings"},
+      {:docs, gettext("Manual"), ~p"/docs"}
     ]
   end
 
@@ -567,41 +608,31 @@ defmodule EthWeb.Layouts do
   """
   def theme_toggle(assigns) do
     ~H"""
-    <div
-      class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full"
-      role="group"
-      aria-label={gettext("Tema")}
-    >
-      <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 [[data-theme-source=system]_&]:!left-0 transition-[left]" />
-
+    <div class="flex border border-base-300" role="group" aria-label={gettext("Tema")}>
       <button
-        class="flex p-2 cursor-pointer w-1/3"
+        :for={
+          {theme, icon, label} <- [
+            {"system", "hero-computer-desktop-micro", gettext("Tema del sistema")},
+            {"light", "hero-sun-micro", gettext("Modo día")},
+            {"dark", "hero-moon-micro", gettext("Modo noche")}
+          ]
+        }
+        type="button"
+        class={[
+          "flex cursor-pointer p-1.5 eth-muted hover:text-base-content",
+          "[[data-theme-source=system]_&]:data-[phx-theme=system]:bg-primary",
+          "[[data-theme-source=system]_&]:data-[phx-theme=system]:text-primary-content",
+          "[[data-theme-source=user][data-theme=light]_&]:data-[phx-theme=light]:bg-primary",
+          "[[data-theme-source=user][data-theme=light]_&]:data-[phx-theme=light]:text-primary-content",
+          "[[data-theme-source=user][data-theme=dark]_&]:data-[phx-theme=dark]:bg-primary",
+          "[[data-theme-source=user][data-theme=dark]_&]:data-[phx-theme=dark]:text-primary-content"
+        ]}
         phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="system"
-        aria-label={gettext("Tema del sistema")}
-        title={gettext("Tema del sistema")}
+        data-phx-theme={theme}
+        aria-label={label}
+        title={label}
       >
-        <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="light"
-        aria-label={gettext("Tema claro")}
-        title={gettext("Tema claro")}
-      >
-        <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="dark"
-        aria-label={gettext("Tema oscuro")}
-        title={gettext("Tema oscuro")}
-      >
-        <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
+        <.icon name={icon} class="size-4" />
       </button>
     </div>
     """

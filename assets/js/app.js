@@ -26,8 +26,12 @@ import {hooks as colocatedHooks} from "phoenix-colocated/eth"
 import topbar from "../vendor/topbar"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+// Sin fallback a long polling: la app corre en la máquina del piloto, sin proxies que
+// bloqueen WebSocket. Con el fallback, un reinicio del servidor de más de unos segundos
+// dejaba la pestaña en long polling toda la sesión y cada clic tardaba segundos.
+try { sessionStorage.removeItem("phx:fallback:LongPoll") } catch (_e) { /* sin almacenamiento */ }
+
 const liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
   hooks: {...colocatedHooks},
 })

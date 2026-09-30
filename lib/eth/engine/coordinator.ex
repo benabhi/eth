@@ -186,13 +186,17 @@ defmodule Eth.Engine.Coordinator do
       |> Enum.sort_by(& &1.profit, :desc)
       |> Enum.take(GameRules.get(:max_universal_opportunities))
 
+    direct_at = System.monotonic_time(:millisecond)
     stations = StationEvaluator.run(entries, types)
+    station_at = System.monotonic_time(:millisecond)
 
     # Por órdenes: solo candidatos con historial en el hub y viables en el mejor caso; de
     # los demás se pide el historial (entran en la evaluación siguiente). Sin esto:
     # ~170.000 candidatos, ~380 MB y ~0,5 s por consulta (RNF-1.1).
     %{candidates: order_opps, missing_history: order_missing} =
       OrderEvaluator.run(sources, all_types)
+
+    orders_at = System.monotonic_time(:millisecond)
 
     History.demand(
       history_demand(opportunities) ++
@@ -202,6 +206,10 @@ defmodule Eth.Engine.Coordinator do
     stats = %{
       duration_ms: System.monotonic_time(:millisecond) - started,
       summaries_ms: summaries_ms,
+      # Duración de cada etapa, para la barra segmentada del Centro de control (RF-8.10).
+      direct_ms: direct_at - started - summaries_ms,
+      station_ms: station_at - direct_at,
+      orders_ms: orders_at - station_at,
       types: length(all_types),
       sources: length(sources),
       opportunities: length(opportunities),

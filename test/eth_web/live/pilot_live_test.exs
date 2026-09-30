@@ -140,7 +140,8 @@ defmodule EthWeb.PilotLiveTest do
   end
 
   defp select_first_row(view) do
-    view |> element("#opportunities tr[id^='opp-']") |> render_click()
+    view |> element("#opportunities [id^='opp-'] > [data-head]") |> render_click()
+    render_async(view)
   end
 
   test "en modo invitado ofrece el login y deshabilita las acciones in-game", %{conn: conn} do
@@ -213,7 +214,7 @@ defmodule EthWeb.PilotLiveTest do
     {:ok, view, _html} = live(conn, ~p"/")
     await_pilot(view)
 
-    {:ok, control, _html} = live(conn, ~p"/control")
+    {:ok, control, _html} = live(conn, ~p"/control/characters")
     assert has_element?(control, "#session-#{@id}", "token vigente")
     assert has_element?(control, "#session-#{@id}-wallet", "hace")
     assert has_element?(control, "#session-#{@id}-assets")
@@ -283,6 +284,8 @@ defmodule EthWeb.PilotLiveTest do
       {:ok, run_view, _html} = live(conn, ~p"/run")
       assert has_element?(run_view, "#run", "Tritanium")
       assert has_element?(run_view, "#run-steps li[data-state=current]", "planificado")
+      assert has_element?(run_view, "#hunter-rank", "I")
+      assert has_element?(run_view, "#hunter-milestones li[data-achieved=false]")
 
       run_view |> element("#run-set-route") |> render_click()
       assert_receive {:ui, "/ui/autopilot/waypoint", _params}, 2_000

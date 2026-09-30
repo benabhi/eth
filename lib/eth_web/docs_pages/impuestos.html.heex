@@ -1,0 +1,59 @@
+<p class="lead">
+  Los valores de esta página salen de la configuración vigente: si CCP los cambia y los
+  ajustás en Ajustes → Reglas, el manual se actualiza solo.
+</p>
+
+<.section_title id="sales-tax">Sales tax</.section_title>
+<p>
+  Se paga al <strong>vender</strong>, sobre el ingreso bruto. Baja con tu nivel de Accounting.
+</p>
+<.formula title="Sales tax">
+  <div>
+    sales tax = {pct(rule(:sales_tax_base), 1)} × (1 − {rule(:accounting_reduction_per_level)} × Accounting)
+  </div>
+  <div class="eth-muted">
+    Accounting 0: {pct(Eth.Engine.Fees.sales_tax(0), 3)} · IV: {pct(
+      Eth.Engine.Fees.sales_tax(4),
+      3
+    )} · V: {pct(Eth.Engine.Fees.sales_tax(5), 3)}
+  </div>
+</.formula>
+
+<.section_title id="broker-fee">Broker fee</.section_title>
+<p>
+  Se paga al <strong>publicar</strong> una orden (Listado, compra por orden y station
+  trading). En estaciones NPC baja con Broker Relations y con tus standings (sin modificar)
+  con la corporación dueña de la estación y su facción. Comprar o vender a órdenes existentes
+  (familia Directo) no paga broker.
+</p>
+<.formula title="Broker fee en estaciones NPC">
+  <div>
+    broker = {pct(rule(:broker_fee_base), 1)} − {pct(
+      rule(:broker_relations_reduction_per_level),
+      1
+    )} × Broker Relations
+  </div>
+  <div class="pl-12">
+    − {pct(rule(:broker_faction_standing_coef), 2)} × standing de facción − {pct(
+      rule(:broker_corp_standing_coef),
+      2
+    )} × standing de corporación
+  </div>
+</.formula>
+
+<.section_title id="modificar-una-orden">Modificar una orden (relist)</.section_title>
+<p>
+  Cambiar el precio de una orden publicada cuesta una parte del broker. Advanced Broker
+  Relations aumenta el descuento. Si subís el precio, además pagás el broker completo sobre el
+  aumento.
+</p>
+<.formula title="Costo de modificar">
+  <div>costo = broker × max(0, V₂ − V₁) + (1 − RD) × broker × V₂</div>
+  <div class="eth-muted">
+    RD = {pct(rule(:relist_discount_base), 0)} + {pct(rule(:relist_discount_per_level), 0)} × Advanced Broker Relations · V = precio × cantidad restante
+  </div>
+</.formula>
+<p>
+  Los precios de las órdenes admiten como máximo {rule(:order_price_significant_digits)} cifras significativas: por eso la aplicación sugiere precios "redondos" como 1,409,000 y no
+  1,409,999.
+</p>

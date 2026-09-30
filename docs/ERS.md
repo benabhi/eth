@@ -6,7 +6,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.7 |
+| Versión | 1.8 |
 | Fecha | 2026-09-29 |
 | Estado | Base para desarrollo — decisiones a confirmar en §15.2 |
 | Autor | Hernan Jalabert |
@@ -17,6 +17,7 @@
 | Versión | Fecha | Cambios |
 |---|---|---|
 | 0.1 | 2026-09 | Borrador inicial de ideas. |
+| 1.8 | 2026-09-30 | **F10 implementada:** identidad visual con temas oscuro y claro y tipografías propias; componentes compartidos (`EthWeb.UI`, `EthWeb.TradingComponents`); tablón con rango, sellos, peligro y anillo de Certeza, filtros acoplados a la tabla y ficha que se despliega bajo la fila con secciones en columnas (RF-6.5, a pedido del usuario, en lugar de pestañas); Centro de control por pestañas con instrumentos (RF-8.10); registro del cazador con rango, racha e hitos (RF-7.7); manual integrado en HEEx (D-21); indicador de carga inmediato en las filas y WebSocket sin fallback a long polling (RNF-5.15). |
 | 1.7 | 2026-09-29 | **Diseño final y cierre de v1.0:** principio "trades rápido primero" (RNF-5.13); explicación de cada cifra con tooltip, fórmula con los valores reales y enlace al manual (RNF-5.14); instrumentos del Centro de control (anillos de progreso para pollers, medidores por tipo de proceso, §9.10); hitos y rachas del registro del cazador con datos reales (RF-7.7); nuevo módulo M11 **Manual integrado** (`/docs`, RF-11.1–11.4); auditoría total de sistemas como última tarea de v1.0 (§11.6, F11). |
 | 1.6 | 2026-09-29 | **Sin instancia pública:** se descarta el módulo M11 (multiusuario, suscripciones con ISK, reclamo de contratos y ranking público) y la fase F13 (D-20). La herramienta es de **uso personal y autoalojada**: cada piloto la descarga y la usa con sus personajes (§2.3, D-01, RNF-10.5–10.7). La gamificación del tablón de caza (RF-6.13) y el registro del cazador (RF-7.7) se mantienen, en versión personal. |
 | 1.5 | 2026-09-29 | **Tablón de caza:** la interfaz adopta la metáfora de un tablón de contratos de caza, gamificada y profesional (RF-6.13, §9.9, D-19); la ficha del trade se despliega bajo la fila (RF-6.5); registro del cazador (RF-7.7); Centro de control con pestañas y estética de consola de operaciones (RF-8.10); nuevo módulo M11 (Comunidad: multiusuario, suscripción con ISK, reclamo de contratos y ranking de cazadores) en una fase posterior a v1.0 (F13, D-20). |
@@ -890,7 +891,7 @@ Al hacer clic en una fila, **la propia fila se despliega** hacia abajo y muestra
 - **Historial:** sparkline de 30 días, mediana, volumen y resultado anti-scam. *(F5: implementado como secciones "Anti-scam" e "Historial" del panel actual, que todavía no usa pestañas; las pestañas llegan con el rediseño de F10.)*
 - **Ruta:** sistemas con su seguridad, kills/h, amenaza y gates acampados.
 
-*Implementación actual (F3–F7): panel lateral con secciones. F10 lo reemplaza por la ficha expandible con pestañas; las acciones (Multibuy, Fijar ruta, Abrir mercado, Reportar falso positivo) viven en el pie de la ficha.*
+*Implementación (F10): la ficha se despliega bajo la fila con un desenrollado suave y se desplaza a la vista si hace falta; en lugar de pestañas, las secciones van **en columnas lado a lado** (Cálculo · Libro e Historial · Ruta · ¿Por qué TVS?; en pantallas medianas, dos por fila; en móvil, una debajo de otra), a pedido del usuario, para ver todo sin clics extra. Las acciones (Iniciar viaje, Multibuy, Fijar ruta, Abrir mercado, Reportar falso positivo) y "Cerrar (Esc)" viven en el pie. La ruta con el radar se calcula en segundo plano con un spinner (RNF-5.15). Lo mismo vale para las familias Estación y Por órdenes (RF-6.12). Los filtros (RF-6.4) forman una barra acoplada arriba de la tabla, con campos compactos de etiqueta como prefijo.*
 
 #### RF-6.13 · Lenguaje de tablón de caza — S · F10
 
@@ -1010,6 +1011,8 @@ Perfil de caza del piloto a partir de los viajes cerrados (RF-7.5): contratos co
 - **Rango del cazador:** nivel según la recompensa real acumulada (escala *calibrable*), con la barra de progreso al siguiente nivel.
 - Un aviso discreto (toast) al lograr un hito; nunca bloquea ni interrumpe la búsqueda de trades.
 
+*Implementación (F10):* `Eth.Tracking.HunterLog` (funciones puras) arma el registro con los viajes `closed` que tienen `realized_profit`; precisión de un viaje = 1 − |real − proyectado| / |proyectado| (entre 0 y 1); ISK/h = recompensa total / horas de viaje (mínimo 1 minuto por viaje); racha = días UTC seguidos con cierres que terminan hoy o ayer; "rango S" usa el TVS congelado en el plan del viaje. El registro está arriba de `/run`, con selector de período (semana, mes, histórico) y de personajes (el activo o todos). El toast sale al guardar el resultado de la reconciliación (`Tracking.put_result/2`) y solo por hitos nuevos. Parámetros en B.7 (`hunter_ranks`, `hunter_milestones`).
+
 ### M8 · Centro de control (monitor del sistema)
 
 Rediseño del "monitor de GenServers": en lugar de una tabla, un **tablero operativo** en cinco zonas (wireframe en §9.6): salud global, mapa de regiones en mosaico, pipeline en vivo, radar y personajes, y registro de eventos. Está pensado para ver ~70 regiones de un vistazo y actuar con un clic. Una tabla escala mal a 70 filas y oculta lo importante: el mosaico hace saltar a la vista lo que está en rojo.
@@ -1064,6 +1067,8 @@ Los procesos se muestran como **instrumentos** (§9.10), cada tipo con su forma:
 **Acabado:** estética de consola de operaciones (§9.9): paneles de instrumentos con indicadores de estado tipo LED, *sparklines* y contadores que se actualizan en vivo, cifras monoespaciadas y una rejilla sutil; el movimiento indica actividad real (datos que fluyen), nunca decoración.
 
 **CA:** cada pestaña se abre por URL; la barra de salud está en todas; ninguna pestaña supera una pantalla de alto en escritorio sin scroll interno.
+
+*Implementación (F10):* las rutas usan claves en inglés (RNF-6): `/control` (Resumen), `/control/market`, `/control/radar`, `/control/characters`, `/control/logs` y `/control/esi`; una pestaña desconocida vuelve al Resumen. Cada pestaña muestra en su etiqueta cuántas cosas requieren atención, y un anillo del Resumen abre la región en Mercado (`?region=<id>`). El motor publica la duración de cada etapa (`summaries_ms`, `direct_ms`, `station_ms`, `orders_ms`) para la barra segmentada; el resto (sobre todo la demanda de historial) se muestra como un segmento aparte.
 
 #### RF-8.5 · Panel del radar — S · F6
 
@@ -1162,7 +1167,7 @@ Documentación de uso dentro de la propia aplicación, con su misma identidad vi
 #### RF-11.1 · Manual en la aplicación — S · F10
 
 - Sección **Manual** (`/docs`) en la navegación, con índice lateral, secciones y subsecciones enlazables (`/docs/<sección>#<ancla>`), búsqueda por texto y navegación anterior/siguiente.
-- Contenido en español, escrito en Markdown versionado en el repositorio (`priv/docs/*.md`) y compilado en la aplicación (sin servicios externos, CSP intacta).
+- Contenido en español, versionado en el repositorio y compilado en la aplicación (sin servicios externos, CSP intacta). Se escribe en plantillas HEEx (`lib/eth_web/docs_pages/*.html.heex`) y no en Markdown (D-21): así cada página muestra los valores vigentes de `Eth.GameRules` y reutiliza los componentes de la interfaz (fórmulas, rangos, sellos). Los enlaces de la aplicación apuntan a **temas** (`EthWeb.Docs.href/1`), nunca a URLs escritas a mano.
 - **Secciones mínimas:** primeros pasos (instalación, registrar la aplicación de EVE, primer login); el Cazador y sus tres familias (directo, por órdenes, estación); cómo se calculan beneficio, impuestos, comisiones, walk-the-book, TVS, Certeza, rango y peligro (con ejemplos numéricos); anti-scam y liquidez; radar y rutas; bodega y perfiles de nave; viaje activo y registro del cazador; órdenes propias; Centro de control; Ajustes; límites de ESI y privacidad; glosario; preguntas frecuentes.
 
 **CA:** todas las secciones mínimas existen; la búsqueda encuentra términos del glosario; las páginas cumplen §9.9 en los tres tamaños.
@@ -2174,6 +2179,7 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | D-18 | Sin combos (RF-4.10) ni retorno (RF-4.11): cada fila del Cazador es un trade individual | Se implementaron en F7 y se retiraron antes de integrarse (2026-09-29): las filas de paquete y las insignias de retorno ensuciaban la tabla y hacían más difícil elegir un buen trade | Mostrarlos como filas o insignias en la tabla principal |
 | D-19 | Interfaz como **tablón de caza**, gamificada con sobriedad | Hace más claro y motivador elegir un trade (contratos con rango, recompensa y peligro) sin perder la densidad ni la exactitud de una herramienta profesional | Gamificación con puntos y recompensas ficticias; o una tabla sin lenguaje propio |
 | D-20 | **Sin instancia pública ni multiusuario:** se descartan cuentas de terceros, suscripciones con ISK, reclamos de contratos y rankings entre usuarios (antes M11/F13) | La herramienta es personal: cada piloto la descarga y la usa con sus personajes; evita exponer datos y tokens, operar un servidor y el límite de ESI por IP compartido | Instancia pública con suscripciones (versión 1.5 del ERS) |
+| D-21 | Manual integrado en plantillas HEEx compiladas, no en Markdown | Muestra los valores vigentes de las reglas del juego, reutiliza los componentes de la interfaz y no suma dependencias | Markdown con una biblioteca de render (Earmark/MDEx) |
 
 ### 15.2 Pendientes de confirmar
 
@@ -2375,6 +2381,10 @@ Aproximación de la escala del cliente. En el tema claro se usan como fondo de i
 | `dogma_capacity_attribute_id` / `dogma_skill_level_attribute_id` | 38 / 280 | Atributos dogma de capacidad y nivel de habilidad (RF-5.8) |
 | `fitted_location_flag_prefixes` | HiSlot, MedSlot, LoSlot, RigSlot, SubSystemSlot | Módulos montados en `/assets` (RF-5.8) |
 | `ship_group_evasion_classes` | 31 Shuttle · 1202 BR · 380 DST · 28 Industrial · 513 y 902 Freighter · resto Otras | Clase sugerida por grupo del SDE (RF-5.8) |
+| `contract_ranks` | S ≥ 90 · A ≥ 75 · B ≥ 50 · C ≥ 25 · resto D | Rango del contrato por TVS (RF-6.13) |
+| `danger_levels` | bajo ≤ 5 % · moderado ≤ 15 % · alto ≤ 35 % · resto extremo | Peligro de ruta = 1 − Certeza de ruta (RF-6.13) |
+| `hunter_ranks` | I 0 · II 500M · III 2B · IV 5B · V 10B · VI 25B · VII 50B | Rango del cazador por recompensa real acumulada (RF-7.7) |
+| `hunter_milestones` | recompensa 100M · 1B · 10B · 100B · rango S 1 · 10 · 50 · racha 3 · 7 · 30 días · precisión ≥ 90 % en 10 viajes | Hitos del registro del cazador (RF-7.7) |
 
 ### B.8 Matriz de vulnerabilidad (calibrable)
 

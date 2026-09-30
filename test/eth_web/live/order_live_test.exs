@@ -53,9 +53,9 @@ defmodule EthWeb.OrderLiveTest do
     {:ok, view, _html} = live(conn, ~p"/orders")
 
     assert has_element?(view, "#family-orders[aria-current='page']")
-    assert has_element?(view, "#order-rows tr[id^='ord-']", "Listado")
+    assert has_element?(view, "#order-rows [id^='ord-'] > [data-head]", "Listado")
 
-    view |> element("#order-rows tr[id^='ord-']") |> render_click()
+    view |> element("#order-rows [id^='ord-'] > [data-head]") |> render_click()
     assert has_element?(view, "#orders-detail", "Publicá una orden de venta")
     assert has_element?(view, "#copy-order-price[data-text='5.49']")
   end
@@ -66,7 +66,7 @@ defmodule EthWeb.OrderLiveTest do
 
     view |> form("#orders-filters", filters: %{mode: "buy_order"}) |> render_change()
     assert_patch(view, ~p"/orders?mode=buy_order")
-    refute has_element?(view, "#order-rows tr[id^='ord-']")
+    refute has_element?(view, "#order-rows [id^='ord-'] > [data-head]")
   end
 
   test "parámetros: modos, rutas y listas cerradas" do

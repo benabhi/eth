@@ -50,7 +50,7 @@ defmodule EthWeb.ControlLiveTest do
   end
 
   test "muestra los estados de región que llegan por PubSub y su detalle", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/control")
+    {:ok, view, _html} = live(conn, ~p"/control/market")
 
     send(view.pid, {:region_status, region_status(%{})})
     assert render(view) =~ "The Forge: Cacheado"
@@ -63,7 +63,7 @@ defmodule EthWeb.ControlLiveTest do
   end
 
   test "refleja descarga con progreso y errores", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/control")
+    {:ok, view, _html} = live(conn, ~p"/control/market")
 
     send(view.pid, {:region_status, region_status(%{status: :fetching, progress: {110, 405}})})
     assert render(view) =~ "Pág 110/405"
@@ -88,7 +88,7 @@ defmodule EthWeb.ControlLiveTest do
   end
 
   test "los eventos llegan en vivo y se filtran", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/control")
+    {:ok, view, _html} = live(conn, ~p"/control/logs")
 
     Events.emit(:error, "Domain", "timeout de prueba")
     assert render(view) =~ "timeout de prueba"
@@ -120,9 +120,40 @@ defmodule EthWeb.ControlLiveTest do
     assert has_element?(view, "#history-status", "0 en caché · 0 en cola")
   end
 
+  describe "pestañas (RF-8.10)" do
+    test "cada pestaña tiene su URL y la barra de salud siempre está visible", %{conn: conn} do
+      for tab <- ~w(market radar characters logs esi) do
+        {:ok, view, _html} = live(conn, "/control/#{tab}")
+        assert has_element?(view, "#control-tabs-#{tab}[aria-current='page']")
+        assert has_element?(view, "#health #sde-status")
+      end
+    end
+
+    test "una pestaña desconocida vuelve al resumen", %{conn: conn} do
+      assert {:error, {:live_redirect, %{to: "/control"}}} = live(conn, "/control/nope")
+    end
+
+    test "el resumen lista lo que requiere atención y enlaza a la región", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/control")
+      assert has_element?(view, "#attention", "Radar degradado")
+
+      send(
+        view.pid,
+        {:region_status, region_status(%{status: :backoff, failures: 2, last_error: "HTTP 502"})}
+      )
+
+      assert has_element?(view, "#attention", "The Forge: Error")
+      assert has_element?(view, "#poller-10000002")
+
+      view |> element("#poller-10000002") |> render_click()
+      assert_patch(view, ~p"/control/market?region=10000002")
+      assert has_element?(view, "#region-detail", "HTTP 502")
+    end
+  end
+
   describe "radar (RF-8.5, RF-3.8)" do
     test "sin radar en vivo muestra el indicador de degradado en la cabecera", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/control")
+      {:ok, view, _html} = live(conn, ~p"/control/radar")
       assert has_element?(view, "#radar-degraded", "Radar degradado")
       assert has_element?(view, "#radar", "Sin kills PvP")
     end
@@ -131,7 +162,7 @@ defmodule EthWeb.ControlLiveTest do
     test "muestra sistemas calientes y kills relevantes en vivo", %{conn: conn, tmp_dir: tmp_dir} do
       :ok = EngineFixture.load_sde(tmp_dir)
       start_supervised!(Radar)
-      {:ok, view, _html} = live(conn, ~p"/control")
+      {:ok, view, _html} = live(conn, ~p"/control/radar")
 
       {:ok, kill} =
         KillmailFixture.raw(system_id: 30_005_196, value: 2.5e9)

@@ -1,0 +1,48 @@
+<p class="lead">
+  La trampa clásica del mercado de EVE es una orden de compra carísima que parece un regalo
+  y no lo es. El escudo anti-scam compara cada precio con lo que de verdad se operó en los
+  últimos días.
+</p>
+
+<.section_title id="escudo-anti-scam">Escudo anti-scam</.section_title>
+<p>
+  Referencia: la mediana de los promedios diarios de 7 días (o de 30 si en 7 hubo menos de {rule(
+    :anti_scam
+  ).min_days_7d} días con operaciones).
+</p>
+<ul>
+  <li>
+    Compra a más de <strong>{rule(:anti_scam).scam_bid_ratio}×</strong>
+    la mediana: <.seal kind={:scam} />.
+  </li>
+  <li>
+    Compra a más de <strong>{rule(:anti_scam).suspicious_bid_ratio}×</strong>
+    la mediana: <.seal kind={:suspicious} />.
+  </li>
+  <li>
+    Sin historial y compra a más de <strong>{rule(:anti_scam).global_price_ratio}×</strong>
+    el precio promedio global: sospechosa.
+  </li>
+  <li>
+    Si además la compra es muy nueva (menos de {rule(:anti_scam).fresh_order_minutes} min) o
+    exige una cantidad mínima: SCAM.
+  </li>
+</ul>
+<p>
+  Un contrato SCAM tiene Certeza 0, se oculta por defecto y sus acciones quedan bloqueadas. Si creés que es un error, usá "Reportar falso positivo" en la ficha.
+</p>
+
+<.section_title id="liquidez">Liquidez</.section_title>
+<p>
+  Mide si el destino absorbe la cantidad que vas a vender: compara tu cantidad con el
+  volumen diario de 7 días. Un tipo con menos de {rule(:liquidity).min_days_traded} días con
+  operaciones en 30 es <.seal kind={:illiquid} /> y el filtro "Solo líquidos" lo oculta.
+</p>
+
+<.section_title id="precios-realistas">Precios realistas</.section_title>
+<p>
+  En las familias Por órdenes y Estación, los precios sugeridos deben caer entre ÷{rule(
+    :station_trading
+  ).max_price_to_median} y ×{rule(:station_trading).max_price_to_median} de la mediana: una venta publicada a un
+  precio absurdo no infla el margen de nadie.
+</p>

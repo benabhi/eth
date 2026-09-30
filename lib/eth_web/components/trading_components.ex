@@ -1,12 +1,17 @@
 defmodule EthWeb.TradingComponents do
   @moduledoc """
   Componentes compartidos por las vistas de trading (RF-6.12): el selector de familia
-  **Directo · Por órdenes · Estación**. Cada familia es una ruta propia (la URL la
-  conserva) y la búsqueda viaja de una a otra.
+  **Directo · Por órdenes · Estación** (cada familia es una ruta propia y la búsqueda
+  viaja de una a otra), la cabecera del tablón, el sello anti-scam, el anillo de Certeza,
+  la barra de filtros acoplada a la tabla (RF-6.4) y la ficha que se despliega bajo la
+  fila, con sus columnas y su pie de acciones (RF-6.5, §9.5, RF-11.2).
 
-  Implementa: RF-6.12.
+  Implementa: RF-6.4, RF-6.5, RF-6.12, RF-6.13, RF-11.2.
   """
   use EthWeb, :html
+
+  alias Phoenix.HTML.Form
+  alias Phoenix.LiveView.JS
 
   @doc "Selector de familia de trading (control segmentado)."
   attr :active, :atom, required: true, doc: ":direct, :orders o :station"
@@ -24,7 +29,10 @@ defmodule EthWeb.TradingComponents do
           navigate={path}
           title={hint}
           aria-current={@active == id && "page"}
-          class={["btn join-item btn-sm", if(@active == id, do: "btn-primary", else: "btn-ghost")]}
+          class={[
+            "btn join-item btn-sm font-display tracking-wide",
+            if(@active == id, do: "btn-primary", else: "btn-ghost border-base-300")
+          ]}
         >
           {label}
         </.link>
@@ -55,5 +63,243 @@ defmodule EthWeb.TradingComponents do
        gettext("Station trading: comprar y vender con órdenes propias en la misma estación"),
        ~p"/station?#{query}"}
     ]
+  end
+
+  @doc "Cabecera del tablón: título, selector de familia, contadores y estado del motor."
+  attr :title, :string, required: true
+  attr :family, :atom, required: true
+  attr :search, :string, default: ""
+  attr :status_id, :string, required: true
+  slot :stats
+  slot :status, required: true
+
+  def board_header(assigns) do
+    ~H"""
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+      <h1 class="font-display text-2xl font-semibold eth-strong sm:text-[26px]">{@title}</h1>
+      <.family_nav active={@family} search={@search} />
+      <div class="flex-1"></div>
+      <div class="flex items-end gap-6">{render_slot(@stats)}</div>
+    </div>
+    <p id={@status_id} class="-mt-2 text-xs eth-faint tabular-nums">{render_slot(@status)}</p>
+    """
+  end
+
+  @doc "Sello del escudo anti-scam (nada si el estado es `:ok`)."
+  attr :shield, :map, required: true
+
+  def shield_seal(assigns) do
+    ~H"""
+    <.seal
+      :if={@shield.status == :scam}
+      kind={:scam}
+      title={Enum.join(@shield.reasons, " · ")}
+    />
+    <.seal
+      :if={@shield.status in [:suspicious, :no_history]}
+      kind={:suspicious}
+      label={shield_label(@shield.status)}
+      title={Enum.join(@shield.reasons, " · ")}
+    />
+    """
+  end
+
+  @doc "Texto del estado del escudo anti-scam."
+  @spec shield_label(atom()) :: String.t()
+  def shield_label(:scam), do: gettext("SCAM")
+  def shield_label(:suspicious), do: gettext("Sospechosa")
+  def shield_label(:no_history), do: gettext("Sin historial")
+  def shield_label(_ok), do: gettext("ok")
+
+  @doc "Anillo de Certeza con el porcentaje al centro y color por tramo."
+  attr :value, :float, required: true
+  attr :size, :integer, default: 40
+
+  def certainty_ring(assigns) do
+    ~H"""
+    <.ring
+      value={@value}
+      size={@size}
+      class={certainty_color(@value)}
+      label={gettext("Certeza %{c} %", c: round(@value * 100))}
+    >
+      <span class="font-mono text-[10px] eth-strong">{round(@value * 100)}</span>
+    </.ring>
+    """
+  end
+
+  defp certainty_color(c) when c >= 0.8, do: "text-success"
+  defp certainty_color(c) when c >= 0.6, do: "text-primary"
+  defp certainty_color(c) when c >= 0.4, do: "text-warning"
+  defp certainty_color(_c), do: "text-error"
+
+  @doc "Título de sección de la ficha, con su \"?\" al manual."
+  attr :topic, :atom, default: nil
+  attr :help, :string, default: nil, doc: "texto breve del tooltip"
+  slot :inner_block, required: true
+
+  def detail_heading(assigns) do
+    ~H"""
+    <h3 class="eth-kicker mt-4 mb-1.5 flex items-center gap-2 text-[11px] text-primary">
+      {render_slot(@inner_block)}
+      <.help :if={@topic} topic={@topic}>{@help}</.help>
+    </h3>
+    """
+  end
+
+  ## Barra de filtros (RF-6.4)
+
+  @doc """
+  Campo compacto de la barra de filtros: la etiqueta va como prefijo dentro del borde, al
+  estilo de una tabla de datos. Tipos: texto, número, `select` y `toggle` (casilla).
+  """
+  attr :field, Phoenix.HTML.FormField, required: true
+  attr :label, :string, required: true
+  attr :type, :string, default: "text", values: ~w(text number select toggle)
+  attr :options, :list, default: []
+  attr :class, :any, default: nil
+  attr :rest, :global, include: ~w(placeholder min max step phx-debounce inputmode)
+
+  def filter_field(%{type: "select"} = assigns) do
+    ~H"""
+    <label class={["eth-filter", @class]}>
+      <span class="eth-filter-label">{@label}</span>
+      <select id={@field.id} name={@field.name} {@rest}>
+        {Form.options_for_select(@options, @field.value)}
+      </select>
+    </label>
+    """
+  end
+
+  def filter_field(%{type: "toggle"} = assigns) do
+    assigns =
+      assign(
+        assigns,
+        :checked,
+        Form.normalize_value("checkbox", assigns.field.value)
+      )
+
+    ~H"""
+    <label class={["eth-filter eth-filter-toggle", @class]}>
+      <input type="hidden" name={@field.name} value="false" />
+      <span class="eth-filter-label gap-2 border-r-0">
+        <input
+          type="checkbox"
+          id={@field.id}
+          name={@field.name}
+          value="true"
+          checked={@checked}
+          class="checkbox checkbox-primary checkbox-xs"
+        />
+        {@label}
+      </span>
+    </label>
+    """
+  end
+
+  def filter_field(assigns) do
+    ~H"""
+    <label class={["eth-filter", @class]}>
+      <span class="eth-filter-label">{@label}</span>
+      <input
+        type={@type}
+        id={@field.id}
+        name={@field.name}
+        value={Form.normalize_value(@type, @field.value)}
+        {@rest}
+      />
+    </label>
+    """
+  end
+
+  @doc "Buscador de la barra de filtros, con ícono."
+  attr :field, Phoenix.HTML.FormField, required: true
+  attr :placeholder, :string, required: true
+  attr :class, :any, default: nil
+
+  def filter_search(assigns) do
+    ~H"""
+    <label class={["eth-filter", @class]}>
+      <span class="eth-filter-label border-r-0 pr-0">
+        <.icon name="hero-magnifying-glass" class="size-4" />
+      </span>
+      <input
+        type="search"
+        id={@field.id}
+        name={@field.name}
+        value={@field.value}
+        placeholder={@placeholder}
+        phx-debounce="300"
+        aria-label={@placeholder}
+      />
+    </label>
+    """
+  end
+
+  ## Ficha bajo la fila (RF-6.5)
+
+  @doc """
+  Contenedor de la ficha que se despliega bajo la fila: se desenrolla al abrir, se
+  desvanece al cerrar y se desplaza a la vista si quedó fuera de la pantalla.
+  """
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+  slot :inner_block, required: true
+  slot :footer
+
+  def row_detail(assigns) do
+    ~H"""
+    <section
+      id={@id}
+      aria-label={@label}
+      phx-hook=".Reveal"
+      phx-remove={
+        JS.transition({"transition-opacity duration-150 ease-in", "opacity-100", "opacity-0"},
+          time: 150
+        )
+      }
+      class="eth-unfold cursor-default border-t border-primary/30 bg-base-200/70 px-4 pt-4 pb-3"
+    >
+      <div class="grid gap-x-6 gap-y-5 md:grid-cols-2 xl:grid-cols-4">
+        {render_slot(@inner_block)}
+      </div>
+      <div
+        :if={@footer != []}
+        class="mt-4 flex flex-wrap items-center gap-2 border-t border-base-300 pt-3"
+      >
+        {render_slot(@footer)}
+      </div>
+    </section>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".Reveal">
+      export default {
+        mounted() {
+          const rect = this.el.getBoundingClientRect()
+          if (rect.bottom > window.innerHeight || rect.top < 0) {
+            const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            this.el.scrollIntoView({block: "nearest", behavior: reduce ? "auto" : "smooth"})
+          }
+        }
+      }
+    </script>
+    """
+  end
+
+  @doc "Columna de la ficha: título en versalitas con su \"?\" y contenido."
+  attr :title, :string, required: true
+  attr :topic, :atom, default: nil
+  attr :help, :string, default: nil
+  attr :class, :any, default: nil
+  slot :inner_block, required: true
+
+  def detail_col(assigns) do
+    ~H"""
+    <div class={["min-w-0", @class]}>
+      <h3 class="eth-kicker mb-2 flex items-center gap-2 text-[11px] text-primary">
+        {@title}
+        <.help :if={@topic} topic={@topic} title={@title}>{@help}</.help>
+      </h3>
+      {render_slot(@inner_block)}
+    </div>
+    """
   end
 end
