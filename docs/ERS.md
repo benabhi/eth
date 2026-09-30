@@ -6,7 +6,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.7 |
+| Versión | 1.8 |
 | Fecha | 2026-09-29 |
 | Estado | Base para desarrollo — decisiones a confirmar en §15.2 |
 | Autor | Hernan Jalabert |
@@ -17,6 +17,7 @@
 | Versión | Fecha | Cambios |
 |---|---|---|
 | 0.1 | 2026-09 | Borrador inicial de ideas. |
+| 1.8 | 2026-09-30 | **F10 implementada:** identidad visual con temas oscuro y claro y tipografías propias; componentes compartidos (`EthWeb.UI`, `EthWeb.TradingComponents`); tablón con rango, sellos, peligro y anillo de Certeza, filtros acoplados a la tabla y ficha que se despliega bajo la fila con secciones en columnas (RF-6.5, a pedido del usuario, en lugar de pestañas); Centro de control por pestañas con instrumentos (RF-8.10); registro del cazador con rango, racha e hitos (RF-7.7); manual integrado en HEEx (D-21); indicador de carga inmediato en las filas y WebSocket sin fallback a long polling (RNF-5.15). |
 | 1.7 | 2026-09-29 | **Diseño final y cierre de v1.0:** principio "trades rápido primero" (RNF-5.13); explicación de cada cifra con tooltip, fórmula con los valores reales y enlace al manual (RNF-5.14); instrumentos del Centro de control (anillos de progreso para pollers, medidores por tipo de proceso, §9.10); hitos y rachas del registro del cazador con datos reales (RF-7.7); nuevo módulo M11 **Manual integrado** (`/docs`, RF-11.1–11.4); auditoría total de sistemas como última tarea de v1.0 (§11.6, F11). |
 | 1.6 | 2026-09-29 | **Sin instancia pública:** se descarta el módulo M11 (multiusuario, suscripciones con ISK, reclamo de contratos y ranking público) y la fase F13 (D-20). La herramienta es de **uso personal y autoalojada**: cada piloto la descarga y la usa con sus personajes (§2.3, D-01, RNF-10.5–10.7). La gamificación del tablón de caza (RF-6.13) y el registro del cazador (RF-7.7) se mantienen, en versión personal. |
 | 1.5 | 2026-09-29 | **Tablón de caza:** la interfaz adopta la metáfora de un tablón de contratos de caza, gamificada y profesional (RF-6.13, §9.9, D-19); la ficha del trade se despliega bajo la fila (RF-6.5); registro del cazador (RF-7.7); Centro de control con pestañas y estética de consola de operaciones (RF-8.10); nuevo módulo M11 (Comunidad: multiusuario, suscripción con ISK, reclamo de contratos y ranking de cazadores) en una fase posterior a v1.0 (F13, D-20). |

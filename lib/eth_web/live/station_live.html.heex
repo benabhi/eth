@@ -170,6 +170,12 @@
           placeholder={gettext("Objeto o estación")}
           class="min-w-56 flex-1"
         />
+        <label
+          for="station-filters-more"
+          class="btn btn-ghost btn-sm h-8 min-h-8 border-base-300 md:hidden"
+        >
+          <.icon name="hero-adjustments-horizontal" class="size-4" /> {gettext("Filtros")}
+        </label>
         <.filter_field
           field={@form[:location_id]}
           type="select"
@@ -193,7 +199,13 @@
           {ngettext("%{count} cambio pendiente", "%{count} cambios pendientes", @pending)}
         </span>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
+      <input
+        type="checkbox"
+        id="station-filters-more"
+        class="peer sr-only"
+        aria-label={gettext("Mostrar más filtros")}
+      />
+      <div class="hidden flex-wrap items-center gap-2 peer-checked:flex md:flex">
         <.filter_field
           field={@form[:min_margin]}
           type="number"
@@ -253,7 +265,7 @@
     <%!-- Encabezado de columnas --%>
     <div class={[
       grid_class(),
-      "border-b border-base-300 bg-base-200/60 py-2 eth-kicker text-[10px]"
+      "border-b border-base-300 bg-base-200/60 py-2 eth-kicker text-[10px] max-md:hidden"
     ]}>
       <span>{gettext("Objeto")}</span>
       <span class="hidden md:block">{gettext("Estación")}</span>
@@ -317,9 +329,11 @@
                 width="24"
                 height="24"
                 loading="lazy"
-                class="bg-base-300"
+                class="bg-base-300 max-sm:hidden"
               />
-              <span class="truncate font-semibold eth-strong">{row.opportunity.type_name}</span>
+              <span class="line-clamp-2 font-semibold eth-strong md:truncate">
+                {row.opportunity.type_name}
+              </span>
             </div>
             <div class="mt-0.5 flex flex-wrap gap-1">
               <.seal kind={:order} />
@@ -459,8 +473,9 @@
               <dd class="text-right font-mono">{Format.compact(row.quote.unit_cost)}</dd>
               <dt class="eth-muted">{gettext("Ingreso neto")}</dt>
               <dd class="text-right font-mono">{Format.compact(row.quote.unit_revenue)}</dd>
-              <dt class="mt-1 border-t border-base-300 pt-1 eth-muted">{gettext("Margen")}</dt>
-              <dd class="mt-1 border-t border-base-300 pt-1 text-right font-mono font-semibold text-accent">
+              <div class="col-span-2 my-1 border-t border-base-300"></div>
+              <dt class="eth-muted">{gettext("Margen")}</dt>
+              <dd class="text-right font-mono font-semibold text-accent">
                 {Format.compact(row.quote.unit_margin)} · {pct(row.margin_pct)}
               </dd>
             </dl>
@@ -478,10 +493,11 @@
               <dd class="text-right font-mono">{Format.integer(row.plan.quantity)}</dd>
               <dt class="eth-muted">{gettext("ISK inmovilizado")}</dt>
               <dd class="text-right font-mono">{Format.compact(row.plan.cost)}</dd>
-              <dt class="mt-1 border-t border-base-300 pt-1 eth-muted">
+              <div class="col-span-2 my-1 border-t border-base-300"></div>
+              <dt class="eth-muted">
                 {gettext("Beneficio por día")}
               </dt>
-              <dd class="mt-1 border-t border-base-300 pt-1 text-right font-mono font-semibold text-accent">
+              <dd class="text-right font-mono font-semibold text-accent">
                 {Format.compact(row.profit_day)}
               </dd>
             </dl>

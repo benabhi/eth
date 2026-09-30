@@ -139,6 +139,9 @@
   --eth-strong: #0e1b29;
   --eth-line: #dde5ee;
   --eth-shadow: 0 14px 32px rgba(14, 27, 41, 0.14);
+  /* Los colores de seguridad de EVE están pensados para fondo oscuro: en claro se
+     oscurecen para que 1.0 (cian) y 0.5 (amarillo) se lean sobre blanco (RNF-5.10). */
+  --eth-sec-filter: brightness(0.6) saturate(1.6);
 }
 
 [data-theme=dark] {
@@ -150,10 +153,17 @@
   --eth-strong: #eef5fc;
   --eth-line: #131f2e;
   --eth-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+  --eth-sec-filter: none;
 }
+
+/* Cifra de seguridad de un sistema (color de EVE en línea, `color: #rrggbb`). */
+[style^="color: #"] { filter: var(--eth-sec-filter); }
 
 html, body {
   background-color: var(--eth-bg);
+  /* Nada oculto (tooltips, menús) puede ensanchar la página en el celular (RNF-5.9);
+     `clip` no crea contenedor de scroll, así que `sticky` sigue funcionando. */
+  overflow-x: clip;
 }
 
 body {
@@ -218,7 +228,7 @@ body {
   left: 50%;
   translate: -50% 0;
   width: max-content;
-  max-width: 22rem;
+  max-width: min(22rem, calc(100vw - 2rem));
   padding: 0.75rem 0.875rem;
   opacity: 0;
   visibility: hidden;
@@ -361,7 +371,7 @@ body {
   white-space: nowrap;
   color: var(--eth-muted);
 }
-.eth-filter input, .eth-filter select {
+.eth-filter input:not([type="checkbox"]), .eth-filter select {
   min-width: 0;
   flex: 1;
   padding: 0 0.55rem;
@@ -415,6 +425,7 @@ body {
   padding: 0.1rem 0.35rem;
   background: var(--color-base-100);
   border: 1px solid var(--color-base-300);
+  overflow-wrap: anywhere;
 }
 .eth-prose kbd {
   font-family: var(--font-mono);
