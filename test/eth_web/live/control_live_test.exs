@@ -155,7 +155,7 @@ defmodule EthWeb.ControlLiveTest do
     test "sin radar en vivo muestra el indicador de degradado en la cabecera", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/control/radar")
       assert has_element?(view, "#radar-degraded", "Radar degradado")
-      assert has_element?(view, "#radar", "Sin kills PvP")
+      assert has_element?(view, "#radar-hot", "Sin kills PvP")
     end
 
     @tag :tmp_dir

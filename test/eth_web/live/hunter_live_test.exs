@@ -219,7 +219,7 @@ defmodule EthWeb.HunterLiveTest do
 
       for mode <- ["secure", "evasive"] do
         {:ok, view, _html} = live(conn, ~p"/?route_mode=#{mode}")
-        assert has_element?(view, "#opportunities", "Gatecamp")
+        assert has_element?(view, "#opportunities", "Gatecamp · Perimeter")
 
         view |> element("#opportunities [id^='opp-'] > [data-head]") |> render_click()
         render_async(view)

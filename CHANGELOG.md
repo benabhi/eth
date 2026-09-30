@@ -15,9 +15,14 @@ migraciones (corren solas al arrancar) o cambios en `.env`.
 - **Atajos de teclado del tablón (RF-6.9):** `/`, `j`/`k`, `Enter`, `c`, `w`, `f` y `?`.
 - **Exportar e importar la configuración (RF-9.7)** en Ajustes → Respaldo, sin secretos.
 - **Resaltado de filas nuevas y cambiadas (RF-6.3)** en las tres familias del tablón.
+- **Centro de control:** Mercado sin panel lateral (el detalle se despliega bajo la región)
+  y Radar rediseñado con indicadores, anillos de amenaza y kills con el ícono de la nave.
 
 ### Corregido
 
+- El sello de amenaza del tablón no decía en qué sistema estaba ("Gatecamp" parecía del
+  origen): ahora muestra el sistema, por ejemplo "Gatecamp · Hatakani".
+- Cambiar de sección recargaba la página y mostraba un instante "Sin conexión".
 - La línea base del radar ignoraba los datos que llegaban durante un cálculo hasta el
   ciclo siguiente.
 - Abrir una fila podía tardar segundos después de reiniciar el servidor (la pestaña

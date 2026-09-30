@@ -458,9 +458,11 @@ defmodule EthWeb.HunterLive do
   defp threat_label(:hauler_gank), do: gettext("Gank de transportes")
   defp threat_label(:roaming), do: gettext("Actividad hostil")
 
-  # Sello de amenaza en la ruta: la peor, más la cantidad de las demás.
+  # Sello de amenaza en la ruta: tipo y sistema de la peor (que no parezca del origen), más
+  # la cantidad de las demás.
   defp threat_seal(%{count: count, worst: worst}) do
-    label = threat_label(worst.classification.type)
+    system = (Sde.system(worst.system_id) || %{name: "?"}).name
+    label = "#{threat_label(worst.classification.type)} · #{system}"
     if count > 1, do: "#{label} +#{count - 1}", else: label
   end
 
