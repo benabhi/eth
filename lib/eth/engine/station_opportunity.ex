@@ -8,6 +8,7 @@ defmodule Eth.Engine.StationOpportunity do
   """
 
   alias Eth.Engine.Locations
+  alias Eth.Engine.Search
 
   @enforce_keys [:id, :type_id, :type_name, :location, :bids, :asks]
   defstruct [
@@ -17,6 +18,7 @@ defmodule Eth.Engine.StationOpportunity do
     :unit_volume,
     :location,
     :last_modified,
+    search_text: "",
     bids: [],
     asks: []
   ]
@@ -31,9 +33,23 @@ defmodule Eth.Engine.StationOpportunity do
           unit_volume: float(),
           location: Locations.t(),
           last_modified: DateTime.t(),
+          search_text: String.t(),
           bids: [book_order()],
           asks: [book_order()]
         }
+
+  @doc "Guarda el texto buscable de una lista (una vez al publicar la evaluación, RNF-1.1)."
+  @spec index_search([t()]) :: [t()]
+  def index_search(opps),
+    do: Search.index(opps, &search_fields/1, &%{&1 | search_text: &2})
+
+  @doc "Texto buscable: el guardado o, si falta, el calculado."
+  @spec search_text(t()) :: String.t()
+  def search_text(%__MODULE__{search_text: text}) when text != "", do: text
+  def search_text(%__MODULE__{} = opp), do: Search.text(search_fields(opp))
+
+  defp search_fields(opp),
+    do: [opp.type_name, opp.location.name, opp.location.system_name, opp.location.region_name]
 
   @doc "ID estable entre ciclos: estación y tipo."
   @spec id(pos_integer(), pos_integer()) :: String.t()

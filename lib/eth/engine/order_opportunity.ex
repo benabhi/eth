@@ -16,6 +16,7 @@ defmodule Eth.Engine.OrderOpportunity do
   """
 
   alias Eth.Engine.Locations
+  alias Eth.Engine.Search
 
   @enforce_keys [:id, :mode, :type_id, :type_name, :origin, :destination]
   defstruct [
@@ -30,6 +31,7 @@ defmodule Eth.Engine.OrderOpportunity do
     :jumps,
     :secure_jumps,
     :last_modified,
+    search_text: "",
     buy_book: [],
     sell_book: []
   ]
@@ -47,9 +49,30 @@ defmodule Eth.Engine.OrderOpportunity do
           jumps: non_neg_integer(),
           secure_jumps: non_neg_integer() | nil,
           last_modified: DateTime.t(),
+          search_text: String.t(),
           buy_book: list(),
           sell_book: list()
         }
+
+  @doc "Guarda el texto buscable de una lista (una vez al publicar la evaluación, RNF-1.1)."
+  @spec index_search([t()]) :: [t()]
+  def index_search(opps),
+    do: Search.index(opps, &search_fields/1, &%{&1 | search_text: &2})
+
+  @doc "Texto buscable: el guardado o, si falta, el calculado."
+  @spec search_text(t()) :: String.t()
+  def search_text(%__MODULE__{search_text: text}) when text != "", do: text
+  def search_text(%__MODULE__{} = opp), do: Search.text(search_fields(opp))
+
+  defp search_fields(opp) do
+    [
+      opp.type_name,
+      opp.origin.name,
+      opp.origin.system_name,
+      opp.destination.name,
+      opp.destination.system_name
+    ]
+  end
 
   @doc "ID estable: modo, tipo, origen y destino."
   @spec id(mode(), pos_integer(), pos_integer(), pos_integer()) :: String.t()

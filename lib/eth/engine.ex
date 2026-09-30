@@ -5,7 +5,7 @@ defmodule Eth.Engine do
   Implementa: RF-4.8, RF-4.12, RF-4.13, RF-4.14, RF-6.5.
   """
 
-  alias Eth.{Clock, Events, Market, Repo}
+  alias Eth.{Clock, Events, GameRules, Market, Repo}
 
   alias Eth.Engine.{
     Coordinator,
@@ -195,27 +195,62 @@ defmodule Eth.Engine do
   """
   @spec station_query(StationQuery.params()) :: {[map()], non_neg_integer()}
   def station_query(params \\ %{}) do
-    opportunities =
-      case Coordinator.current_station() do
-        nil -> []
-        tid -> liquid_station_candidates(tid, StationQuery.liquid_pair_fun(params))
-      end
+    now = Clock.utc_now()
 
-    StationQuery.run(opportunities, params, Clock.utc_now())
+    case Coordinator.current_station() do
+      nil ->
+        {[], 0}
+
+      tid ->
+        parallel_run(
+          tid,
+          StationQuery.liquid_pair_fun(params),
+          &StationQuery.run(&1, params, now),
+          &StationQuery.top(&1, params)
+        )
+    end
   rescue
     ArgumentError -> {[], 0}
   end
 
-  defp liquid_station_candidates(tid, liquid?) do
-    tid
-    |> :ets.select([{{:"$1", :"$2", :_}, [], [{{:"$1", :"$2"}}]}])
-    |> Enum.filter(fn {_id, pair} -> liquid?.(pair) end)
-    |> Enum.flat_map(fn {id, _pair} ->
-      case :ets.lookup(tid, id) do
-        [{^id, _pair, opp}] -> [opp]
-        [] -> []
-      end
-    end)
+  # Consulta en paralelo sobre una tabla de candidatos `{id, {región, tipo}, candidato}`
+  # (RNF-1.1): con el universo completo son decenas de miles y cada uno trae su libro de
+  # órdenes, así que copiarlos al proceso de la vista costaba más que calcularlos. Cada
+  # tarea lee su parte de ETS, filtra, personaliza y devuelve solo sus primeras filas y
+  # el total; al final se combinan.
+  defp parallel_run(tid, keep_pair?, run, top) do
+    pairs = :ets.select(tid, [{{:"$1", :"$2", :_}, [], [{{:"$1", :"$2"}}]}])
+    workers = System.schedulers_online()
+
+    if length(pairs) < GameRules.get(:engine_parallel_min) or workers == 1 do
+      tid |> candidates(pairs, keep_pair?) |> run.()
+    else
+      results =
+        pairs
+        |> Enum.chunk_every(div(length(pairs), workers) + 1)
+        |> Task.async_stream(&run_chunk(tid, &1, keep_pair?, run),
+          max_concurrency: workers,
+          timeout: :infinity
+        )
+        |> Enum.map(fn {:ok, result} -> result end)
+
+      {results |> Enum.flat_map(&elem(&1, 0)) |> top.(), Enum.sum_by(results, &elem(&1, 1))}
+    end
+  end
+
+  # La generación pudo borrarse tras su período de gracia en plena consulta: la tarea
+  # devuelve vacío en lugar de tirar la vista.
+  defp run_chunk(tid, pairs, keep_pair?, run) do
+    tid |> candidates(pairs, keep_pair?) |> run.()
+  rescue
+    ArgumentError -> {[], 0}
+  end
+
+  defp candidates(tid, pairs, keep_pair?) do
+    for {id, pair} <- pairs,
+        keep_pair?.(pair),
+        [{^id, _pair, opp}] <- [:ets.lookup(tid, id)],
+        do: opp
   end
 
   ## Por órdenes entre estaciones (RF-4.1)
@@ -243,13 +278,20 @@ defmodule Eth.Engine do
   """
   @spec order_query(map()) :: {[map()], non_neg_integer()}
   def order_query(params \\ %{}) do
-    opportunities =
-      case Coordinator.current_orders() do
-        nil -> []
-        tid -> liquid_station_candidates(tid, fn pair -> order_liquid?(pair) end)
-      end
+    now = Clock.utc_now()
 
-    OrderQuery.run(opportunities, params, Clock.utc_now())
+    case Coordinator.current_orders() do
+      nil ->
+        {[], 0}
+
+      tid ->
+        parallel_run(
+          tid,
+          &order_liquid?/1,
+          &OrderQuery.run(&1, params, now),
+          &OrderQuery.top(&1, params)
+        )
+    end
   rescue
     ArgumentError -> {[], 0}
   end
