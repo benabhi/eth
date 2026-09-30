@@ -113,7 +113,7 @@
           min="1"
           label={gettext("Espera ≤ días")}
           phx-debounce="400"
-          class="w-40"
+          class="w-32 min-[100rem]:w-40"
         />
         <.filter_field
           field={@form[:min_margin]}
@@ -122,21 +122,21 @@
           step="0.5"
           label={gettext("Margen ≥ %")}
           phx-debounce="400"
-          class="w-36"
+          class="w-28 min-[100rem]:w-36"
         />
         <.filter_field
           field={@form[:min_profit]}
           label={gettext("Beneficio ≥")}
           placeholder="1M"
           phx-debounce="400"
-          class="w-40"
+          class="w-36 min-[100rem]:w-40"
         />
         <.filter_field
           field={@form[:capital]}
           label={gettext("Capital")}
           placeholder={gettext("sin límite")}
           phx-debounce="400"
-          class="w-44"
+          class="w-38 min-[100rem]:w-44"
         />
         <.filter_field
           field={@form[:cargo_m3]}
@@ -145,36 +145,44 @@
           label={gettext("Bodega m³")}
           placeholder={gettext("sin límite")}
           phx-debounce="400"
-          class="w-44"
+          class="w-38 min-[100rem]:w-44"
         />
         <.filter_field
           field={@form[:accounting]}
           type="select"
           label="Accounting"
+          term={:accounting}
+          class="max-[100rem]:w-30"
           options={for level <- 0..5, do: {"#{level}", "#{level}"}}
         />
         <.filter_field
           field={@form[:broker_relations]}
           type="select"
           label="Broker Relations"
+          term={:broker_relations}
+          class="max-[100rem]:w-38"
           options={for level <- 0..5, do: {"#{level}", "#{level}"}}
         />
         <.filter_field
           field={@form[:shield]}
           type="select"
           label={gettext("Anti-scam")}
+          term={:scam}
           options={[
             {gettext("Ocultar SCAM"), "hide_scam"},
-            {gettext("Ocultar SCAM y sospechosas"), "safe"},
+            {gettext("Solo seguras"), "safe"},
             {gettext("Mostrar todo"), "all"}
           ]}
         />
         <button
           type="button"
           phx-click="reset_filters"
-          class="btn btn-ghost btn-sm h-8 min-h-8 eth-muted"
+          title={gettext("Restablecer filtros")}
+          aria-label={gettext("Restablecer filtros")}
+          class="btn btn-ghost btn-sm h-8 min-h-8 eth-muted max-[100rem]:px-2"
         >
-          <.icon name="hero-arrow-uturn-left" class="size-4" /> {gettext("Restablecer")}
+          <.icon name="hero-arrow-uturn-left" class="size-4" />
+          <span class="max-[100rem]:hidden">{gettext("Restablecer")}</span>
         </button>
       </div>
     </.form>
@@ -243,13 +251,10 @@
         >
           <div class="min-w-0">
             <div class="flex items-center gap-2">
-              <img
-                src={"https://images.evetech.net/types/#{row.opportunity.type_id}/icon?size=32"}
-                alt=""
-                width="24"
-                height="24"
-                loading="lazy"
-                class="bg-base-300 max-sm:hidden"
+              <.type_icon
+                id={"icon-#{row.id}"}
+                type_id={row.opportunity.type_id}
+                class="max-sm:hidden"
               />
               <span class="line-clamp-2 font-semibold eth-strong md:truncate">
                 {row.opportunity.type_name}
@@ -373,7 +378,11 @@
               <dd class="text-right font-mono">{Format.compact(row.cost)}</dd>
               <dt class="eth-muted">{gettext("Ingreso neto")}</dt>
               <dd class="text-right font-mono">{Format.compact(row.revenue)}</dd>
-              <dt class="eth-muted">{gettext("Broker fee · tax")}</dt>
+              <dt class="eth-muted">
+                <.term name={:broker} align="start">{gettext("Broker fee")}</.term>
+                ·
+                <.term name={:sales_tax} align="start">{gettext("tax")}</.term>
+              </dt>
               <dd class="text-right font-mono">
                 {pct2(row.broker_rate)} · {pct2(row.tax_rate)}
               </dd>
