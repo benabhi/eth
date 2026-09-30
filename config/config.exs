@@ -99,6 +99,8 @@ config :eth, Eth.GameRules,
   engine_grace_ms: 5_000,
   # Consultas de Estación y Por órdenes en paralelo desde esta cantidad de candidatos.
   engine_parallel_min: 2_000,
+  # Congelar el tablón mientras el puntero del mouse está sobre la grilla (RF-6.3).
+  board_hover_freeze: true,
   # Reinicio en caliente (RF-1.10): guardar cada 10 min; restaurar si tiene < 15 min.
   snapshot_save_interval_ms: 600_000,
   warm_restart_max_age_min: 15,

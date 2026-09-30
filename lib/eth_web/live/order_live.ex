@@ -42,7 +42,7 @@ defmodule EthWeb.OrderLive do
      |> assign(:selected, nil)
      |> assign(:selected_row, nil)
      |> assign(:total, 0)
-     |> assign(known: nil, flashes: %{})
+     |> assign(flash_gen: 0, known: nil, flashes: %{}, ghosts: %{}, hovering: false)
      |> assign(:pending, 0)
      |> assign(:reward, 0.0)
      |> assign(:url_params, %{})
@@ -70,6 +70,15 @@ defmodule EthWeb.OrderLive do
     do: {:noreply, push_patch(socket, to: ~p"/orders")}
 
   # Clic en una fila: abre su ficha debajo, o la cierra si ya estaba abierta (RF-6.5).
+  # Puntero sobre la grilla (RF-6.3): congela; al salir se aplica lo pendiente.
+  def handle_event("hover_hold", %{"on" => on}, socket) do
+    socket = assign(socket, :hovering, on == true)
+
+    if not held?(socket) and socket.assigns.pending > 0,
+      do: {:noreply, socket |> assign(:pending, 0) |> load_rows()},
+      else: {:noreply, socket}
+  end
+
   def handle_event("select", %{"id" => id}, socket) do
     if socket.assigns.selected == id,
       do: {:noreply, close_detail(socket)},
@@ -113,6 +122,17 @@ defmodule EthWeb.OrderLive do
       else: {:noreply, socket |> assign(:pilot_overrides, new) |> apply_filters() |> load_rows()}
   end
 
+  # Las filas expiradas salen después de mostrarse tachadas (RF-6.3); si una volvió en
+  # la última carga, se queda.
+  def handle_info({:drop_expired, ids}, socket) do
+    {:noreply,
+     Enum.reduce(ids, socket, fn id, acc ->
+       if Map.has_key?(acc.assigns.ghosts, id),
+         do: acc,
+         else: stream_delete_by_dom_id(acc, :rows, "ord-#{id}")
+     end)}
+  end
+
   def handle_info(_msg, socket), do: {:noreply, socket}
 
   # Parámetros del piloto: los del Cazador (capital, bodega, origen, nave) y los de las
@@ -124,9 +144,13 @@ defmodule EthWeb.OrderLive do
 
   ## Ficha bajo la fila (RF-6.5)
 
-  # Con una ficha abierta la grilla se congela: los cambios quedan pendientes (RF-6.3).
-  defp refresh(%{assigns: %{selected: nil}} = socket), do: load_rows(socket)
-  defp refresh(socket), do: update(socket, :pending, &(&1 + 1))
+  # Con una ficha abierta o el puntero sobre la grilla, los cambios quedan pendientes
+  # (RF-6.3).
+  defp held?(socket), do: socket.assigns.selected != nil or socket.assigns.hovering
+
+  defp refresh(socket) do
+    if held?(socket), do: update(socket, :pending, &(&1 + 1)), else: load_rows(socket)
+  end
 
   # La fila se reinserta en el stream para que se dibuje abierta; la anterior, cerrada.
   defp open_detail(socket, id) do
@@ -150,7 +174,7 @@ defmodule EthWeb.OrderLive do
     previous = socket.assigns.selected_row
     socket = socket |> assign(selected: nil, selected_row: nil) |> reinsert(previous)
 
-    if socket.assigns.pending > 0,
+    if socket.assigns.pending > 0 and not held?(socket),
       do: socket |> assign(:pending, 0) |> load_rows(),
       else: socket
   end
@@ -180,15 +204,27 @@ defmodule EthWeb.OrderLive do
 
   defp load_rows(socket) do
     {rows, total} = Engine.order_query(socket.assigns.query)
+    previous = socket.assigns.known && socket.assigns.ghosts
     {flashes, known} = RowChanges.diff(socket.assigns.known, rows, & &1.profit)
+    {shown, expired} = RowChanges.with_expired(rows, previous)
+
+    if expired != [],
+      do: Process.send_after(self(), {:drop_expired, expired}, RowChanges.expire_ms())
 
     socket
-    |> assign(flashes: flashes, known: known)
+    |> update(:flash_gen, &(&1 + 1))
+    |> assign(flashes: flashes, known: known, ghosts: RowChanges.ghosts(rows, &ghost/1))
     |> assign(total: total, meta: Engine.meta(), now: Clock.utc_now())
     |> assign(:reward, Enum.reduce(rows, 0.0, &(&1.profit + &2)))
     |> assign(:selected_row, selected_row(socket.assigns.selected, socket.assigns.query))
-    |> stream(:rows, rows, reset: true)
+    |> stream(:rows, shown, reset: true)
   end
+
+  defp ghost(row),
+    do: %{
+      name: row.opportunity.type_name,
+      detail: "#{row.opportunity.origin.name} → #{row.opportunity.destination.name}"
+    }
 
   defp selected_row(nil, _query), do: nil
 

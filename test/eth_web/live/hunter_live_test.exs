@@ -135,6 +135,33 @@ defmodule EthWeb.HunterLiveTest do
     assert has_element?(view, "#opportunities [id^='opp-'][class*='eth-flash-']")
   end
 
+  test "una fila que expira queda tachada un momento antes de salir (RF-6.3)", %{conn: conn} do
+    publish_market()
+    {:ok, view, _html} = live(conn, ~p"/")
+    [_, id] = Regex.run(~r/id="opp-([^"]+)"/, render(view))
+
+    # Sin margen: el contrato desaparece de la evaluación.
+    publish_market(3.0)
+    assert has_element?(view, "#opp-#{id} [data-expired]", "Tritanium")
+    refute has_element?(view, "#opp-#{id} [data-head]")
+
+    send(view.pid, {:drop_expired, [id]})
+    refute has_element?(view, "#opp-#{id}")
+  end
+
+  test "con el puntero sobre la grilla los cambios quedan pendientes (RF-6.3)", %{conn: conn} do
+    publish_market()
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    assert has_element?(view, "#board-hold[phx-hook][data-enabled='true']")
+    render_hook(view, "hover_hold", %{"on" => true})
+    publish_market(6.0)
+    assert render(view) =~ "1 cambio pendiente"
+
+    render_hook(view, "hover_hold", %{"on" => false})
+    refute render(view) =~ "cambio pendiente"
+  end
+
   test "los atajos de teclado tienen su hook y sus destinos marcados (RF-6.9)", %{conn: conn} do
     publish_market()
     {:ok, view, _html} = live(conn, ~p"/")
