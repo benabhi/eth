@@ -1299,6 +1299,8 @@ Estrategia detallada en §11. Mínimos: cobertura ≥ 85 % en `Eth.Engine`, `Eth
 - **RNF-10.6** **Guía de instalación** en el README, en español, paso a paso: requisitos, registrar la aplicación en developers.eveonline.com (callback `http://localhost:4000/auth/eve/callback` y la lista de scopes de RF-5.2), completar `.env` (con un comando para generar `ETH_VAULT_KEY`), levantar, iniciar sesión y actualizar a una versión nueva sin perder datos. Ajustes → Primer arranque (RF-9.1) guía los mismos pasos dentro de la app.
 - **RNF-10.7** **Actualizaciones** sin pérdida de datos: releases con versión semántica y notas de cambios; las migraciones corren solas (RNF-10.3) y los volúmenes (base, SDE, snapshots) se conservan.
 
+*Implementación (F11):* `Dockerfile` de producción (release de Elixir en dos etapas) y `docker-compose.release.yml` (proyecto `eth-release`): `docker compose -f docker-compose.release.yml up -d --build`. Al arrancar corre `bin/migrate` (`Eth.Release`) y luego el servidor; los datos van al volumen `/data` (`ETH_DATA_DIR`) y la base a su propio volumen. Guía paso a paso en el README y cambios en `CHANGELOG.md` (D-22).
+
 ### RNF-11 · Entorno de desarrollo (Windows + VS Code + Docker)
 
 - **RNF-11.1 Recomendado:** repo dentro del filesystem de **WSL2** (por ejemplo `~/code/eth`), Docker Desktop con integración WSL2 y VS Code con la extensión *WSL* o *Dev Containers*. Así `inotify` funciona de forma nativa (live reload, watchers de Tailwind/esbuild) y la E/S es rápida.
@@ -1981,8 +1983,9 @@ EXPOSE 4000
 | `EVE_CALLBACK_URL` | Sí | Debe coincidir exactamente con la registrada | `http://localhost:4000/auth/eve/callback` |
 | `ESI_CONTACT` | Sí | Contacto (email) para el User-Agent (RNF-3.1) | `tu-email@dominio` |
 | `ESI_COMPATIBILITY_DATE` | No | Fecha de compatibilidad de ESI (si falta, la de `config.exs`) | `2026-09-01` |
-| `ETH_VAULT_KEY` | Sí | Clave AES-256 en Base64 para cifrar los refresh tokens | `:crypto.strong_rand_bytes(32) \|> Base.encode64()` |
-| `SECRET_KEY_BASE` | Producción | Secreto de Phoenix | `mix phx.gen.secret` |
+| `ETH_VAULT_KEY` | Sí | Clave AES-256 en Base64 para cifrar los refresh tokens | `docker run --rm alpine sh -c "head -c 32 /dev/urandom \| base64"` |
+| `SECRET_KEY_BASE` | No | Firma las cookies; en producción, si falta, se genera la primera vez y se guarda en `ETH_DATA_DIR` (D-22) | — |
+| `ETH_DATA_DIR` | No | Directorio de datos persistentes (SDE, matrices, snapshots); la imagen de producción usa el volumen `/data` | `/data` |
 | `DATABASE_URL` | Sí | Conexión a PostgreSQL | `ecto://postgres:postgres@db/eth_dev` |
 | `PHX_BIND` | No | IP de escucha (por defecto `127.0.0.1`; `0.0.0.0` en contenedor) | `0.0.0.0` |
 | `ETH_FS_POLL` | No | `true` si el repo está en NTFS: live reload y Tailwind por polling (RNF-11.2) | `true` |
@@ -2186,6 +2189,7 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | D-19 | Interfaz como **tablón de caza**, gamificada con sobriedad | Hace más claro y motivador elegir un trade (contratos con rango, recompensa y peligro) sin perder la densidad ni la exactitud de una herramienta profesional | Gamificación con puntos y recompensas ficticias; o una tabla sin lenguaje propio |
 | D-20 | **Sin instancia pública ni multiusuario:** se descartan cuentas de terceros, suscripciones con ISK, reclamos de contratos y rankings entre usuarios (antes M11/F13) | La herramienta es personal: cada piloto la descarga y la usa con sus personajes; evita exponer datos y tokens, operar un servidor y el límite de ESI por IP compartido | Instancia pública con suscripciones (versión 1.5 del ERS) |
 | D-21 | Manual integrado en plantillas HEEx compiladas, no en Markdown | Muestra los valores vigentes de las reglas del juego, reutiliza los componentes de la interfaz y no suma dependencias | Markdown con una biblioteca de render (Earmark/MDEx) |
+| D-22 | Distribución con una imagen de producción propia (`Dockerfile` + `docker-compose.release.yml`, proyecto `eth-release`) separada del entorno de desarrollo; datos en el volumen `/data`; `SECRET_KEY_BASE` autogenerada; sin `force_ssl` | La release es más liviana y rápida que el modo desarrollo, las actualizaciones no pierden datos y la instalación queda en pocos pasos; al ser local y solo en 127.0.0.1, HTTPS no aporta y obligaría a un certificado | Usar `docker-compose.yml` de desarrollo para los pilotos; publicar la imagen en un registro (queda para cuando haya releases públicos) |
 
 ### 15.2 Pendientes de confirmar
 
