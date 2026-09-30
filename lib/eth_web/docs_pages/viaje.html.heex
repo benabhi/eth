@@ -1,0 +1,32 @@
+<p class="lead">
+  Cuando salís a cazar un contrato, la aplicación te acompaña: revisa que el trade siga en pie,
+  vigila la ruta y al final mide cuánto ganaste de verdad.
+</p>
+
+<.section_title id="viaje-activo">Viaje activo</.section_title>
+<ol>
+  <li>
+    En la ficha tocá <strong>Iniciar caza</strong>: el plan se congela (cantidades y precios).
+  </li>
+  <li>
+    Las etapas avanzan solas según tu ubicación y tu billetera: ir al origen, comprar, llevar, vender.
+  </li>
+  <li>
+    Si el destino deja de convenir, te sugiere uno mejor; si aparece una amenaza en la ruta, una alternativa evasiva.
+  </li>
+  <li>Al terminar, el cierre se reconcilia con las transacciones de tu billetera.</li>
+</ol>
+
+<.section_title id="registro-del-cazador">Registro del cazador</.section_title>
+<p>
+  Tu registro solo cuenta viajes cerrados y reconciliados con la billetera: recompensa real,
+  ISK por hora, precisión de las predicciones, racha de días y hitos. Nada inventado, y nunca
+  se publica.
+</p>
+<p>El rango del cazador sube con la recompensa real acumulada:</p>
+<div class="not-prose my-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+  <div :for={{rank, min} <- rule(:hunter_ranks)} class="border border-base-300 px-3 py-2">
+    <div class="font-display text-lg font-bold text-accent">{rank}</div>
+    <div class="font-mono text-xs eth-muted">≥ {isk(min)}</div>
+  </div>
+</div>

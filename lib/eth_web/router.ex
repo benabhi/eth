@@ -22,6 +22,8 @@ defmodule EthWeb.Router do
       live "/", HunterLive
       live "/station", StationLive
       live "/orders", OrderLive
+      live "/docs", DocsLive
+      live "/docs/:page", DocsLive
       live "/run", RunLive
       live "/control", ControlLive
       live "/settings", SettingsLive, :characters

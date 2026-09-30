@@ -1162,7 +1162,7 @@ Documentación de uso dentro de la propia aplicación, con su misma identidad vi
 #### RF-11.1 · Manual en la aplicación — S · F10
 
 - Sección **Manual** (`/docs`) en la navegación, con índice lateral, secciones y subsecciones enlazables (`/docs/<sección>#<ancla>`), búsqueda por texto y navegación anterior/siguiente.
-- Contenido en español, escrito en Markdown versionado en el repositorio (`priv/docs/*.md`) y compilado en la aplicación (sin servicios externos, CSP intacta).
+- Contenido en español, versionado en el repositorio y compilado en la aplicación (sin servicios externos, CSP intacta). Se escribe en plantillas HEEx (`lib/eth_web/docs_pages/*.html.heex`) y no en Markdown (D-21): así cada página muestra los valores vigentes de `Eth.GameRules` y reutiliza los componentes de la interfaz (fórmulas, rangos, sellos). Los enlaces de la aplicación apuntan a **temas** (`EthWeb.Docs.href/1`), nunca a URLs escritas a mano.
 - **Secciones mínimas:** primeros pasos (instalación, registrar la aplicación de EVE, primer login); el Cazador y sus tres familias (directo, por órdenes, estación); cómo se calculan beneficio, impuestos, comisiones, walk-the-book, TVS, Certeza, rango y peligro (con ejemplos numéricos); anti-scam y liquidez; radar y rutas; bodega y perfiles de nave; viaje activo y registro del cazador; órdenes propias; Centro de control; Ajustes; límites de ESI y privacidad; glosario; preguntas frecuentes.
 
 **CA:** todas las secciones mínimas existen; la búsqueda encuentra términos del glosario; las páginas cumplen §9.9 en los tres tamaños.
@@ -2174,6 +2174,7 @@ El rediseño visual (F10) va después de completar las funciones y antes del end
 | D-18 | Sin combos (RF-4.10) ni retorno (RF-4.11): cada fila del Cazador es un trade individual | Se implementaron en F7 y se retiraron antes de integrarse (2026-09-29): las filas de paquete y las insignias de retorno ensuciaban la tabla y hacían más difícil elegir un buen trade | Mostrarlos como filas o insignias en la tabla principal |
 | D-19 | Interfaz como **tablón de caza**, gamificada con sobriedad | Hace más claro y motivador elegir un trade (contratos con rango, recompensa y peligro) sin perder la densidad ni la exactitud de una herramienta profesional | Gamificación con puntos y recompensas ficticias; o una tabla sin lenguaje propio |
 | D-20 | **Sin instancia pública ni multiusuario:** se descartan cuentas de terceros, suscripciones con ISK, reclamos de contratos y rankings entre usuarios (antes M11/F13) | La herramienta es personal: cada piloto la descarga y la usa con sus personajes; evita exponer datos y tokens, operar un servidor y el límite de ESI por IP compartido | Instancia pública con suscripciones (versión 1.5 del ERS) |
+| D-21 | Manual integrado en plantillas HEEx compiladas, no en Markdown | Muestra los valores vigentes de las reglas del juego, reutiliza los componentes de la interfaz y no suma dependencias | Markdown con una biblioteca de render (Earmark/MDEx) |
 
 ### 15.2 Pendientes de confirmar
 

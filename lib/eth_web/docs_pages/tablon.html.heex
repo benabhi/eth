@@ -1,0 +1,71 @@
+<p class="lead">
+  El tablón muestra cada oportunidad como un <strong>contrato de caza</strong>: qué llevar, de
+  dónde a dónde, cuánto te deja, qué tan peligroso es y qué tan seguro es que salga como se
+  calculó. Está pensado para encontrar un buen trade en segundos.
+</p>
+
+<.section_title id="el-tablon">Cómo leer una fila</.section_title>
+<ul>
+  <li><strong>Rango</strong>: resume el TVS en una letra (ver abajo).</li>
+  <li><strong>Contrato</strong>: el objeto, la cantidad y el volumen que ocupa en tu bodega.</li>
+  <li>
+    <strong>Ruta</strong>: origen y destino con el color de seguridad del cliente y los saltos.
+  </li>
+  <li>
+    <strong>Peligro</strong>: el riesgo de la ruta según el radar (<.doc_link topic={:danger}>cómo se calcula</.doc_link>).
+  </li>
+  <li>
+    <strong>Recompensa</strong>: el beneficio neto, ya con impuestos (<.doc_link topic={:profit}>de dónde sale</.doc_link>).
+  </li>
+  <li><strong>ISK/h y ETA</strong>: cuánto rinde por hora contando el viaje.</li>
+  <li>
+    <strong>Certeza</strong>: qué tan probable es que el trade siga ahí al llegar (<.doc_link topic={
+      :certainty
+    }>los cinco factores</.doc_link>).
+  </li>
+</ul>
+<p>
+  Tocá una fila para abrir su <strong>ficha</strong>: el cálculo con los números, el libro que se consume, el porqué del rango y las acciones.
+</p>
+
+<.section_title id="rangos">Rangos</.section_title>
+<p>El rango es solo otra forma de mostrar el TVS; el número exacto siempre está en la ficha.</p>
+<div class="not-prose my-4 flex flex-wrap gap-4">
+  <div :for={{letter, min} <- rule(:contract_ranks)} class="flex items-center gap-2">
+    <.rank_badge rank={letter} size="sm" />
+    <span class="font-mono text-sm">TVS ≥ {min}</span>
+  </div>
+  <div class="flex items-center gap-2">
+    <.rank_badge rank="D" size="sm" />
+    <span class="font-mono text-sm">{gettext("el resto")}</span>
+  </div>
+</div>
+
+<.section_title id="sellos">Sellos</.section_title>
+<div class="not-prose my-4 flex flex-col gap-2 text-sm">
+  <div class="flex items-center gap-3">
+    <.seal kind={:new} /> apareció en la última evaluación.
+  </div>
+  <div class="flex items-center gap-3">
+    <.seal kind={:improved} /> su beneficio subió desde la última vez.
+  </div>
+  <div class="flex items-center gap-3">
+    <.seal kind={:risk} /> hay una alerta del radar en la ruta.
+  </div>
+  <div class="flex items-center gap-3">
+    <.seal kind={:scam} />
+    el escudo anti-scam la bloqueó (<.doc_link topic={:shield}>por qué</.doc_link>).
+  </div>
+  <div class="flex items-center gap-3">
+    <.seal kind={:range} /> se vende a una orden de compra con rango que cubre la estación.
+  </div>
+  <div class="flex items-center gap-3">
+    <.seal kind={:structure} /> una punta es una estructura de jugadores.
+  </div>
+</div>
+
+<.section_title id="atajos">Atajos de teclado</.section_title>
+<ul>
+  <li><kbd>F</kbd> congela el tablón mientras leés (los cambios quedan pendientes).</li>
+  <li><kbd>↑</kbd> <kbd>↓</kbd> recorren los contratos y <kbd>Enter</kbd> abre la ficha.</li>
+</ul>

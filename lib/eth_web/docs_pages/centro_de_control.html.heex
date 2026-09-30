@@ -1,0 +1,45 @@
+<p class="lead">
+  El Centro de control muestra qué está haciendo la aplicación en cada momento: qué mercados
+  descarga, cuánto presupuesto de EVE le queda, cómo anda el radar y cuánto tarda el motor.
+</p>
+
+<.section_title id="como-leerlo">Cómo leerlo</.section_title>
+<p>
+  Arriba, la barra de salud (servidor de EVE, error limit, presupuesto, radar, memoria y
+  próximo downtime). Debajo, pestañas por tema. Cada instrumento tiene su forma y su "?".
+</p>
+
+<.section_title id="pollers">Pollers de mercado</.section_title>
+<p>
+  Cada región se muestra como un <strong>anillo doble</strong>: el exterior es la cuenta
+  regresiva hasta que EVE publique datos nuevos (la aplicación nunca pide antes, para no ser
+  bloqueada) y el interior, las páginas descargadas en el ciclo actual. El color y el texto
+  dicen el estado: en caché, descargando, degradado, reintentando, limitado o en pausa.
+</p>
+
+<.section_title id="presupuestos-de-esi">Presupuestos de ESI</.section_title>
+<p>
+  EVE limita cuántas consultas se pueden hacer. Los <strong>arcos</strong> muestran cuánto se
+  usó de cada presupuesto en su ventana y el error limit. Si se acercan al límite, la aplicación
+  baja el ritmo sola.
+</p>
+
+<.section_title id="cola-de-historial">Cola de historial</.section_title>
+<p>
+  El historial de precios (anti-scam, liquidez, órdenes) se descarga a demanda, como mucho {rule(
+    :history_max_per_min
+  )} consultas por minuto. El medidor muestra el caudal y los
+  pendientes.
+</p>
+
+<.section_title id="feed-del-radar">Feed del radar</.section_title>
+<p>
+  El <strong>pulso</strong>
+  late con cada kill recibida. Si el feed se corta, el radar pasa a degradado y usa solo la línea base.
+</p>
+
+<.section_title id="motor">Motor</.section_title>
+<p>
+  La barra segmentada muestra cuánto tardó cada etapa de la última evaluación (resúmenes,
+  directo, estación y por órdenes) y la versión publicada.
+</p>

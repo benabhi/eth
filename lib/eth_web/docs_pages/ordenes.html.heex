@@ -1,0 +1,53 @@
+<p class="lead">
+  Con órdenes propias el beneficio es una estimación: depende de cuánto tarda en ejecutarse
+  tu orden y de cuántos compiten con vos. La aplicación lo calcula con el volumen real de los
+  últimos días.
+</p>
+
+<.section_title id="station-trading">Station trading</.section_title>
+<p>
+  Comprás con una orden de compra y vendés con una de venta en la misma estación de un hub. El
+  precio de compra supera por un paso legal a la mejor compra y el de venta queda un paso por
+  debajo de la mejor venta.
+</p>
+<.formula title="Margen por unidad">
+  <div>costo = precio de compra × (1 + broker)</div>
+  <div>ingreso = precio de venta × (1 − sales tax − broker)</div>
+  <div>margen = ingreso − costo</div>
+</.formula>
+<p>
+  La cantidad por día es el {pct(rule(:station_trading).participation, 0)} del volumen diario
+  de 7 días, limitada por tu capital (una orden de compra inmoviliza el 100 % de su valor).
+</p>
+
+<.section_title id="competencia">Competencia</.section_title>
+<p>
+  Cuenta las órdenes que están a ±{pct(rule(:station_trading).competition_band, 0)} del precio
+  sugerido. Con {rule(:station_trading).competition_half} competidores en el lado más
+  disputado, la Certeza por competencia cae a la mitad: habrá que actualizar el precio seguido.
+</p>
+
+<.section_title id="listado-y-compra-por-orden">Listado y compra por orden</.section_title>
+<p>
+  <strong>Listado</strong>: comprás a órdenes de venta baratas de otra estación y publicás una
+  venta en el hub. <strong>Compra por orden</strong>: publicás una compra en el hub y, cuando se
+  llena, vendés a las órdenes de compra de otra estación. En ambos la orden propia se publica
+  en un hub, donde el volumen es alto.
+</p>
+
+<.section_title id="espera-estimada">Espera estimada</.section_title>
+<.formula>
+  <div>
+    espera (días) = cantidad ÷ ({pct(rule(:station_trading).participation, 0)} × volumen diario del hub)
+  </div>
+</.formula>
+<p>La cantidad se acota para que la espera no pase de {rule(:order_trading).max_days} días.</p>
+
+<.section_title id="tus-ordenes">Tus órdenes</.section_title>
+<p>
+  Con el permiso de órdenes, el panel <strong>Mis órdenes</strong> muestra cada orden abierta
+  como <em>primera</em> o <em>superada</em> (a igual precio gana la más antigua, como en el
+  juego), con el precio para volver a quedar primera y el costo de modificarla
+  (<.doc_link topic={:relist}>relist</.doc_link>). Si te superan, te llega un aviso. Tus
+  órdenes nunca cuentan como competencia.
+</p>

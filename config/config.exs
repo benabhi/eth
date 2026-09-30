@@ -219,6 +219,21 @@ config :eth, Eth.GameRules,
   access_certainty: %{private_verified: 0.95, public: 0.9, unverified: 0.5},
   # TVS y Certeza (ERS §8.9)
   tvs_weights: %{isk_per_hour: 0.40, profit: 0.25, roi: 0.15, liquidity: 0.20},
+  # Tablón de caza (RF-6.13, calibrables): rango del contrato según el TVS (el primero
+  # cuyo mínimo se alcanza; si ninguno, "D") y peligro según 1 − Certeza de ruta (el
+  # primero cuyo máximo no se supera; si ninguno, :extreme).
+  contract_ranks: [{"S", 90}, {"A", 75}, {"B", 50}, {"C", 25}],
+  danger_levels: [{:low, 0.05}, {:moderate, 0.15}, {:high, 0.35}],
+  # Registro del cazador (RF-7.7): rango por recompensa real acumulada (ISK).
+  hunter_ranks: [
+    {"I", 0},
+    {"II", 500_000_000},
+    {"III", 2_000_000_000},
+    {"IV", 5_000_000_000},
+    {"V", 10_000_000_000},
+    {"VI", 25_000_000_000},
+    {"VII", 50_000_000_000}
+  ],
   tvs_refs: %{isk_per_hour: 150_000_000, profit: 100_000_000, roi: 0.25},
   order_tau_min: 180,
   # Liquidez neutra mientras no hay historial del tipo (RF-4.7).

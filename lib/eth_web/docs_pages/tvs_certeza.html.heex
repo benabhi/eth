@@ -1,0 +1,61 @@
+<p class="lead">
+  Cada contrato tiene un <strong>TVS</strong> de 0 a 100 que resume cuánto vale la pena
+  cazarlo ahora: cuánto te deja (la utilidad) multiplicado por qué tan seguro es que salga como
+  se calculó (la Certeza).
+</p>
+
+<.section_title id="tvs">TVS</.section_title>
+<.formula title="Fórmula">
+  <div>TVS = round(100 × utilidad × Certeza)</div>
+  <div class="eth-muted">
+    utilidad = {rule(:tvs_weights).isk_per_hour} · ISK/h + {rule(:tvs_weights).profit} · beneficio + {rule(
+      :tvs_weights
+    ).roi} · ROI + {rule(:tvs_weights).liquidity} · liquidez
+  </div>
+</.formula>
+<p>
+  Cada término se normaliza entre 0 y 1 con una curva que satura: {isk(
+    rule(:tvs_refs).isk_per_hour
+  )} ISK/h, {isk(rule(:tvs_refs).profit)} de beneficio y un ROI de {pct(rule(:tvs_refs).roi, 0)} ya valen casi 1. Así un trade enorme pero lento no le gana a uno muy rentable y rápido.
+</p>
+
+<.section_title id="isk-por-hora">ISK por hora</.section_title>
+<p>
+  El tiempo cuenta los saltos desde tu ubicación al origen y del origen al destino, según tu
+  clase de nave, más {rule(:stop_overhead_s)} s por cada parada para atracar y operar.
+</p>
+<.formula>
+  <div>ISK/h = beneficio ÷ (tiempo de viaje en horas)</div>
+</.formula>
+
+<.section_title id="certeza">Certeza</.section_title>
+<p>Multiplica cinco factores; el más bajo es el que más pesa.</p>
+<ul>
+  <li>
+    <strong>Órdenes vigentes al llegar</strong>: baja cuanto más largo es el viaje (las órdenes se van).
+  </li>
+  <li>
+    <strong>Frescura de los datos</strong>: plena hasta {elem(rule(:staleness_minutes), 0)} min, baja hasta {elem(
+      rule(:staleness_minutes),
+      2
+    )} min y ahí el contrato se descarta.
+  </li>
+  <li>
+    <strong>Anti-scam</strong>: 1 si está limpio, menor si es sospechoso, 0 si es SCAM (<.doc_link topic={
+      :shield
+    }>reglas</.doc_link>).
+  </li>
+  <li>
+    <strong>Acceso</strong>: 1 en estaciones NPC, menor en estructuras de jugadores según tu acceso.
+  </li>
+  <li>
+    <strong>Riesgo de ruta</strong>: según el radar y tu nave (<.doc_link topic={:danger}>peligro</.doc_link>).
+  </li>
+</ul>
+
+<.section_title id="de-tvs-a-rango">De TVS a rango</.section_title>
+<p>
+  El rango del tablón (<.doc_link topic={:rank}>S, A, B, C, D</.doc_link>) es solo el TVS en una
+  letra. Un rango alto no reemplaza tu criterio: si la ruta muestra EN RIESGO, abrí la ficha y
+  mirá el radar antes de salir.
+</p>

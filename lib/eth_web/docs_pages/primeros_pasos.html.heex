@@ -1,0 +1,61 @@
+<p class="lead">
+  EVE Trade Hunter corre en tu computadora y usa tus personajes para encontrar trades que
+  podés hacer ahora mismo, con tu billetera, tu nave, tu ubicación y tus impuestos reales.
+  Nada sale de tu máquina: la aplicación solo consulta los servicios oficiales de EVE y
+  zKillboard.
+</p>
+
+<.section_title id="instalar">Instalar</.section_title>
+<ol>
+  <li>Instalá <strong>Docker Desktop</strong> (Windows, macOS o Linux).</li>
+  <li>Descargá la aplicación (el repositorio o el release) y abrí una terminal en su carpeta.</li>
+  <li>Copiá <code>.env.example</code> a <code>.env</code>; lo completás en el paso siguiente.</li>
+  <li>
+    Levantá todo con <code>docker compose up</code> y abrí <code>http://localhost:4000</code>.
+  </li>
+</ol>
+<.callout>
+  La primera vez se descargan los datos estáticos de EVE (unos 100 MB) y el mercado de los
+  hubs: en un par de minutos el tablón empieza a llenarse. Los reinicios siguientes arrancan
+  en segundos.
+</.callout>
+
+<.section_title id="registrar-la-aplicacion">Registrar tu aplicación de EVE</.section_title>
+<p>
+  Cada instalación usa <strong>su propia</strong> aplicación de desarrollador de EVE: así tu
+  presupuesto de consultas y tus datos son solo tuyos.
+</p>
+<ol>
+  <li>
+    Entrá a <code>developers.eveonline.com</code> con tu cuenta de EVE y creá una aplicación.
+  </li>
+  <li>Callback: <code>http://localhost:4000/auth/eve/callback</code> (exacto).</li>
+  <li>Marcá los permisos de la lista de abajo y guardá.</li>
+  <li>
+    Copiá el Client ID y el Secret a <code>EVE_CLIENT_ID</code>
+    y <code>EVE_CLIENT_SECRET</code>
+    en <code>.env</code>.
+  </li>
+  <li>
+    Generá la clave de cifrado de tus tokens con
+    <code>docker compose exec phoenix mix run -e "IO.puts(Base.encode64(:crypto.strong_rand_bytes(32)))"</code>
+    y pegala en <code>ETH_VAULT_KEY</code>. Guardá una copia: sin ella hay que volver a loguear.
+  </li>
+  <li>Reiniciá con <code>docker compose up -d</code>.</li>
+</ol>
+
+<.section_title id="permisos">Permisos (scopes)</.section_title>
+<p>
+  La aplicación pide solo lo que usa. Si falta alguno, la función que lo necesita te avisa y el resto sigue andando.
+</p>
+<ul>
+  <li :for={scope <- Eth.Sso.scopes()}><code>{scope}</code></li>
+</ul>
+
+<.section_title id="primer-login">Primer login</.section_title>
+<p>
+  Tocá <strong>Iniciar sesión con EVE</strong>, elegí tu personaje y aceptá los permisos. Vas a
+  ver la barra del piloto con tu retrato, billetera, nave, ubicación y sales tax, y el tablón
+  ordenado para vos. Podés agregar más personajes desde el menú del retrato y cambiar el activo
+  cuando quieras. Ajustes → Primer arranque repasa estos pasos dentro de la app.
+</p>
