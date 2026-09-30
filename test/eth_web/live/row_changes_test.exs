@@ -33,14 +33,18 @@ defmodule EthWeb.RowChangesTest do
     assert changes == %{"a" => :up, "c" => :down}
   end
 
-  test "una fila que cambió 3 lugares o más sin otro cambio se marca como movida" do
+  test "se marca como movida solo la fila que cambió su orden frente a las demás" do
     previous = RowChanges.ghosts(Enum.map(~w(a b c d e), &%{id: &1}), &%{name: &1.id})
-    rows = Enum.map(~w(e a b c d), &%{id: &1})
+    rows = fn ids -> Enum.map(ids, &%{id: &1}) end
 
-    # e sube 4 lugares; las demás bajan 1 (empujadas): solo e se marca.
-    assert RowChanges.with_moved(%{}, previous, rows) == %{"e" => :moved}
+    # e salta arriba: solo e, no las que pasó.
+    assert RowChanges.with_moved(%{}, previous, rows.(~w(e a b c d))) == %{"e" => :moved}
+    # Intercambio de dos vecinas: una sola marcada.
+    assert map_size(RowChanges.with_moved(%{}, previous, rows.(~w(b a c d e)))) == 1
+    # Entra una fila nueva arriba: las demás solo se corren, ninguna se marca.
+    assert RowChanges.with_moved(%{}, previous, rows.(~w(x a b c d e))) == %{}
     # Un resaltado propio no se pisa.
-    assert RowChanges.with_moved(%{"e" => :up}, previous, rows) == %{"e" => :up}
+    assert RowChanges.with_moved(%{"e" => :up}, previous, rows.(~w(e a b c d))) == %{"e" => :up}
     assert RowChanges.class(:moved, 1) == "eth-flash-moved-alt"
   end
 

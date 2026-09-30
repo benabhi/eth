@@ -103,30 +103,64 @@ defmodule EthWeb.RowChanges do
     {shown, Enum.map(expired, &elem(&1, 0))}
   end
 
-  # Posiciones que tiene que moverse una fila sin otro cambio para marcarla como movida.
-  @move_step 3
-
   @doc """
-  Suma a los resaltados las filas que cambiaron de posición al menos #{@move_step} lugares
-  sin otro cambio (`:moved`, destello neutro): muestra el reordenamiento que causan sus
-  vecinas o los cambios chicos de puntaje. `previous` son los fantasmas de la carga
+  Suma a los resaltados las filas que cambiaron su orden frente a las demás sin otro
+  cambio (`:moved`, destello neutro): muestra el reordenamiento por cambios chicos de
+  puntaje. Las filas solo corridas porque otra entró o salió no se marcan. `previous` son los fantasmas de la carga
   anterior (`ghosts/2`, traen la posición); con `nil` no hace nada.
   """
   @spec with_moved(%{term() => kind()}, ghosts() | nil, [map()]) :: %{term() => kind() | :moved}
   def with_moved(flashes, nil, _rows), do: flashes
 
   def with_moved(flashes, previous, rows) do
-    rows
-    |> Enum.with_index()
-    |> Enum.reduce(flashes, fn {row, index}, acc ->
-      case {Map.has_key?(acc, row.id), Map.get(previous, row.id)} do
-        {false, {before, _ghost}} when abs(before - index) >= @move_step ->
-          Map.put(acc, row.id, :moved)
+    # Orden relativo entre las filas que estaban y siguen: una fila corrida por otra que
+    # entró o salió conserva su orden y no se marca; una que pasó a otra (o fue pasada),
+    # sí, aunque sea un solo lugar.
+    common = rows |> Enum.map(& &1.id) |> Enum.filter(&Map.has_key?(previous, &1))
+    set = MapSet.new(common)
 
-        _ ->
-          acc
-      end
+    before_rank =
+      previous
+      |> Enum.filter(fn {id, _} -> MapSet.member?(set, id) end)
+      |> Enum.sort_by(fn {_id, {index, _ghost}} -> index end)
+      |> Enum.with_index()
+      |> Map.new(fn {{id, _}, rank} -> {id, rank} end)
+
+    # Las que forman la secuencia más larga que conservó su orden no se movieron: se
+    # marcan solo las demás (si una fila salta, solo ella; no las que pasó).
+    kept = common |> Enum.map(&before_rank[&1]) |> longest_increasing() |> MapSet.new()
+
+    Enum.reduce(common, flashes, fn id, acc ->
+      if Map.has_key?(acc, id) or MapSet.member?(kept, before_rank[id]),
+        do: acc,
+        else: Map.put(acc, id, :moved)
     end)
+  end
+
+  # Paso de la subsecuencia: ¿la fila j (anterior) extiende la cadena que termina en i?
+  defp extend(j, {l, p}, i, indexed, len) do
+    if indexed[j] < indexed[i] and len[j] + 1 > l, do: {len[j] + 1, j}, else: {l, p}
+  end
+
+  # Subsecuencia creciente más larga (valores). O(n²): a lo sumo 200 filas.
+  defp longest_increasing([]), do: []
+
+  defp longest_increasing(values) do
+    indexed = values |> Enum.with_index() |> Enum.map(fn {v, i} -> {i, v} end) |> Map.new()
+    n = map_size(indexed)
+
+    {lengths, prev} =
+      Enum.reduce(0..(n - 1), {%{}, %{}}, fn i, {len, prev} ->
+        best = Enum.reduce(0..(i - 1)//1, {1, nil}, &extend(&1, &2, i, indexed, len))
+
+        {Map.put(len, i, elem(best, 0)), Map.put(prev, i, elem(best, 1))}
+      end)
+
+    {last, _} = Enum.max_by(lengths, fn {_i, l} -> l end)
+
+    Stream.iterate(last, &prev[&1])
+    |> Enum.take_while(&(&1 != nil))
+    |> Enum.map(&indexed[&1])
   end
 
   @doc """
