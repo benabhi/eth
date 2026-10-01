@@ -70,6 +70,7 @@ defmodule Eth.Engine.StationEvaluator do
          {best_bid, _loc, _sys, _r, _v, _m, _i} <-
            Enum.find(bids, &(elem(&1, 1) == ctx.location_id)),
          true <- StationTrading.candidate?(best_bid, best_ask, ctx.broker_override),
+         {:ok, bids, asks} <- books(ctx, type_id),
          %{} = type <- Sde.type(type_id) do
       [
         %StationOpportunity{
@@ -80,13 +81,22 @@ defmodule Eth.Engine.StationEvaluator do
           location: ctx.location,
           broker_override: ctx.broker_override,
           last_modified: ctx.last_modified,
-          bids: book(ctx, type_id, :buy),
-          asks: book(ctx, type_id, :sell)
+          bids: bids,
+          asks: asks
         }
       ]
     else
       _ -> []
     end
+  end
+
+  # Libros de compra y venta de la estación. La generación pudo borrarse tras el período
+  # de gracia durante una evaluación larga: el candidato se descarta en vez de tirar abajo
+  # toda la evaluación (la próxima ya lee la generación nueva).
+  defp books(ctx, type_id) do
+    {:ok, book(ctx, type_id, :buy), book(ctx, type_id, :sell)}
+  rescue
+    ArgumentError -> :gone
   end
 
   defp book(ctx, type_id, side),

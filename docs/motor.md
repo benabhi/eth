@@ -40,6 +40,13 @@ ERS §8; este documento dice dónde vive cada una.
 
 El texto buscable de cada candidato se precalcula al publicar (`Eth.Engine.Search`).
 
+**Generaciones borradas a mitad de evaluación.** Una evaluación larga (sobre todo al
+arrancar, con el CPU ocupado por las descargas) puede seguir leyendo una generación de
+mercado que ya se borró tras `:snapshot_grace_ms`. Ninguna lectura tira abajo la
+evaluación: el resumen de esa fuente conserva el anterior y se rehace en la siguiente, y
+los libros que ya no existen descartan el candidato. Si aun así una evaluación falla, los
+disparadores pendientes se reprograman igual que al terminar bien.
+
 ## Consulta
 
 | Familia | Módulo | Cálculo |

@@ -127,6 +127,22 @@ defmodule Eth.Engine.StationTradingTest do
       assert [{5.0, _, _, _, _}, {5.2, _, _, _, _}] = opp.asks
     end
 
+    test "una generación borrada durante la evaluación descarta el candidato sin fallar" do
+      F.publish_orders([
+        {:buy, @tritanium, 4.0, 1_000_000, F.jita_44(), F.jita(), []},
+        {:sell, @tritanium, 5.0, 1_000_000, F.jita_44(), F.jita(), []}
+      ])
+
+      [{source, entry}] = TableOwner.all()
+      types = Summary.replace(source, entry.tid)
+
+      # La tabla se borra tras el período de gracia mientras la evaluación sigue corriendo.
+      gone = :ets.new(:gone, [])
+      :ets.delete(gone)
+
+      assert StationEvaluator.run([{source, %{entry | tid: gone}}], %{source => types}) == []
+    end
+
     test "sin historial no se propone; con historial estable, sí" do
       opps =
         evaluate([

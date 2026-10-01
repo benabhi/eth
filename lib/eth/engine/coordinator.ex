@@ -133,9 +133,13 @@ defmodule Eth.Engine.Coordinator do
     {:noreply, state}
   end
 
+  # Si llegaron disparadores durante la evaluación fallida, se reprograma igual que al
+  # terminar bien: no hay que esperar al próximo snapshot para volver a evaluar.
   def handle_info({:DOWN, ref, :process, _pid, reason}, %{task: %Task{ref: ref}} = state) do
     Events.emit(:error, "Motor", "La evaluación falló: #{inspect(reason)}")
-    {:noreply, %{state | task: nil}}
+    state = %{state | task: nil}
+    state = if state.pending, do: schedule(%{state | pending: false}), else: state
+    {:noreply, state}
   end
 
   def handle_info({:drop, tid}, state) do
@@ -187,15 +191,7 @@ defmodule Eth.Engine.Coordinator do
     entries = TableOwner.all()
     sources = Enum.map(entries, &source/1)
 
-    {summarized, types} =
-      Enum.reduce(entries, {summarized, types}, fn {source, entry}, {sum, typ} ->
-        if Map.get(sum, source) == entry.generation do
-          {sum, typ}
-        else
-          {Map.put(sum, source, entry.generation),
-           Map.put(typ, source, Summary.replace(source, entry.tid))}
-        end
-      end)
+    {summarized, types} = Enum.reduce(entries, {summarized, types}, &summarize_entry/2)
 
     # Fuentes que ya no existen: se borran sus resúmenes.
     current = MapSet.new(entries, &elem(&1, 0))
@@ -235,6 +231,31 @@ defmodule Eth.Engine.Coordinator do
 
     tables = %{current: direct.tid, station: station.tid, orders: orders.tid}
     {summarized, types, tables, stats}
+  end
+
+  # Resume solo las fuentes con generación nueva.
+  defp summarize_entry({source, entry}, {sum, typ} = acc) do
+    if Map.get(sum, source) == entry.generation do
+      acc
+    else
+      case summarize(source, entry.tid) do
+        # Generación ya borrada: queda el resumen anterior y la próxima evaluación
+        # resume la nueva.
+        nil ->
+          acc
+
+        source_types ->
+          {Map.put(sum, source, entry.generation), Map.put(typ, source, source_types)}
+      end
+    end
+  end
+
+  # Resumen de una generación, o `nil` si su tabla se borró tras el período de gracia
+  # mientras la evaluación (larga, típicamente al arrancar) todavía no llegaba a leerla.
+  defp summarize(source, tid) do
+    Summary.replace(source, tid)
+  rescue
+    ArgumentError -> nil
   end
 
   defp stage(fun) do
