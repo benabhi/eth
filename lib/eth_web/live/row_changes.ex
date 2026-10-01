@@ -8,6 +8,12 @@ defmodule EthWeb.RowChanges do
   como en la primera carga o al cambiar filtros) y las filas nuevas, y devuelve
   `{resaltados, conocido}` con `resaltados :: %{id => :new | :up | :down}`.
 
+  El tablón se recarga seguido (motor, historial, radar), a veces cada uno o dos
+  segundos. Para que un resaltado o una fila tachada se vean completos, duran por tiempo
+  y no por recarga: `highlights/4` y `with_lingering/4` los conservan entre recargas hasta
+  que vence su plazo (antes se recalculaban de cero y se cortaban en la recarga
+  siguiente).
+
   Implementa: RF-6.3.
   """
 
@@ -58,9 +64,12 @@ defmodule EthWeb.RowChanges do
 
   ## Filas expiradas (RF-6.3)
 
-  # Cuántas filas expiradas se muestran a la vez y cuánto quedan antes de salir.
+  # Cuántas filas expiradas se muestran a la vez y cuánto quedan antes de salir. Las
+  # duraciones coinciden con las animaciones de `assets/css/app.css` (`eth-flash-*`,
+  # `eth-row-expired`).
   @max_expired 20
-  @expire_ms 1_500
+  @expire_ms 4_000
+  @flash_ms %{new: 4_000, up: 4_000, down: 4_000, moved: 2_500}
 
   @typedoc "Lo que se recuerda de cada fila para mostrarla tachada: `%{id => {índice, fantasma}}`."
   @type ghosts :: %{optional(term()) => {non_neg_integer(), map()}}
@@ -174,4 +183,104 @@ defmodule EthWeb.RowChanges do
   def class(nil, _generation), do: nil
   def class(kind, generation) when rem(generation, 2) == 0, do: "eth-flash-#{kind}"
   def class(kind, _generation), do: "eth-flash-#{kind}-alt"
+
+  ## Resaltados y filas tachadas que duran por tiempo (RF-6.3)
+
+  @typedoc "Resaltado vigente de una fila: `{tipo, clase CSS, vence (ms monotónicos)}`."
+  @type highlight :: {kind() | :moved, String.t(), integer()}
+
+  @typedoc "Fila tachada que sigue a la vista: `{índice, fantasma, vence (ms)}`."
+  @type lingering :: %{optional(term()) => {non_neg_integer(), map(), integer()}}
+
+  @doc "Tiempo (ms) que dura el resaltado de cada tipo."
+  @spec flash_ms(kind() | :moved) :: pos_integer()
+  def flash_ms(kind), do: Map.fetch!(@flash_ms, kind)
+
+  @doc """
+  Resaltados vigentes después de una recarga: los que siguen en plazo se conservan con su
+  clase (la animación no se corta ni se reinicia) y los cambios nuevos se suman. Si una
+  fila cambia de tipo, o vuelve a cambiar después de vencer, toma la otra variante de la
+  clase (`-alt`) para que el navegador repita la animación. Con `nil` (primera carga,
+  filtros nuevos) se empieza de cero.
+  """
+  @spec highlights(%{term() => highlight()} | nil, %{term() => kind() | :moved}, integer()) ::
+          %{term() => highlight()}
+  def highlights(previous, flashes, now_ms) do
+    previous = previous || %{}
+    alive = for {id, {_k, _c, until} = h} <- previous, until > now_ms, into: %{}, do: {id, h}
+
+    Enum.reduce(flashes, alive, fn {id, kind}, acc ->
+      case acc do
+        # Misma animación en curso: sigue sin reiniciarse.
+        %{^id => {^kind, _class, _until}} ->
+          acc
+
+        # Un reacomodo no tapa un resaltado más importante que todavía se ve.
+        %{^id => _alive} when kind == :moved ->
+          acc
+
+        _ ->
+          old_class = with {_k, class, _u} <- Map.get(previous, id), do: class
+          Map.put(acc, id, {kind, fresh_class(kind, old_class), now_ms + flash_ms(kind)})
+      end
+    end)
+  end
+
+  # La variante que no tenía la fila: si la clase no cambia, el navegador no repite la
+  # animación.
+  defp fresh_class(kind, old_class) do
+    base = "eth-flash-#{kind}"
+    if old_class == base, do: base <> "-alt", else: base
+  end
+
+  @doc "Clase CSS del resaltado vigente de la fila (`nil` si no tiene)."
+  @spec class_of(%{term() => highlight()}, term()) :: String.t() | nil
+  def class_of(highlights, id) do
+    case Map.get(highlights, id) do
+      {_kind, class, _until} -> class
+      nil -> nil
+    end
+  end
+
+  @doc """
+  Como `with_expired/2`, pero las filas tachadas siguen a la vista durante `expire_ms/0`
+  aunque el tablón se recargue en el medio. `lingering` son las tachadas de la recarga
+  anterior; devuelve las filas a mostrar, las tachadas vigentes y las que se tacharon
+  recién (para programar su salida). Con `previous` en `nil` (primera carga, filtros
+  nuevos) no hay tachadas.
+  """
+  @spec with_lingering([map()], ghosts() | nil, lingering(), integer()) ::
+          {[map()], lingering(), [term()]}
+  def with_lingering(rows, nil, _lingering, _now_ms), do: {rows, %{}, []}
+
+  def with_lingering(rows, previous, lingering, now_ms) do
+    current = MapSet.new(rows, & &1.id)
+
+    # Siguen tachadas las que no vencieron ni volvieron.
+    alive =
+      for {id, {_i, _g, until} = entry} <- lingering,
+          until > now_ms and not MapSet.member?(current, id),
+          into: %{},
+          do: {id, entry}
+
+    fresh =
+      for {id, {index, ghost}} <- previous,
+          not MapSet.member?(current, id) and not Map.has_key?(alive, id),
+          into: %{},
+          do: {id, {index, ghost, now_ms + @expire_ms}}
+
+    kept =
+      alive
+      |> Map.merge(fresh)
+      |> Enum.sort_by(fn {_id, {index, _ghost, _until}} -> index end)
+      |> Enum.take(@max_expired)
+
+    shown =
+      Enum.reduce(kept, rows, fn {id, {index, ghost, _until}}, acc ->
+        List.insert_at(acc, min(index, length(acc)), Map.merge(ghost, %{id: id, expired: true}))
+      end)
+
+    kept = Map.new(kept)
+    {shown, kept, kept |> Map.keys() |> Enum.filter(&Map.has_key?(fresh, &1))}
+  end
 end

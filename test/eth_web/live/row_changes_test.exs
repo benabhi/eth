@@ -62,4 +62,75 @@ defmodule EthWeb.RowChangesTest do
   test "sin nada que comparar (primera carga o filtros nuevos) no hay expiradas" do
     assert {[%{id: "a"}], []} = RowChanges.with_expired([%{id: "a"}], nil)
   end
+
+  describe "resaltados y tachadas que duran por tiempo" do
+    test "un resaltado sobrevive a las recargas hasta que vence" do
+      h = RowChanges.highlights(nil, %{"a" => :new}, 0)
+      assert RowChanges.class_of(h, "a") == "eth-flash-new"
+
+      # Recarga a los 1,5 s sin cambios: sigue igual (la animación no se corta).
+      h = RowChanges.highlights(h, %{}, 1_500)
+      assert RowChanges.class_of(h, "a") == "eth-flash-new"
+
+      # Vencido el plazo, sale.
+      h = RowChanges.highlights(h, %{}, RowChanges.flash_ms(:new))
+      assert RowChanges.class_of(h, "a") == nil
+    end
+
+    test "un cambio nuevo usa la otra variante para repetir la animación" do
+      h = RowChanges.highlights(nil, %{"a" => :up}, 0)
+      assert RowChanges.class_of(h, "a") == "eth-flash-up"
+
+      # Mismo tipo con el anterior todavía vigente: no se reinicia.
+      assert RowChanges.class_of(RowChanges.highlights(h, %{"a" => :up}, 100), "a") ==
+               "eth-flash-up"
+
+      # Otro tipo: clase nueva.
+      assert RowChanges.class_of(RowChanges.highlights(h, %{"a" => :down}, 100), "a") ==
+               "eth-flash-down"
+
+      # Mismo tipo justo después de vencer: la variante -alt, para que se vea otra vez.
+      later = RowChanges.flash_ms(:up) + 1
+
+      assert RowChanges.class_of(RowChanges.highlights(h, %{"a" => :up}, later), "a") ==
+               "eth-flash-up-alt"
+    end
+
+    test "un reacomodo no tapa un resaltado vigente" do
+      h = RowChanges.highlights(nil, %{"a" => :new}, 0)
+
+      assert RowChanges.class_of(RowChanges.highlights(h, %{"a" => :moved}, 100), "a") ==
+               "eth-flash-new"
+    end
+
+    test "una fila tachada sigue a la vista en las recargas siguientes hasta vencer" do
+      previous = RowChanges.ghosts(rows([{"a", 1.0}, {"b", 2.0}]), &%{name: &1.id})
+
+      {shown, lingering, fresh} = RowChanges.with_lingering(rows([{"a", 1.0}]), previous, %{}, 0)
+
+      assert fresh == ["b"]
+      assert Enum.map(shown, & &1.id) == ["a", "b"]
+
+      # Recarga a 1 s: "b" ya no está en las filas anteriores, pero sigue tachada.
+      previous = RowChanges.ghosts(rows([{"a", 1.0}]), &%{name: &1.id})
+
+      {shown, lingering, fresh} =
+        RowChanges.with_lingering(rows([{"a", 1.0}]), previous, lingering, 1_000)
+
+      assert fresh == []
+      assert [%{id: "a"}, %{id: "b", expired: true}] = shown
+
+      # Vencida, sale; y si la fila vuelve, deja de estar tachada.
+      assert {[%{id: "a"}], %{}, []} =
+               RowChanges.with_lingering(rows([{"a", 1.0}]), previous, lingering, 4_000)
+
+      assert {[%{id: "a"}, %{id: "b"}], %{}, []} =
+               RowChanges.with_lingering(rows([{"a", 1.0}, {"b", 2.0}]), previous, lingering, 10)
+    end
+
+    test "con filtros nuevos no quedan tachadas" do
+      assert {[%{id: "a"}], %{}, []} =
+               RowChanges.with_lingering([%{id: "a"}], nil, %{"b" => {0, %{}, 9_999}}, 0)
+    end
+  end
 end

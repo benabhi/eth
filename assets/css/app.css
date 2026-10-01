@@ -324,52 +324,63 @@ body {
   to { opacity: 1; translate: 0 0; }
 }
 @keyframes eth-flash-up {
-  from { background-color: color-mix(in oklab, var(--color-success) 22%, transparent); }
+  0%, 40% { background-color: color-mix(in oklab, var(--color-success) 26%, transparent); }
+  100% { background-color: transparent; }
 }
 @keyframes eth-flash-down {
-  from { background-color: color-mix(in oklab, var(--color-error) 22%, transparent); }
+  0%, 40% { background-color: color-mix(in oklab, var(--color-error) 26%, transparent); }
+  100% { background-color: transparent; }
 }
 @keyframes eth-flash-new {
-  from { background-color: color-mix(in oklab, var(--color-primary) 20%, transparent); }
+  0%, 40% { background-color: color-mix(in oklab, var(--color-primary) 26%, transparent); }
+  100% { background-color: transparent; }
 }
 .eth-enter { animation: eth-enter 180ms ease-out; }
-/* Filas nuevas y cambiadas (RF-6.3): el fondo se desvanece solo en ~2,4 s. */
-.eth-flash-new { animation: eth-flash-new 2400ms ease-out; }
-.eth-flash-up { animation: eth-flash-up 2400ms ease-out; }
-.eth-flash-down { animation: eth-flash-down 2400ms ease-out; }
+/* Filas nuevas y cambiadas (RF-6.3): el color se sostiene un momento y se desvanece en
+   4 s. Las duraciones coinciden con las de `EthWeb.RowChanges` (`flash_ms`, `expire_ms`):
+   el servidor conserva la clase ese tiempo aunque el tablón se recargue en el medio. */
+.eth-flash-new { animation: eth-flash-new 4000ms ease-in; }
+.eth-flash-up { animation: eth-flash-up 4000ms ease-in; }
+.eth-flash-down { animation: eth-flash-down 4000ms ease-in; }
 /* Variantes -alt: mismo efecto con otro nombre de animación, para que una fila que
    vuelve a cambiar en la carga siguiente se resalte de nuevo. */
 @keyframes eth-flash-up-alt {
-  from { background-color: color-mix(in oklab, var(--color-success) 22%, transparent); }
+  0%, 40% { background-color: color-mix(in oklab, var(--color-success) 26%, transparent); }
+  100% { background-color: transparent; }
 }
 @keyframes eth-flash-down-alt {
-  from { background-color: color-mix(in oklab, var(--color-error) 22%, transparent); }
+  0%, 40% { background-color: color-mix(in oklab, var(--color-error) 26%, transparent); }
+  100% { background-color: transparent; }
 }
 @keyframes eth-flash-new-alt {
-  from { background-color: color-mix(in oklab, var(--color-primary) 20%, transparent); }
+  0%, 40% { background-color: color-mix(in oklab, var(--color-primary) 26%, transparent); }
+  100% { background-color: transparent; }
 }
-.eth-flash-new-alt { animation: eth-flash-new-alt 2400ms ease-out; }
-.eth-flash-up-alt { animation: eth-flash-up-alt 2400ms ease-out; }
-.eth-flash-down-alt { animation: eth-flash-down-alt 2400ms ease-out; }
+.eth-flash-new-alt { animation: eth-flash-new-alt 4000ms ease-in; }
+.eth-flash-up-alt { animation: eth-flash-up-alt 4000ms ease-in; }
+.eth-flash-down-alt { animation: eth-flash-down-alt 4000ms ease-in; }
 /* Filas que solo cambiaron de lugar: destello neutro y más corto. */
 @keyframes eth-flash-moved {
-  from { background-color: color-mix(in oklab, var(--color-base-content) 10%, transparent); }
+  0%, 30% { background-color: color-mix(in oklab, var(--color-base-content) 12%, transparent); }
+  100% { background-color: transparent; }
 }
 @keyframes eth-flash-moved-alt {
-  from { background-color: color-mix(in oklab, var(--color-base-content) 10%, transparent); }
+  0%, 30% { background-color: color-mix(in oklab, var(--color-base-content) 12%, transparent); }
+  100% { background-color: transparent; }
 }
-.eth-flash-moved { animation: eth-flash-moved 1600ms ease-out; }
-.eth-flash-moved-alt { animation: eth-flash-moved-alt 1600ms ease-out; }
+.eth-flash-moved { animation: eth-flash-moved 2500ms ease-in; }
+.eth-flash-moved-alt { animation: eth-flash-moved-alt 2500ms ease-in; }
 /* Pipeline (RF-8.4): la flecha "corre" mientras pasan datos. */
 .eth-flow { stroke-dasharray: 4 3; }
 @keyframes eth-flow { to { stroke-dashoffset: -7; } }
 .eth-flow-on { animation: eth-flow 700ms linear infinite; }
-/* Filas expiradas (RF-6.3): tachadas, con un tinte rojo que se apaga antes de salir. */
+/* Filas expiradas (RF-6.3): tachadas, con un tinte rojo que se sostiene y se apaga en 4 s
+   antes de salir. */
 @keyframes eth-row-expire {
-  from { opacity: 1; background-color: color-mix(in oklab, var(--color-error) 14%, transparent); }
-  to { opacity: 0.35; background-color: transparent; }
+  0%, 50% { opacity: 1; background-color: color-mix(in oklab, var(--color-error) 18%, transparent); }
+  100% { opacity: 0.35; background-color: transparent; }
 }
-.eth-row-expired { animation: eth-row-expire 1500ms ease-in forwards; }
+.eth-row-expired { animation: eth-row-expire 4000ms ease-in forwards; }
 
 /* Ficha que se despliega bajo la fila (RF-6.5): se desenrolla de arriba hacia abajo. */
 @keyframes eth-unfold {
@@ -511,7 +522,9 @@ body {
 .eth-pulse-ring { animation: eth-pulse 1.6s ease-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .eth-spin, .eth-skel, .eth-enter, .eth-unfold, .eth-pulse-bar, .eth-flash-new, .eth-flash-up, .eth-flash-down, .eth-flash-new-alt, .eth-flash-up-alt, .eth-flash-down-alt, .eth-flash-moved, .eth-flash-moved-alt, .eth-pulse-ring, .eth-row-expired, .eth-flow-on {
+  /* Los destellos de color del tablón (`eth-flash-*`, `eth-row-expired`) no se apagan:
+     son cambios de color, no movimiento, y sin ellos no se ve qué cambió (RF-6.3). */
+  .eth-spin, .eth-skel, .eth-enter, .eth-unfold, .eth-pulse-bar, .eth-pulse-ring, .eth-flow-on {
     animation: none;
   }
   .eth-tip-body { transition: none; }

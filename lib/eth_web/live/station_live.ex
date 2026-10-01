@@ -42,7 +42,7 @@ defmodule EthWeb.StationLive do
      |> assign(:selected, nil)
      |> assign(:selected_row, nil)
      |> assign(:total, 0)
-     |> assign(flash_gen: 0, known: nil, flashes: %{}, ghosts: %{}, hovering: false)
+     |> assign(known: nil, highlights: %{}, lingering: %{}, ghosts: %{}, hovering: false)
      |> assign(:pending, 0)
      |> assign(:reward, 0.0)
      |> assign(:url_params, %{})
@@ -133,7 +133,10 @@ defmodule EthWeb.StationLive do
      Enum.reduce(ids, socket, fn id, acc ->
        if Map.has_key?(acc.assigns.ghosts, id),
          do: acc,
-         else: stream_delete_by_dom_id(acc, :rows, "st-#{id}")
+         else:
+           acc
+           |> update(:lingering, &Map.delete(&1, id))
+           |> stream_delete_by_dom_id(:rows, "st-#{id}")
      end)}
   end
 
@@ -210,16 +213,20 @@ defmodule EthWeb.StationLive do
       RowChanges.diff(socket.assigns.known, rows, &{&1.profit_day, round(&1.certainty * 100)})
 
     flashes = RowChanges.with_moved(flashes, previous, rows)
+    # Resaltados y tachadas duran por tiempo, no por recarga (RF-6.3).
+    now_ms = System.monotonic_time(:millisecond)
+    highlights = RowChanges.highlights(previous && socket.assigns.highlights, flashes, now_ms)
 
-    {shown, expired} = RowChanges.with_expired(rows, previous)
+    {shown, lingering, expired} =
+      RowChanges.with_lingering(rows, previous, socket.assigns.lingering, now_ms)
 
     if expired != [],
       do: Process.send_after(self(), {:drop_expired, expired}, RowChanges.expire_ms())
 
     socket
     |> assign_my_orders()
-    |> update(:flash_gen, &(&1 + 1))
-    |> assign(flashes: flashes, known: known, ghosts: RowChanges.ghosts(rows, &ghost/1))
+    |> assign(highlights: highlights, lingering: lingering, known: known)
+    |> assign(:ghosts, RowChanges.ghosts(rows, &ghost/1))
     |> assign(total: total, meta: Engine.meta(), now: Clock.utc_now())
     |> assign(:reward, Enum.reduce(rows, 0.0, &(&1.profit_day + &2)))
     |> assign(:selected_row, selected_row(socket.assigns.selected, socket.assigns.query))

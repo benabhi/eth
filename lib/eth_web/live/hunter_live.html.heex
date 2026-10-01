@@ -253,7 +253,7 @@
           id={dom_id}
           class={[
             "border-b border-base-300/70 last:border-b-0",
-            RowChanges.class(@flashes[row.id], @flash_gen),
+            RowChanges.class_of(@highlights, row.id),
             @selected == row.id && "shadow-[inset_3px_0_0_var(--color-primary)]"
           ]}
         >

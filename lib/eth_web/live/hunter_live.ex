@@ -53,7 +53,7 @@ defmodule EthWeb.HunterLive do
       |> assign(:route_details, nil)
       |> assign(:route_loading, false)
       |> assign(:total, 0)
-      |> assign(flash_gen: 0, known: nil, flashes: %{}, ghosts: %{}, hovering: false)
+      |> assign(known: nil, highlights: %{}, lingering: %{}, ghosts: %{}, hovering: false)
       |> assign(:reward, 0.0)
       |> assign(:meta, Engine.meta())
       |> assign(:now, Clock.utc_now())
@@ -266,7 +266,10 @@ defmodule EthWeb.HunterLive do
      Enum.reduce(ids, socket, fn id, acc ->
        if Map.has_key?(acc.assigns.ghosts, id),
          do: acc,
-         else: stream_delete_by_dom_id(acc, :rows, "opp-#{id}")
+         else:
+           acc
+           |> update(:lingering, &Map.delete(&1, id))
+           |> stream_delete_by_dom_id(:rows, "opp-#{id}")
      end)}
   end
 
@@ -351,14 +354,19 @@ defmodule EthWeb.HunterLive do
     previous = socket.assigns.known && socket.assigns.ghosts
     {flashes, known} = RowChanges.diff(socket.assigns.known, rows, &{&1.profit, &1.tvs})
     flashes = RowChanges.with_moved(flashes, previous, rows)
-    {shown, expired} = RowChanges.with_expired(rows, previous)
+    # Resaltados y tachadas duran por tiempo, no por recarga (RF-6.3).
+    now_ms = System.monotonic_time(:millisecond)
+    highlights = RowChanges.highlights(previous && socket.assigns.highlights, flashes, now_ms)
+
+    {shown, lingering, expired} =
+      RowChanges.with_lingering(rows, previous, socket.assigns.lingering, now_ms)
 
     if expired != [],
       do: Process.send_after(self(), {:drop_expired, expired}, RowChanges.expire_ms())
 
     socket
-    |> update(:flash_gen, &(&1 + 1))
-    |> assign(flashes: flashes, known: known, ghosts: RowChanges.ghosts(rows, &ghost/1))
+    |> assign(highlights: highlights, lingering: lingering, known: known)
+    |> assign(:ghosts, RowChanges.ghosts(rows, &ghost/1))
     |> assign(total: total, meta: Engine.meta(), now: Clock.utc_now(), empty?: rows == [])
     |> assign(:reward, Enum.reduce(rows, 0.0, &(&1.profit + &2)))
     |> assign(:selected_row, selected_row(socket.assigns[:selected], socket.assigns.query))

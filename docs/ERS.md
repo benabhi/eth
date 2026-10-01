@@ -875,6 +875,8 @@ Selector del personaje activo en la cabecera; los personajes no activos mantiene
 
 *Implementación (F12):* una fila que desaparece queda tachada en su lugar 1,5 s antes de salir (`RowChanges.with_expired/2`: solo un "fantasma" liviano por fila, a lo sumo 20 a la vez). La grilla se congela sola con una ficha abierta o con el puntero del mouse sobre la tabla (`hover_hold`, desactivable con `:board_hover_freeze`); al salir se aplican los cambios pendientes.
 
+*Implementación (v1.x, pedido del usuario):* el tablón se recarga seguido (motor, historial cada ~5 s, radar), y los resaltados y las filas tachadas se recalculaban en cada recarga, así que se cortaban antes de terminar. Ahora duran por tiempo: `RowChanges.highlights/3` conserva cada resaltado con su clase hasta que vence (4 s para nuevas, mejoradas y empeoradas; 2,5 s para las reacomodadas) y `RowChanges.with_lingering/4` mantiene las tachadas 4 s aunque haya recargas en el medio. Los destellos de color se ven también con "reducir movimiento" del sistema: son cambios de color, no movimiento.
+
 #### RF-6.4 · Búsqueda, filtros y presets — M · F3
 
 - **Búsqueda de texto** (objeto, estación, sistema, región) por prefijo o contenido, sin distinguir mayúsculas ni acentos.
