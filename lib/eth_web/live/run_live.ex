@@ -5,7 +5,8 @@ defmodule EthWeb.RunLive do
   - Etapas del viaje (RF-7.2) con el momento de cada una y la ubicación en vivo.
   - Revalidación (RF-7.3): beneficio proyectado actual, alertas y mejor destino sugerido.
   - Amenazas en la ruta restante (RF-7.4) con la ruta evasiva aplicable con un clic.
-  - Acciones: fijar la ruta, confirmar compra o venta a mano y abortar.
+  - Acciones: fijar la ruta, abrir el mercado del tipo en el juego, confirmar compra o
+    venta a mano y abortar.
   - Historial de viajes (RF-7.6): proyectado frente a real, desvío e ISK/h real.
   - Registro del cazador (RF-7.7): rango con su progreso, estadísticas por período
     (semana, mes, histórico) del piloto o de todos sus personajes, e hitos con el
@@ -127,10 +128,69 @@ defmodule EthWeb.RunLive do
     end
   end
 
+  # Abre en el cliente la ventana de mercado del tipo del viaje (RF-5.9), como en el
+  # tablón. Va en segundo plano: la llamada a ESI no bloquea la vista.
+  def handle_event("open_market", _params, socket) do
+    with %{} = run <- socket.assigns.run,
+         type_id when is_integer(type_id) <- run.plan["type_id"],
+         %{} = pilot <- socket.assigns.pilot,
+         nil <- market_blocked(pilot) do
+      {:noreply,
+       start_async(socket, :open_market, fn -> Characters.open_market(pilot.id, type_id) end)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
   def handle_event("apply_evasive", _params, socket) do
     result = socket.assigns.run && RunMonitor.apply_evasive(socket.assigns.run.id)
     {:noreply, route_flash(socket, result, gettext("Ruta evasiva fijada en el juego"))}
   end
+
+  @impl true
+  def handle_async(:open_market, {:ok, :ok}, socket),
+    do: {:noreply, put_flash(socket, :info, gettext("Mercado abierto en el juego"))}
+
+  def handle_async(:open_market, {:ok, {:error, reason}}, socket),
+    do: {:noreply, put_flash(socket, :error, market_error(reason))}
+
+  def handle_async(:open_market, {:exit, _reason}, socket),
+    do: {:noreply, put_flash(socket, :error, gettext("La acción in-game falló"))}
+
+  # Motivo por el que no se puede abrir el mercado en el juego (`nil` si se puede).
+  defp market_blocked(nil), do: gettext("Iniciá sesión con EVE para usar las acciones in-game")
+
+  defp market_blocked(pilot) do
+    cond do
+      not Pilot.scope?(pilot, "esi-ui.open_window.v1") ->
+        gettext("Falta el permiso %{scope}: volvé a iniciar sesión",
+          scope: "esi-ui.open_window.v1"
+        )
+
+      pilot.status != :ok ->
+        gettext("La sesión de EVE del personaje no está lista")
+
+      pilot.online == false ->
+        gettext("El personaje no está conectado al juego")
+
+      true ->
+        nil
+    end
+  end
+
+  defp market_error(:relogin),
+    do: gettext("La autorización de EVE venció: volvé a iniciar sesión")
+
+  defp market_error({:http, %{status: 403}}),
+    do: gettext("EVE rechazó la acción: falta el permiso o el personaje no está conectado")
+
+  defp market_error({:http, %{status: status}}),
+    do: gettext("EVE rechazó la acción (HTTP %{status})", status: status)
+
+  defp market_error({reason, _until}) when reason in [:paused, :rate_limited],
+    do: gettext("ESI está en pausa: probá de nuevo en unos segundos")
+
+  defp market_error(_reason), do: gettext("La sesión de EVE del personaje no está lista")
 
   defp route_flash(socket, :ok, message), do: put_flash(socket, :info, message)
 

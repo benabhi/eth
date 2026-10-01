@@ -290,6 +290,12 @@ defmodule EthWeb.PilotLiveTest do
       run_view |> element("#run-set-route") |> render_click()
       assert_receive {:ui, "/ui/autopilot/waypoint", _params}, 2_000
 
+      # Abrir mercado desde la tarjeta del viaje, como en el tablón.
+      run_view |> element("#run-open-market") |> render_click()
+      type_id = Integer.to_string(@tritanium)
+      assert_receive {:ui, "/ui/openwindow/marketdetails", %{"type_id" => ^type_id}}, 2_000
+      assert render_async(run_view) =~ "Mercado abierto en el juego"
+
       run_view |> element("#run-confirm-bought") |> render_click()
       assert has_element?(run_view, "#run-steps li[data-state=current]", "comprado")
       assert has_element?(run_view, "#run-confirm-sold")

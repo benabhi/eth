@@ -356,6 +356,19 @@
             >
               <.icon name="hero-map" class="size-4" /> {gettext("Fijar ruta")}
             </button>
+            <span :if={@run.plan["type_id"]} title={market_blocked(@pilot)}>
+              <button
+                id="run-open-market"
+                type="button"
+                phx-click="open_market"
+                disabled={market_blocked(@pilot) != nil}
+                class="btn btn-sm"
+              >
+                <.icon name="hero-building-storefront" class="size-4" /> {gettext(
+                  "Abrir mercado"
+                )}
+              </button>
+            </span>
             <button
               :if={@run.status in ["planned", "to_origin"]}
               id="run-confirm-bought"
