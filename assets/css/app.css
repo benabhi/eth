@@ -463,6 +463,39 @@ body {
 .eth-filter-toggle:has(input:checked) { border-color: var(--color-primary); }
 .eth-filter-toggle:has(input:checked) > .eth-filter-label { color: var(--color-primary); }
 
+/* Tablas de ajustes en pantallas chicas (< sm, 40rem): cada fila se apila como una
+   tarjeta, sin cabecera y con la etiqueta de la columna sobre cada celda (`data-label`).
+   En pantallas medianas y grandes la tabla queda igual. Celdas: `eth-stack-full` ocupa
+   todo el ancho, `eth-stack-grow` se estira con lo que sobra (campos de texto). */
+@media (width < 40rem) {
+  .eth-table-stack, .eth-table-stack tbody { display: block; width: 100%; }
+  .eth-table-stack thead { display: none; }
+  .eth-table-stack tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    column-gap: 0.75rem;
+    row-gap: 0.4rem;
+    padding: 0.6rem 1rem;
+  }
+  .eth-table-stack td { display: block; padding: 0; min-width: 0; text-align: left; }
+  .eth-table-stack td:empty { display: none; }
+  .eth-table-stack td.eth-stack-full { flex-basis: 100%; }
+  .eth-table-stack td.eth-stack-grow { flex: 1 1 7rem; width: auto; }
+  .eth-table-stack td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.15rem;
+    font-family: var(--font-display);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--eth-faint);
+  }
+  /* Los campos de formulario no necesitan su margen inferior dentro de la tarjeta. */
+  .eth-table-stack td .fieldset { margin-bottom: 0; padding-bottom: 0; }
+}
+
 /* Etapa en curso del viaje (RF-7.2): late suave para indicar actividad real. */
 @keyframes eth-pulse-bar {
   0%, 100% { opacity: 1; }

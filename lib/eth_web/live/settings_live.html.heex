@@ -153,7 +153,7 @@
         )}
       </:help_body>
       <div class="-mx-4 -mb-4 overflow-x-auto">
-        <table class="table table-sm">
+        <table class="eth-table-stack table table-sm">
           <thead>
             <tr class="border-base-300">
               <th class="eth-kicker text-[10px]">{gettext("Nave")}</th>
@@ -167,7 +167,7 @@
           <tbody id="ship-profiles">
             <%= for row <- @profiles do %>
               <tr id={"profile-#{row.profile.id}"} class="border-base-300/60">
-                <td>
+                <td class="eth-stack-full">
                   <div class="flex items-center gap-2">
                     <img
                       src={Pilot.ship_render_url(row.profile.ship_type_id, 32)}
@@ -179,21 +179,23 @@
                     <span class="font-semibold eth-strong">{row.type_name}</span>
                   </div>
                 </td>
-                <td class="text-sm eth-muted">
+                <td class="eth-stack-full text-sm eth-muted">
                   <%= if row.profile.ship_item_id do %>
                     {gettext("Esta nave (#%{id})", id: row.profile.ship_item_id)}
                   <% else %>
                     {gettext("Todas las %{ship} sin perfil propio", ship: row.type_name)}
                   <% end %>
                 </td>
-                <td class="text-right font-mono">
+                <td class="text-right font-mono" data-label={gettext("Bodega")}>
                   {Format.integer(round(row.profile.cargo_m3))} m³
                 </td>
-                <td>{evasion_label(row.profile.evasion_class)}</td>
-                <td class="text-right font-mono">
+                <td data-label={gettext("Clase de evasión")}>
+                  {evasion_label(row.profile.evasion_class)}
+                </td>
+                <td class="text-right font-mono" data-label={gettext("Valor máx.")}>
                   {Format.compact(row.profile.max_cargo_value)}
                 </td>
-                <td class="text-right">
+                <td class="ml-auto text-right">
                   <button
                     id={"edit-profile-#{row.profile.id}"}
                     type="button"
@@ -220,7 +222,7 @@
                 id={"profile-edit-#{row.profile.id}"}
                 class="bg-base-200/70"
               >
-                <td colspan="6" class="eth-unfold">
+                <td colspan="6" class="eth-unfold eth-stack-full">
                   <.form
                     for={@ship_edit_form}
                     id="ship-edit-form"
@@ -283,7 +285,7 @@
           </span>
         </:actions>
         <div class="-mx-4 -mt-4 overflow-x-auto">
-          <table class="table table-sm">
+          <table class="eth-table-stack table table-sm">
             <thead>
               <tr class="border-base-300">
                 <th class="eth-kicker text-[10px]">{gettext("Regla")}</th>
@@ -294,12 +296,14 @@
             </thead>
             <tbody>
               <tr :for={rule <- @rules} id={"rule-#{rule.key}"} class="border-base-300/60">
-                <td>
+                <td class="eth-stack-full">
                   <div class="eth-strong">{rule.label}</div>
-                  <div class="font-mono text-xs eth-faint">{rule.key}</div>
+                  <div class="font-mono text-xs break-all eth-faint">{rule.key}</div>
                 </td>
-                <td class="text-right font-mono">{pct(rule.default)}</td>
-                <td>
+                <td class="text-right font-mono" data-label={gettext("Por defecto")}>
+                  {pct(rule.default)}
+                </td>
+                <td class="eth-stack-grow" data-label={gettext("Override (%)")}>
                   <.input
                     field={@rules_form[Atom.to_string(rule.key)]}
                     placeholder={percent_input(rule.default)}
@@ -322,7 +326,7 @@
             </tbody>
           </table>
         </div>
-        <div class="-mx-4 -mb-4 mt-0 flex items-center gap-3 border-t border-base-300 px-4 py-3">
+        <div class="-mx-4 -mb-4 mt-0 flex flex-wrap items-center gap-3 border-t border-base-300 px-4 py-3">
           <button id="rules-save" type="submit" class="btn btn-primary btn-sm">
             {gettext("Guardar reglas")}
           </button>
@@ -344,7 +348,7 @@
 
           <%= if group.id == :vulnerability do %>
             <div class="-mx-4 -mt-4 overflow-x-auto">
-              <table class="table table-sm">
+              <table class="eth-table-stack table table-sm">
                 <thead>
                   <tr class="border-base-300">
                     <th class="eth-kicker text-[10px]">{gettext("Clase de nave")}</th>
@@ -359,8 +363,12 @@
                     id={"vuln-#{class}"}
                     class="border-base-300/60"
                   >
-                    <td class="eth-strong">{Tunable.ship_class_label(class)}</td>
-                    <td :for={t <- Tunable.threats()} class="min-w-24">
+                    <td class="eth-stack-full eth-strong">{Tunable.ship_class_label(class)}</td>
+                    <td
+                      :for={t <- Tunable.threats()}
+                      class="eth-stack-grow min-w-24"
+                      data-label={"#{Tunable.threat_label(t)} (%)"}
+                    >
                       <% row =
                         Enum.find(group.rows, &(&1.entry.path == [:vulnerability, class, t])) %>
                       <.input
@@ -384,18 +392,18 @@
             </p>
           <% else %>
             <div class="-mx-4 -mt-4 overflow-x-auto">
-              <table class="table table-sm">
+              <table class="eth-table-stack table table-sm">
                 <tbody>
                   <tr
                     :for={row <- group.rows}
                     id={"param-#{row.dom_id}"}
                     class="border-base-300/60"
                   >
-                    <td>
+                    <td class="eth-stack-full">
                       <div class="eth-strong">{row.entry.label}</div>
                       <div class="text-xs eth-faint">{row.entry.help}</div>
                     </td>
-                    <td class="w-48">
+                    <td class="eth-stack-grow w-48">
                       <%= if row.entry.kind == :boolean do %>
                         <.input
                           field={@engine_form[row.entry.key]}
@@ -414,7 +422,7 @@
                         />
                       <% end %>
                     </td>
-                    <td class="w-8 font-mono text-xs eth-faint">{unit(row.entry)}</td>
+                    <td class="w-8 self-center font-mono text-xs eth-faint">{unit(row.entry)}</td>
                     <td class="w-24 text-right">
                       <button
                         :if={row.custom?}
@@ -610,8 +618,13 @@
         )}
       </:help_body>
       <:actions>
-        <.form for={@add_form} id="structure-add" phx-submit="add_structure" class="flex gap-2">
-          <label class="eth-filter w-72">
+        <.form
+          for={@add_form}
+          id="structure-add"
+          phx-submit="add_structure"
+          class="flex w-full gap-2 sm:w-auto"
+        >
+          <label class="eth-filter min-w-0 flex-1 sm:w-72 sm:flex-none">
             <span class="eth-filter-label">{gettext("ID privada")}</span>
             <input
               type="text"
@@ -632,7 +645,7 @@
       </p>
 
       <div class="-mx-4 mt-3 overflow-x-auto">
-        <table class="table table-sm">
+        <table class="eth-table-stack table table-sm">
           <thead>
             <tr class="border-base-300">
               <th class="eth-kicker text-[10px]">{gettext("Estructura")}</th>
@@ -650,8 +663,8 @@
               id={"structure-#{row.structure.id}"}
               class="border-base-300/60"
             >
-              <td>
-                <div class="font-semibold eth-strong">
+              <td class="eth-stack-full">
+                <div class="font-semibold wrap-anywhere eth-strong">
                   {row.structure.name || gettext("Sin resolver (%{id})", id: row.structure.id)}
                 </div>
                 <div class="flex items-center gap-1.5 text-xs eth-faint">
@@ -661,14 +674,16 @@
                   <.seal :if={row.selected} kind={:improved} label={gettext("en seguimiento")} />
                 </div>
               </td>
-              <td class="text-right font-mono">{Format.integer(row.structure.orders_count)}</td>
-              <td class="text-xs">
+              <td class="text-right font-mono" data-label={gettext("Órdenes")}>
+                {Format.integer(row.structure.orders_count)}
+              </td>
+              <td class="text-xs" data-label={gettext("Acceso")}>
                 <span :if={row.access == %{}} class="eth-faint">{gettext("sin probar")}</span>
                 <div :for={{cid, status} <- row.access}>
                   {Map.get(@character_names, cid, cid)}: {access_label(status)}
                 </div>
               </td>
-              <td>
+              <td data-label={gettext("Seguida")}>
                 <input
                   type="checkbox"
                   class="toggle toggle-primary toggle-sm"
@@ -678,7 +693,7 @@
                   aria-label={gettext("Seguir siempre")}
                 />
               </td>
-              <td>
+              <td class="eth-stack-grow" data-label={gettext("Broker fee (%)")}>
                 <form phx-submit="save_broker_fee" class="flex gap-1">
                   <input type="hidden" name="structure_id" value={row.structure.id} />
                   <label class="eth-filter w-24">
