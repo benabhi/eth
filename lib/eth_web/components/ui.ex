@@ -659,8 +659,11 @@ defmodule EthWeb.UI do
   ## Series (RF-8.9)
 
   @doc """
-  Mini gráfico de una serie (sparkline): línea con los valores y un área tenue debajo.
-  Los `nil` (minutos sin datos) cortan la línea en vez de contar como cero.
+  Mini gráfico de una serie (sparkline): una línea con los valores sobre una escala que
+  arranca en cero, para que se lea el nivel y no solo la variación (con escala mínimo–
+  máximo, dos minutos parecidos ocupaban todo el alto y se veían como un trazo vertical).
+  Los `nil` (minutos sin datos) no cuentan como cero: los tramos se unen con una línea
+  punteada tenue.
   """
   attr :id, :string, required: true
   attr :values, :list, required: true
@@ -668,7 +671,10 @@ defmodule EthWeb.UI do
   attr :class, :any, default: "text-primary"
 
   def spark(assigns) do
-    assigns = assign(assigns, :segments, spark_segments(assigns.values))
+    assigns =
+      assigns
+      |> assign(:segments, spark_segments(assigns.values))
+      |> assign(:bridges, spark_bridges(assigns.values))
 
     ~H"""
     <svg
@@ -680,6 +686,16 @@ defmodule EthWeb.UI do
       aria-label={@label}
     >
       <line x1="0" y1="27.5" x2="120" y2="27.5" stroke="currentColor" stroke-opacity="0.15" />
+      <polyline
+        :for={points <- @bridges}
+        points={points}
+        fill="none"
+        stroke="currentColor"
+        stroke-opacity="0.4"
+        stroke-width="1"
+        stroke-dasharray="2 2"
+        vector-effect="non-scaling-stroke"
+      />
       <polyline
         :for={points <- @segments}
         points={points}
@@ -698,27 +714,47 @@ defmodule EthWeb.UI do
   # por cada corrida de valores sin `nil`; un valor aislado se dibuja como un trazo corto.
   @spec spark_segments([number() | nil]) :: [String.t()]
   def spark_segments(values) do
-    case Enum.reject(values, &is_nil/1) do
+    case spark_runs(values) do
       [] ->
         []
 
-      present ->
-        scale = spark_scale(present, length(values))
-
-        values
-        |> Enum.with_index()
-        |> Enum.chunk_by(fn {v, _i} -> is_nil(v) end)
-        |> Enum.reject(fn [{v, _} | _] -> is_nil(v) end)
-        |> Enum.map(&spark_run(&1, scale))
+      runs ->
+        scale = spark_scale(values)
+        Enum.map(runs, &spark_run(&1, scale))
     end
   end
 
-  # Paso horizontal y función de alto para la escala de la serie.
-  defp spark_scale(present, count) do
-    {low, high} = Enum.min_max(present)
-    span = if high - low > 0, do: high - low, else: 1.0
-    y = if high == low, do: fn _v -> 14.0 end, else: fn v -> 27 - (v - low) / span * 26 end
-    %{step: 120 / max(count - 1, 1), y: y}
+  @doc false
+  # Uniones `"x,y x,y"` entre el final de un tramo y el principio del siguiente: cruzan
+  # los minutos sin datos sin inventar valores intermedios.
+  @spec spark_bridges([number() | nil]) :: [String.t()]
+  def spark_bridges(values) do
+    scale = spark_scale(values)
+
+    values
+    |> spark_runs()
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.map(fn [left, right] ->
+      {v1, i1} = List.last(left)
+      [{v2, i2} | _] = right
+      "#{r1(i1 * scale.step)},#{r1(scale.y.(v1))} #{r1(i2 * scale.step)},#{r1(scale.y.(v2))}"
+    end)
+  end
+
+  # Corridas de `{valor, índice}` sin `nil`.
+  defp spark_runs(values) do
+    values
+    |> Enum.with_index()
+    |> Enum.chunk_by(fn {v, _i} -> is_nil(v) end)
+    |> Enum.reject(fn [{v, _} | _] -> is_nil(v) end)
+  end
+
+  # Paso horizontal y función de alto: de cero al máximo de la serie (todas las métricas
+  # son no negativas). Sin valores positivos, la línea va sobre la base.
+  defp spark_scale(values) do
+    high = values |> Enum.reject(&is_nil/1) |> Enum.max(fn -> 0 end)
+    y = if high > 0, do: fn v -> 27 - v / high * 26 end, else: fn _v -> 27.0 end
+    %{step: 120 / max(length(values) - 1, 1), y: y}
   end
 
   # Un valor aislado se dibuja como un trazo corto; una corrida, como línea.

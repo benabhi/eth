@@ -32,7 +32,10 @@
   errores, latencia de EVE, duración de cada evaluación del motor, de cada consulta del
   tablón y los <strong>tokens de mercado</strong> (la parte que queda del presupuesto de
   consultas de mercado que EVE da cada 15 minutos). Los contadores muestran el último
-  minuto completo. Se guarda en memoria: al reiniciar la aplicación la hora empieza vacía.
+  minuto completo. La escala de cada gráfico va de cero al máximo de la hora. Un minuto
+  sin datos (por ejemplo, sin evaluaciones del motor o sin nadie mirando el tablón) no
+  cuenta como cero: la línea lo cruza punteada. Se guarda en memoria: al reiniciar la
+  aplicación la hora empieza vacía.
 </p>
 
 <.section_title id="pollers">Pollers de mercado</.section_title>
