@@ -40,7 +40,7 @@ defmodule EthWeb.UI do
     >
       <header
         :if={@title || @actions != []}
-        class="flex items-center justify-between gap-3 border-b border-base-300 px-4 py-2.5"
+        class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-base-300 px-4 py-2.5"
       >
         <h2 :if={@title} class="eth-kicker flex items-center gap-2">
           {@title}
