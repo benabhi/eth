@@ -132,6 +132,8 @@ defmodule Eth.Market.Fetcher do
 
   defp fetch_pages(ctx, pages, etags, table, notify) do
     total = Enum.count(pages) + 1
+    # La primera página ya llegó: el total se conoce desde ahora, no desde la página 10.
+    notify_progress(notify, ctx.id, 1, total)
 
     pages
     |> Task.async_stream(&fetch_page(ctx, &1, etags, table),
@@ -156,7 +158,7 @@ defmodule Eth.Market.Fetcher do
   defp notify_progress(nil, _region_id, _done, _total), do: :ok
 
   defp notify_progress(pid, region_id, done, total) do
-    if rem(done, 10) == 0 or done == total do
+    if done == 1 or rem(done, 10) == 0 or done == total do
       send(pid, {:fetch_progress, region_id, done, total})
     end
 

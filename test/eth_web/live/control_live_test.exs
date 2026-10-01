@@ -7,6 +7,7 @@ defmodule EthWeb.ControlLiveTest do
   alias Eth.{EngineFixture, Events, KillmailFixture}
   alias Eth.Esi.Budget
   alias Eth.Threat.{Killmail, Radar}
+  alias EthWeb.ControlLive
 
   setup do
     Budget.resume_all()
@@ -123,6 +124,15 @@ defmodule EthWeb.ControlLiveTest do
     )
 
     assert render(view) =~ "The Forge: Error"
+  end
+
+  test "el anillo de páginas va vacío al iniciar una descarga, no con el ciclo anterior" do
+    starting = region_status(%{status: :fetching, progress: {0, nil}})
+    halfway = region_status(%{status: :fetching, progress: {81, 405}})
+
+    assert ControlLive.pages_fraction(starting) == 0.0
+    assert_in_delta ControlLive.pages_fraction(halfway), 0.2, 1.0e-9
+    assert ControlLive.pages_fraction(region_status(%{})) == 1.0
   end
 
   test "muestra el estado del SDE", %{conn: conn} do

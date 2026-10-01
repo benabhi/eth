@@ -262,12 +262,17 @@ defmodule EthWeb.ControlLive do
 
   defp expires_fraction(_status, _now), do: 0.0
 
-  # Anillo interior: páginas del ciclo en curso (o completo si está en reposo).
-  defp pages_fraction(%{progress: {done, total}}) when is_integer(total) and total > 0,
+  @doc false
+  # Anillo interior: páginas del ciclo en curso (o completo si está en reposo). Al empezar
+  # una descarga, antes de saber el total, va vacío: mostrar las páginas del ciclo anterior
+  # lo dejaba lleno en "Iniciando…" y después caía de golpe.
+  @spec pages_fraction(map()) :: float()
+  def pages_fraction(%{progress: {done, total}}) when is_integer(total) and total > 0,
     do: done / total
 
-  defp pages_fraction(%{pages: pages}) when is_integer(pages) and pages > 0, do: 1.0
-  defp pages_fraction(_status), do: 0.0
+  def pages_fraction(%{status: :fetching}), do: 0.0
+  def pages_fraction(%{pages: pages}) when is_integer(pages) and pages > 0, do: 1.0
+  def pages_fraction(_status), do: 0.0
 
   # Etapas de la última evaluación del motor: [{etiqueta, ms, clase}].
   defp engine_stages(meta) do

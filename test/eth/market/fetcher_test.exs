@@ -92,6 +92,19 @@ defmodule Eth.Market.FetcherTest do
     assert Enum.map(buys, &elem(&1, 7)) == [4.2, 4.0]
   end
 
+  test "avisa el progreso desde la primera página" do
+    stub_pages(%{
+      1 => [order(1, 34, false, 5.0)],
+      2 => [order(2, 34, true, 4.0)],
+      3 => [order(3, 35, false, 100.0)]
+    })
+
+    assert {:ok, _meta} = Fetcher.fetch(@region, self())
+    assert_received {:fetch_progress, @region, 1, 3}
+    assert_received {:fetch_progress, @region, 3, 3}
+    refute_received {:fetch_progress, @region, 2, 3}
+  end
+
   test "reutiliza con 304 las páginas sin cambios y publica una nueva generación" do
     pages = %{1 => [order(1, 34, false, 5.0)], 2 => [order(2, 34, true, 4.0)]}
     stub_pages(pages)
