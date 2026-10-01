@@ -22,10 +22,10 @@ defmodule EthWeb.UITest do
       assert ["0.0,27.0 120.0,27.0"] = UI.spark_segments([0, 0])
     end
 
-    test "los tramos se unen por encima de los minutos sin datos" do
-      assert UI.spark_bridges([1, 2, nil, nil, 3]) == ["30.0,9.7 120.0,1.0"]
-      assert UI.spark_bridges([nil, 5, nil]) == []
-      assert UI.spark_bridges([nil, nil]) == []
+    test "con hold, los minutos sin datos repiten el último valor medido" do
+      assert UI.spark_hold([nil, 3, nil, nil, 5, nil]) == [nil, 3, 3, 3, 5, 5]
+      assert UI.spark_hold([nil, nil]) == [nil, nil]
+      assert [_one_line] = [nil, 3, nil, 5] |> UI.spark_hold() |> UI.spark_segments()
     end
   end
 end

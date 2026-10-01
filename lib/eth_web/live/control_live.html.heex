@@ -244,7 +244,13 @@
           <div :for={m <- metric_tiles(@metrics)} id={"metric-#{m.id}"} class="min-w-0">
             <div class="eth-kicker truncate text-[10px]" title={m.title}>{m.title}</div>
             <div class="truncate whitespace-nowrap font-mono text-sm eth-strong">{m.value}</div>
-            <.spark id={"spark-#{m.id}"} values={m.values} label={m.title} class={m.class} />
+            <.spark
+              id={"spark-#{m.id}"}
+              values={m.values}
+              label={m.title}
+              class={m.class}
+              hold={m.hold}
+            />
           </div>
         </div>
       </.panel>

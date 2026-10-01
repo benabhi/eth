@@ -513,6 +513,9 @@ defmodule EthWeb.ControlLive do
   end
 
   # Mosaicos de la última hora (RF-8.9): título, valor del último minuto con datos y serie.
+  # Los contadores tienen un valor por minuto (0 si no hubo nada); las medidas (latencia,
+  # duraciones, tokens) solo existen en los minutos con muestras, así que el gráfico
+  # repite la última (`hold`) en vez de cortarse: el valor sigue siendo el vigente.
   defp metric_tiles(s) do
     [
       %{
@@ -520,42 +523,48 @@ defmodule EthWeb.ControlLive do
         title: gettext("Consultas a EVE / min"),
         values: s.requests,
         value: last_complete(s.requests),
-        class: "text-primary"
+        class: "text-primary",
+        hold: false
       },
       %{
         id: "errors",
         title: gettext("Errores / min"),
         values: s.errors,
         value: last_complete(s.errors),
-        class: "text-error"
+        class: "text-error",
+        hold: false
       },
       %{
         id: "latency",
         title: gettext("Latencia de EVE"),
         values: s.latency_ms,
         value: last(s.latency_ms, &"#{round(&1)} ms"),
-        class: "text-info"
+        class: "text-info",
+        hold: true
       },
       %{
         id: "evaluate",
         title: gettext("Evaluación del motor"),
         values: s.evaluate_ms,
         value: last(s.evaluate_ms, &"#{Float.round(&1 / 1000, 1)} s"),
-        class: "text-accent"
+        class: "text-accent",
+        hold: true
       },
       %{
         id: "query",
         title: gettext("Consulta del tablón"),
         values: s.query_ms,
         value: last(s.query_ms, &"#{round(&1)} ms"),
-        class: "text-secondary"
+        class: "text-secondary",
+        hold: true
       },
       %{
         id: "tokens",
         title: gettext("Tokens de mercado"),
         values: s.market_tokens,
         value: last(s.market_tokens, &"#{round(&1 * 100)} %"),
-        class: "text-success"
+        class: "text-success",
+        hold: true
       }
     ]
   end

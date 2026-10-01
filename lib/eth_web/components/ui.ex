@@ -662,19 +662,20 @@ defmodule EthWeb.UI do
   Mini gráfico de una serie (sparkline): una línea con los valores sobre una escala que
   arranca en cero, para que se lea el nivel y no solo la variación (con escala mínimo–
   máximo, dos minutos parecidos ocupaban todo el alto y se veían como un trazo vertical).
-  Los `nil` (minutos sin datos) no cuentan como cero: los tramos se unen con una línea
-  punteada tenue.
+
+  Los `nil` (minutos sin datos) no cuentan como cero. Por defecto cortan la línea; con
+  `hold`, cada minuto sin datos repite el último valor conocido (para medidas como "lo que
+  tardó la última evaluación", que siguen vigentes aunque ese minuto no haya habido otra).
   """
   attr :id, :string, required: true
   attr :values, :list, required: true
   attr :label, :string, required: true
   attr :class, :any, default: "text-primary"
+  attr :hold, :boolean, default: false, doc: "repetir el último valor en los minutos sin datos"
 
   def spark(assigns) do
-    assigns =
-      assigns
-      |> assign(:segments, spark_segments(assigns.values))
-      |> assign(:bridges, spark_bridges(assigns.values))
+    values = if assigns.hold, do: spark_hold(assigns.values), else: assigns.values
+    assigns = assign(assigns, :segments, spark_segments(values))
 
     ~H"""
     <svg
@@ -686,16 +687,6 @@ defmodule EthWeb.UI do
       aria-label={@label}
     >
       <line x1="0" y1="27.5" x2="120" y2="27.5" stroke="currentColor" stroke-opacity="0.15" />
-      <polyline
-        :for={points <- @bridges}
-        points={points}
-        fill="none"
-        stroke="currentColor"
-        stroke-opacity="0.4"
-        stroke-width="1"
-        stroke-dasharray="2 2"
-        vector-effect="non-scaling-stroke"
-      />
       <polyline
         :for={points <- @segments}
         points={points}
@@ -725,20 +716,16 @@ defmodule EthWeb.UI do
   end
 
   @doc false
-  # Uniones `"x,y x,y"` entre el final de un tramo y el principio del siguiente: cruzan
-  # los minutos sin datos sin inventar valores intermedios.
-  @spec spark_bridges([number() | nil]) :: [String.t()]
-  def spark_bridges(values) do
-    scale = spark_scale(values)
-
+  # Cada `nil` toma el último valor anterior; los del principio (antes del primer dato)
+  # quedan vacíos: no se inventa nada que no se haya medido.
+  @spec spark_hold([number() | nil]) :: [number() | nil]
+  def spark_hold(values) do
     values
-    |> spark_runs()
-    |> Enum.chunk_every(2, 1, :discard)
-    |> Enum.map(fn [left, right] ->
-      {v1, i1} = List.last(left)
-      [{v2, i2} | _] = right
-      "#{r1(i1 * scale.step)},#{r1(scale.y.(v1))} #{r1(i2 * scale.step)},#{r1(scale.y.(v2))}"
+    |> Enum.map_reduce(nil, fn
+      nil, last -> {last, last}
+      value, _last -> {value, value}
     end)
+    |> elem(0)
   end
 
   # Corridas de `{valor, índice}` sin `nil`.
