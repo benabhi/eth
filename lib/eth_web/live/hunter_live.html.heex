@@ -385,56 +385,55 @@
             ></span>
           </div>
 
-          <%!-- Ficha del contrato bajo la fila (RF-6.5) --%>
+          <%!-- Ficha del contrato bajo la fila (RF-6.5): cuatro franjas alineadas --%>
           <.row_detail
             :if={@selected == row.id}
             id="detail"
+            bands
             label={gettext("Ficha de %{name}", name: row.opportunity.type_name)}
           >
-            <div
-              :if={row.shield.status != :ok}
-              id="shield-alert"
-              role={if scam?(row), do: "alert", else: "status"}
-              class={[
-                "flex flex-wrap items-center gap-x-3 gap-y-1 border px-3 py-2 text-sm md:col-span-2 xl:col-span-4",
-                if(scam?(row),
-                  do: "border-error/50 bg-error/10",
-                  else: "border-warning/50 bg-warning/10"
-                )
-              ]}
-            >
-              <span class={[
-                "font-semibold",
-                if(scam?(row), do: "text-error", else: "text-warning")
-              ]}>
-                <%= if scam?(row) do %>
-                  {gettext("SCAM ALERT · acciones bloqueadas")}
-                <% else %>
-                  {shield_label(row.shield.status)}
-                <% end %>
-              </span>
-              <span class="text-xs eth-muted">{Enum.join(row.shield.reasons, " · ")}</span>
-              <button
-                :if={row.shield.status in [:scam, :suspicious]}
-                id="report-false-positive"
-                type="button"
-                phx-click="report_false_positive"
-                class="btn btn-ghost btn-xs ml-auto"
+            <:banner :if={row.shield.status != :ok}>
+              <div
+                id="shield-alert"
+                role={if scam?(row), do: "alert", else: "status"}
+                class={[
+                  "flex flex-wrap items-center gap-x-3 gap-y-1 border px-3 py-2 text-sm",
+                  if(scam?(row),
+                    do: "border-error/50 bg-error/10",
+                    else: "border-warning/50 bg-warning/10"
+                  )
+                ]}
               >
-                {gettext("Reportar falso positivo")}
-              </button>
-            </div>
+                <span class={[
+                  "font-semibold",
+                  if(scam?(row), do: "text-error", else: "text-warning")
+                ]}>
+                  <%= if scam?(row) do %>
+                    {gettext("SCAM ALERT · acciones bloqueadas")}
+                  <% else %>
+                    {shield_label(row.shield.status)}
+                  <% end %>
+                </span>
+                <span class="text-xs eth-muted">{Enum.join(row.shield.reasons, " · ")}</span>
+                <button
+                  :if={row.shield.status in [:scam, :suspicious]}
+                  id="report-false-positive"
+                  type="button"
+                  phx-click="report_false_positive"
+                  class="btn btn-ghost btn-xs ml-auto"
+                >
+                  {gettext("Reportar falso positivo")}
+                </button>
+              </div>
+            </:banner>
 
-            <.detail_col title={gettext("Cálculo")} topic={:profit}>
+            <%!-- Cálculo: los números del trade; abajo, el beneficio --%>
+            <.detail_band id="band-calc" title={gettext("Cálculo")} topic={:profit}>
               <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm tabular-nums">
                 <dt class="eth-muted">{gettext("Cantidad")}</dt>
                 <dd class="text-right font-mono">
                   {Format.integer(row.quantity)} ({Format.integer(round(row.cargo_m3))} m³)
                 </dd>
-                <dt class="eth-muted">{gettext("Compra promedio")}</dt>
-                <dd class="text-right font-mono">{Format.compact(row.avg_buy)}</dd>
-                <dt class="eth-muted">{gettext("Venta promedio")}</dt>
-                <dd class="text-right font-mono">{Format.compact(row.avg_sell)}</dd>
                 <dt class="eth-muted">{gettext("Inversión")}</dt>
                 <dd class="text-right font-mono">{Format.compact(row.cost)}</dd>
                 <dt class="eth-muted">{gettext("Sales tax")}</dt>
@@ -451,13 +450,6 @@
                 </dd>
                 <dt class="eth-muted">{gettext("Ingreso neto")}</dt>
                 <dd class="text-right font-mono">{Format.compact(row.revenue)}</dd>
-                <div class="col-span-2 my-1 border-t border-base-300"></div>
-                <dt class="eth-muted">
-                  {gettext("Beneficio")} · <.term name={:roi} align="start" />
-                </dt>
-                <dd class="text-right font-mono font-semibold text-accent">
-                  {Format.compact(row.profit)} · {pct(row.roi)}
-                </dd>
                 <dt class="eth-muted"><.term name={:isk_per_hour} align="start" /></dt>
                 <dd class="text-right font-mono">
                   {Format.compact(row.isk_per_hour)}
@@ -467,9 +459,18 @@
                 </dd>
               </dl>
               <.skill_gains gains={@skill_gains} />
-            </.detail_col>
+              <:summary>
+                <span class="eth-muted">
+                  {gettext("Beneficio")} · <.term name={:roi} align="start" />
+                </span>
+                <span class="font-mono font-semibold text-accent">
+                  {Format.compact(row.profit)} · {pct(row.roi)}
+                </span>
+              </:summary>
+            </.detail_band>
 
-            <.detail_col title={gettext("Libro consumido")} topic={:walk}>
+            <%!-- Libro consumido e historial del destino; abajo, los precios promedio --%>
+            <.detail_band id="band-book" title={gettext("Libro consumido")} topic={:walk}>
               <div class="grid grid-cols-2 gap-3 font-mono text-xs">
                 <div>
                   <div class="mb-0.5 font-sans eth-faint">{gettext("Compra (ventas)")}</div>
@@ -485,19 +486,19 @@
                 </div>
               </div>
 
-              <h3 class="eth-kicker mt-4 mb-2 flex items-center gap-2 text-[11px] text-primary">
+              <h4 class="eth-kicker mt-4 mb-1.5 flex items-center gap-2 text-[10px] text-primary">
                 {gettext("Historial del destino")}
                 <.help topic={:liquidity} title={gettext("Historial")}>
                   {gettext("Precio y volumen de los últimos 30 días en la región de destino.")}
                 </.help>
-              </h3>
+              </h4>
               <%= if h = row.history.destination do %>
                 <div id="history" class="text-xs">
                   <svg
                     :if={sparkline(h.daily_avg)}
                     viewBox="0 0 120 32"
                     preserveAspectRatio="none"
-                    class="h-9 w-full text-primary"
+                    class="h-8 w-full text-primary"
                     role="img"
                     aria-label={gettext("Precio promedio diario de los últimos 30 días")}
                   >
@@ -532,10 +533,7 @@
                     </dd>
                   </dl>
                   <p class="mt-1 eth-faint">
-                    {gettext(
-                      "Datos hasta el %{date} (ESI publica un día por vez, después del downtime).",
-                      date: Calendar.strftime(h.as_of, "%d/%m")
-                    )}
+                    {gettext("Datos hasta el %{date}.", date: Calendar.strftime(h.as_of, "%d/%m"))}
                   </p>
                 </div>
               <% else %>
@@ -545,10 +543,17 @@
                   )}
                 </p>
               <% end %>
-            </.detail_col>
+              <:summary>
+                <span class="eth-muted">{gettext("Compra → venta")}</span>
+                <span class="font-mono">
+                  {Format.compact(row.avg_buy)} → {Format.compact(row.avg_sell)}
+                </span>
+              </:summary>
+            </.detail_band>
 
-            <%!-- Ruta: sistemas del camino, seguridad y amenazas del radar --%>
-            <.detail_col
+            <%!-- Ruta: tira de seguridad, sistemas y amenazas; abajo, los saltos --%>
+            <.detail_band
+              id="band-route"
               title={gettext("Ruta (%{mode})", mode: route_label(@query.route_mode))}
               topic={:radar}
               help={
@@ -557,11 +562,6 @@
                 )
               }
             >
-              <p class="mb-2 font-mono text-xs eth-faint">
-                {row.jumps_to_origin} {gettext("saltos al origen")} + {row.jumps} {gettext(
-                  "al destino"
-                )}
-              </p>
               <%= cond do %>
                 <% @route_loading -> %>
                   <.spinner
@@ -572,9 +572,19 @@
                   />
                 <% @route_details -> %>
                   <div :for={d <- [@route_details]} id="route" class="text-xs">
+                    <% systems = d.to_origin ++ tl(d.route) %>
+                    <%!-- Tira de seguridad: un tramo por sistema, el viaje entero de un vistazo --%>
+                    <div class="mb-2 flex h-1.5 gap-px" aria-hidden="true">
+                      <span
+                        :for={s <- systems}
+                        class={["flex-1", s.type && "ring-1 ring-error"]}
+                        style={sec_background(s.security)}
+                        title={"#{s.name} · #{sec_label(s.security)}"}
+                      ></span>
+                    </div>
                     <div class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono">
                       <span
-                        :for={{s, i} <- Enum.with_index(d.to_origin ++ tl(d.route))}
+                        :for={{s, i} <- Enum.with_index(systems)}
                         title={"#{s.name} · #{pct(s.probability)}"}
                         class={[
                           "whitespace-nowrap",
@@ -606,56 +616,54 @@
                 <% true -> %>
                   <p class="text-xs eth-faint">{gettext("Sin ruta disponible.")}</p>
               <% end %>
-            </.detail_col>
+              <:summary>
+                <span class="eth-muted">{gettext("Saltos")}</span>
+                <span
+                  class="font-mono"
+                  title={
+                    gettext("%{origin} saltos al origen + %{route} al destino",
+                      origin: row.jumps_to_origin,
+                      route: row.jumps
+                    )
+                  }
+                >
+                  {row.jumps_to_origin} + {row.jumps}
+                  <span class="eth-faint">· {Format.travel(row.seconds)}</span>
+                </span>
+              </:summary>
+            </.detail_band>
 
-            <.detail_col title={gettext("¿Por qué TVS %{tvs}?", tvs: row.tvs)} topic={:tvs}>
-              <p class="eth-formula">
-                {gettext("utilidad")} {:erlang.float_to_binary(row.utility, decimals: 2)} × {gettext(
-                  "certeza"
-                )} {:erlang.float_to_binary(row.certainty, decimals: 2)} = {row.tvs} → {Grade.rank(
-                  row.tvs
-                )}
-              </p>
-              <ul class="mt-2 space-y-0.5 text-xs tabular-nums">
-                <li class="flex justify-between gap-3">
-                  <span class="eth-muted">{gettext("Órdenes vigentes al llegar")}</span>
-                  <span class="font-mono">{pct(row.breakdown.order_certainty)}</span>
-                </li>
-                <li class="flex justify-between gap-3">
-                  <span class="eth-muted">{gettext("Frescura de datos")}</span>
-                  <span class="font-mono">{pct(row.breakdown.data_certainty)}</span>
-                </li>
-                <li class="flex justify-between gap-3">
-                  <span class="eth-muted">
-                    {gettext("Anti-scam (%{status})", status: shield_label(row.shield.status))}
-                  </span>
-                  <span class="font-mono">{pct(row.breakdown.scam_certainty)}</span>
-                </li>
-                <li class="flex justify-between gap-3">
-                  <span class="eth-muted">{gettext("Acceso")}</span>
-                  <span class="font-mono">{pct(row.breakdown.access_certainty)}</span>
-                </li>
-                <li class="flex justify-between gap-3">
-                  <span class="eth-muted">
-                    {gettext("Ruta (amenazas y riesgo base)")}
-                    <span :if={@radar_degraded} class="text-warning">
-                      · {gettext("radar degradado")}
-                    </span>
-                  </span>
-                  <span class="font-mono">{pct(row.breakdown.route_certainty)}</span>
-                </li>
-                <li class="flex justify-between gap-3">
-                  <span class="eth-muted">
-                    <%= if row.history.destination do %>
-                      {gettext("Liquidez")}
-                    <% else %>
-                      {gettext("Liquidez (neutra hasta tener historial)")}
-                    <% end %>
-                  </span>
-                  <span class="font-mono">{pct(row.breakdown.liquidity)}</span>
+            <%!-- ¿Por qué TVS?: cada factor de la Certeza con su barra; abajo, la fórmula --%>
+            <.detail_band
+              id="band-tvs"
+              title={gettext("¿Por qué TVS %{tvs}?", tvs: row.tvs)}
+              topic={:tvs}
+            >
+              <ul class="space-y-2 text-xs tabular-nums">
+                <li :for={{label, value} <- certainty_factors(row, @radar_degraded)}>
+                  <div class="flex justify-between gap-3">
+                    <span class="eth-muted">{label}</span>
+                    <span class="font-mono">{pct(value)}</span>
+                  </div>
+                  <div class="mt-0.5 h-1 bg-base-300" aria-hidden="true">
+                    <div
+                      class={["h-full", factor_class(value)]}
+                      style={"width: #{round(value * 100)}%"}
+                    ></div>
+                  </div>
                 </li>
               </ul>
-            </.detail_col>
+              <:summary>
+                <span class="font-mono text-xs eth-muted">
+                  {gettext("utilidad")} {:erlang.float_to_binary(row.utility, decimals: 2)} × {gettext(
+                    "certeza"
+                  )} {:erlang.float_to_binary(row.certainty, decimals: 2)}
+                </span>
+                <span class="font-mono font-semibold eth-strong">
+                  = {row.tvs} → {Grade.rank(row.tvs)}
+                </span>
+              </:summary>
+            </.detail_band>
 
             <:footer>
               <span title={start_run_blocked(@pilot, row)}>

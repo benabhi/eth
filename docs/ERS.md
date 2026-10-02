@@ -905,6 +905,8 @@ Al hacer clic en una fila, **la propia fila se despliega** hacia abajo y muestra
 
 *Implementación (F10): la ficha se despliega bajo la fila con un desenrollado suave y se desplaza a la vista si hace falta; en lugar de pestañas, las secciones van **en columnas lado a lado** (Cálculo · Libro e Historial · Ruta · ¿Por qué TVS?; en pantallas medianas, dos por fila; en móvil, una debajo de otra), a pedido del usuario, para ver todo sin clics extra. Las acciones (Iniciar viaje, Multibuy, Fijar ruta, Abrir mercado, Reportar falso positivo) y "Cerrar (Esc)" viven en el pie. La ruta con el radar se calcula en segundo plano con un spinner (RNF-5.15). Lo mismo vale para las familias Estación y Por órdenes (RF-6.12). Los filtros (RF-6.4) forman una barra acoplada arriba de la tabla, con campos compactos de etiqueta como prefijo.*
 
+*Implementación (v1.x, pedido del usuario):* en la familia Directo la ficha tiene **alto fijo y franjas alineadas** (`row_detail bands`, `detail_band/1`): cuatro columnas iguales (Cálculo · Libro consumido e historial del destino · Ruta · ¿Por qué TVS?), cada una con título, cuerpo y resumen en tres pistas compartidas (`subgrid`). Los cuerpos miden lo mismo (14rem) y, si el contenido no entra, tienen scroll propio y se desvanecen abajo; el resumen de cada columna es su dato clave (beneficio · ROI; compra → venta; saltos y ETA; la fórmula del TVS). La ruta suma una tira de seguridad (un tramo por sistema) y los factores de la Certeza, una barra cada uno. En tablet, 2 × 2; en el celular, una debajo de otra con su alto natural.
+
 
 #### RF-6.13 · Lenguaje de tablón de caza — S · F10
 

@@ -13,6 +13,9 @@ defmodule EthWeb.TradingComponents do
   También el tiempo de cada contrato en el tablón (`board_age/1`, RF-6.14) y lo que
   sumaría subir las habilidades de comercio (`skill_gains/1`, RF-6.15).
 
+  La ficha del Directo usa franjas alineadas de alto fijo (`row_detail bands`,
+  `detail_band/1`).
+
   Implementa: RF-6.4, RF-6.5, RF-6.9, RF-6.12, RF-6.13, RF-6.14, RF-6.15, RF-11.2.
   """
   use EthWeb, :html
@@ -523,16 +526,31 @@ defmodule EthWeb.TradingComponents do
 
   ## Ficha bajo la fila (RF-6.5)
 
+  # Grilla de franjas (RF-6.5): en el celular, una debajo de otra con su alto natural; en
+  # tablet, 2 × 2 y en pantallas grandes, 4 columnas, con tres pistas por franja (título,
+  # cuerpo de alto fijo y resumen) que comparten todas las de una misma fila.
+  @bands_grid "grid gap-x-6 gap-y-5 md:grid-cols-2 md:gap-y-2 md:grid-rows-[auto_14rem_auto_auto_14rem_auto] xl:grid-cols-4 xl:grid-rows-[auto_14rem_auto] md:[&>*:nth-child(n+3)]:mt-4 xl:[&>*:nth-child(n+3)]:mt-0"
+  @cols_grid "grid gap-x-6 gap-y-5 md:grid-cols-2 xl:grid-cols-4"
+
   @doc """
   Contenedor de la ficha que se despliega bajo la fila: se desenrolla al abrir, se
   desvanece al cerrar y se desplaza a la vista si quedó fuera de la pantalla.
+
+  Con `bands`, las secciones son franjas (`detail_band/1`) alineadas entre columnas: los
+  títulos a la misma altura, los cuerpos del mismo alto fijo y los resúmenes sobre la
+  misma base (`subgrid`), sea cual sea el largo de cada una. `banner` va arriba, a todo
+  el ancho (el aviso anti-scam).
   """
   attr :id, :string, required: true
   attr :label, :string, required: true
+  attr :bands, :boolean, default: false, doc: "franjas alineadas de alto fijo"
   slot :inner_block, required: true
+  slot :banner
   slot :footer
 
   def row_detail(assigns) do
+    assigns = assign(assigns, :grid_class, if(assigns.bands, do: @bands_grid, else: @cols_grid))
+
     ~H"""
     <section
       id={@id}
@@ -545,7 +563,8 @@ defmodule EthWeb.TradingComponents do
       }
       class="eth-unfold cursor-default border-t border-primary/30 bg-base-200/70 px-4 pt-4 pb-3"
     >
-      <div class="grid gap-x-6 gap-y-5 md:grid-cols-2 xl:grid-cols-4">
+      <div :if={@banner != []} class="mb-4">{render_slot(@banner)}</div>
+      <div class={@grid_class}>
         {render_slot(@inner_block)}
       </div>
       <div
@@ -563,6 +582,65 @@ defmodule EthWeb.TradingComponents do
             const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
             this.el.scrollIntoView({block: "nearest", behavior: reduce ? "auto" : "smooth"})
           }
+        }
+      }
+    </script>
+    """
+  end
+
+  @doc """
+  Franja de la ficha (RF-6.5): título, cuerpo y resumen. Dentro de un `row_detail bands`
+  ocupa tres pistas de la grilla (`subgrid`), así sus títulos, cuerpos y resúmenes quedan
+  alineados con los de las otras columnas. Si el cuerpo no entra en su alto, tiene scroll
+  propio y se desvanece abajo mientras quede contenido por ver (hook `.BandOverflow`).
+  """
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :topic, :atom, default: nil
+  attr :help, :string, default: nil
+  slot :inner_block, required: true
+  slot :summary, required: true, doc: "dato clave de la sección, sobre la base común"
+
+  def detail_band(assigns) do
+    ~H"""
+    <section
+      id={@id}
+      class="grid min-w-0 gap-y-2 md:row-span-3 md:grid-rows-subgrid xl:border-l xl:border-base-300/60 xl:pl-5 xl:first:border-l-0 xl:first:pl-0"
+    >
+      <h3 class="eth-kicker flex items-center gap-2 text-[11px] text-primary">
+        {@title}
+        <.help :if={@topic && @help} topic={@topic} title={@title}>{@help}</.help>
+        <.help :if={@topic && !@help} topic={@topic} title={@title} />
+      </h3>
+      <div
+        id={"#{@id}-body"}
+        phx-hook=".BandOverflow"
+        tabindex="0"
+        aria-label={@title}
+        class="eth-band-body min-h-0 md:overflow-y-auto md:pr-1"
+      >
+        {render_slot(@inner_block)}
+      </div>
+      <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-base-300 pt-2 text-sm">
+        {render_slot(@summary)}
+      </div>
+    </section>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".BandOverflow">
+      export default {
+        mounted() {
+          this.check = () => {
+            const el = this.el
+            el.toggleAttribute("data-overflow", el.scrollHeight - el.scrollTop - el.clientHeight > 2)
+          }
+          this.el.addEventListener("scroll", this.check, {passive: true})
+          this.observer = new ResizeObserver(this.check)
+          this.observer.observe(this.el)
+          this.check()
+        },
+        updated() { this.check() },
+        destroyed() {
+          this.observer.disconnect()
+          this.el.removeEventListener("scroll", this.check)
         }
       }
     </script>

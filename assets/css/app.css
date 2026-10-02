@@ -507,6 +507,15 @@ body {
   .eth-table-stack td .fieldset { margin-bottom: 0; padding-bottom: 0; }
 }
 
+/* Franjas de la ficha (RF-6.5): el cuerpo tiene alto fijo desde md; si el contenido no
+   entra, se desvanece abajo mientras quede algo por ver (lo marca el hook .BandOverflow)
+   y se baja con la rueda o con el teclado (es enfocable). */
+.eth-band-body { scrollbar-width: thin; scrollbar-color: var(--color-base-300) transparent; }
+.eth-band-body[data-overflow] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent);
+}
+.eth-band-body:focus-visible { outline: 1px solid var(--color-primary); outline-offset: 2px; }
+
 /* Etapa en curso del viaje (RF-7.2): late suave para indicar actividad real. */
 @keyframes eth-pulse-bar {
   0%, 100% { opacity: 1; }

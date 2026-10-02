@@ -68,6 +68,11 @@ defmodule EthWeb.HunterLiveTest do
     render_async(view)
     assert has_element?(view, "#detail", "Libro consumido")
     assert has_element?(view, "#detail", "¿Por qué TVS")
+    # Cuatro franjas con cuerpo de alto fijo (scroll propio) y su resumen (RF-6.5).
+    for band <- ~w(calc book route tvs),
+        do: assert(has_element?(view, "#band-#{band}-body[phx-hook]"))
+
+    assert has_element?(view, "#band-route", "Saltos")
     assert has_element?(view, "#copy-detail[data-text='Tritanium\t3850000']")
   end
 

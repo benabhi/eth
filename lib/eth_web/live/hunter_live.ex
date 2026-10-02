@@ -553,6 +553,40 @@ defmodule EthWeb.HunterLive do
   defp sec_style(nil), do: ""
   defp sec_style(sec), do: "color: #{Sde.security_color(sec)}"
 
+  # Tramo de la tira de seguridad de la ruta (mismo color que el número de seguridad).
+  defp sec_background(nil), do: "background-color: var(--color-base-300)"
+  defp sec_background(sec), do: "background-color: #{Sde.security_color(sec)}"
+
+  # Factores de la Certeza para la franja "¿Por qué TVS?" (RF-6.5), con su etiqueta.
+  defp certainty_factors(row, radar_degraded?) do
+    b = row.breakdown
+
+    route_label =
+      if radar_degraded?,
+        do: gettext("Ruta (amenazas y riesgo base) · radar degradado"),
+        else: gettext("Ruta (amenazas y riesgo base)")
+
+    liquidity_label =
+      if row.history.destination,
+        do: gettext("Liquidez"),
+        else: gettext("Liquidez (neutra hasta tener historial)")
+
+    [
+      {gettext("Órdenes vigentes al llegar"), b.order_certainty},
+      {gettext("Frescura de datos"), b.data_certainty},
+      {gettext("Anti-scam (%{status})", status: shield_label(row.shield.status)),
+       b.scam_certainty},
+      {gettext("Acceso"), b.access_certainty},
+      {route_label, b.route_certainty},
+      {liquidity_label, b.liquidity}
+    ]
+  end
+
+  # Barra de un factor: atenuada si está entero, ámbar si pesa en contra.
+  defp factor_class(value) when value >= 0.95, do: "bg-primary/50"
+  defp factor_class(value) when value >= 0.7, do: "bg-primary"
+  defp factor_class(_value), do: "bg-warning"
+
   defp sec_label(nil), do: "?"
   defp sec_label(sec), do: :erlang.float_to_binary(Sde.security_display(sec), decimals: 1)
 
