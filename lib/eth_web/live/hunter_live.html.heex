@@ -466,6 +466,30 @@
                   </span>
                 </dd>
               </dl>
+
+              <%!-- Colchón del contrato (RF-6.16): si otro piloto llega antes a la mejor compra --%>
+              <div
+                :if={@book_depth}
+                id="book-fallback"
+                class="mt-1.5 flex items-baseline justify-between gap-3 border-t border-dashed border-base-300 pt-1.5 text-sm"
+              >
+                <span class="flex items-center gap-1 eth-muted">
+                  {gettext("Si falla la mejor compra")}
+                  <.help topic={:book_depth} title={gettext("Si falla la mejor compra")}>
+                    {gettext(
+                      "Beneficio si la orden de compra de mayor precio desaparece antes de que llegues (otro piloto le vendió primero o el comprador la canceló): se vende a las siguientes."
+                    )}
+                  </.help>
+                </span>
+                <span class={["text-right font-mono", fallback_class(@book_depth.fallback, row)]}>
+                  <%= if fb = @book_depth.fallback do %>
+                    {Format.compact(fb.profit)}
+                    <span class="eth-faint">({fallback_change(fb, row)})</span>
+                  <% else %>
+                    {gettext("deja de ser rentable")}
+                  <% end %>
+                </span>
+              </div>
               <.skill_gains gains={@skill_gains} />
             </.detail_col>
 
@@ -486,91 +510,6 @@
                   <.book_next :if={@book_depth} id="book-next-bids" levels={@book_depth.bids} />
                 </div>
               </div>
-
-              <%!-- Colchón del contrato (RF-6.16): si otro piloto llega antes a la mejor compra --%>
-              <div
-                :if={@book_depth}
-                id="book-fallback"
-                class="mt-3 flex items-baseline justify-between gap-3 border-t border-base-300 pt-2 text-xs"
-              >
-                <span class="flex items-center gap-1 eth-muted">
-                  {gettext("Si falla la mejor compra")}
-                  <.help topic={:book_depth} title={gettext("Si falla la mejor compra")}>
-                    {gettext(
-                      "Beneficio si la orden de compra de mayor precio desaparece antes de que llegues (otro piloto le vendió primero o el comprador la canceló): se vende a las siguientes."
-                    )}
-                  </.help>
-                </span>
-                <span class={["text-right font-mono", fallback_class(@book_depth.fallback, row)]}>
-                  <%= if fb = @book_depth.fallback do %>
-                    {Format.compact(fb.profit)}
-                    <span class="eth-faint">({fallback_change(fb, row)})</span>
-                  <% else %>
-                    {gettext("deja de ser rentable")}
-                  <% end %>
-                </span>
-              </div>
-
-              <h3 class="eth-kicker mt-4 mb-2 flex items-center gap-2 text-[11px] text-primary">
-                {gettext("Historial del destino")}
-                <.help topic={:liquidity} title={gettext("Historial")}>
-                  {gettext("Precio y volumen de los últimos 30 días en la región de destino.")}
-                </.help>
-              </h3>
-              <%= if h = row.history.destination do %>
-                <div id="history" class="text-xs">
-                  <svg
-                    :if={sparkline(h.daily_avg)}
-                    viewBox="0 0 120 32"
-                    preserveAspectRatio="none"
-                    class="h-9 w-full text-primary"
-                    role="img"
-                    aria-label={gettext("Precio promedio diario de los últimos 30 días")}
-                  >
-                    <polyline
-                      points={sparkline(h.daily_avg)}
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.5"
-                      vector-effect="non-scaling-stroke"
-                    />
-                  </svg>
-                  <dl class="mt-1 grid grid-cols-[auto_1fr] gap-x-3 tabular-nums">
-                    <dt class="eth-muted">{gettext("Mediana 7 d")}</dt>
-                    <dd class="text-right font-mono">
-                      {(h.median_7d && Format.compact(h.median_7d)) || "—"}
-                    </dd>
-                    <dt class="eth-muted">{gettext("Mediana 30 d")}</dt>
-                    <dd class="text-right font-mono">
-                      {(h.median_30d && Format.compact(h.median_30d)) || "—"}
-                    </dd>
-                    <dt class="eth-muted">{gettext("Volumen diario 7 d")}</dt>
-                    <dd class="text-right font-mono">{Format.integer(round(h.volume_avg_7d))}</dd>
-                    <dt class="eth-muted">{gettext("Días operados")}</dt>
-                    <dd class="text-right font-mono">{h.days_traded_30d} / 30</dd>
-                    <dt :if={row.history.origin} class="eth-muted">
-                      {gettext("Mediana 7 d origen")}
-                    </dt>
-                    <dd :if={row.history.origin} class="text-right font-mono">
-                      {(row.history.origin.median_7d &&
-                          Format.compact(row.history.origin.median_7d)) ||
-                        "—"}
-                    </dd>
-                  </dl>
-                  <p class="mt-1 eth-faint">
-                    {gettext(
-                      "Datos hasta el %{date} (ESI publica un día por vez, después del downtime).",
-                      date: Calendar.strftime(h.as_of, "%d/%m")
-                    )}
-                  </p>
-                </div>
-              <% else %>
-                <p id="history" class="text-xs eth-faint">
-                  {gettext(
-                    "Todavía sin historial para este tipo en la región: se pide en orden de prioridad (máx. 250 por minuto)."
-                  )}
-                </p>
-              <% end %>
             </.detail_col>
 
             <%!-- Ruta: sistemas del camino, seguridad y amenazas del radar --%>
@@ -598,7 +537,8 @@
                   />
                 <% @route_details -> %>
                   <div :for={d <- [@route_details]} id="route" class="text-xs">
-                    <div class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono">
+                    <%!-- Una ruta larga no estira toda la ficha: scroll propio desde md --%>
+                    <div class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono md:max-h-80 md:overflow-y-auto md:pr-1">
                       <span
                         :for={{s, i} <- Enum.with_index(d.to_origin ++ tl(d.route))}
                         title={"#{s.name} · #{pct(s.probability)}"}
@@ -681,6 +621,67 @@
                   <span class="font-mono">{pct(row.breakdown.liquidity)}</span>
                 </li>
               </ul>
+
+              <h3 class="eth-kicker mt-4 mb-2 flex items-center gap-2 text-[11px] text-primary">
+                {gettext("Historial del destino")}
+                <.help topic={:liquidity} title={gettext("Historial")}>
+                  {gettext("Precio y volumen de los últimos 30 días en la región de destino.")}
+                </.help>
+              </h3>
+              <%= if h = row.history.destination do %>
+                <div id="history" class="text-xs">
+                  <svg
+                    :if={sparkline(h.daily_avg)}
+                    viewBox="0 0 120 32"
+                    preserveAspectRatio="none"
+                    class="h-9 w-full text-primary"
+                    role="img"
+                    aria-label={gettext("Precio promedio diario de los últimos 30 días")}
+                  >
+                    <polyline
+                      points={sparkline(h.daily_avg)}
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      vector-effect="non-scaling-stroke"
+                    />
+                  </svg>
+                  <dl class="mt-1 grid grid-cols-[auto_1fr] gap-x-3 tabular-nums">
+                    <dt class="eth-muted">{gettext("Mediana 7 d")}</dt>
+                    <dd class="text-right font-mono">
+                      {(h.median_7d && Format.compact(h.median_7d)) || "—"}
+                    </dd>
+                    <dt class="eth-muted">{gettext("Mediana 30 d")}</dt>
+                    <dd class="text-right font-mono">
+                      {(h.median_30d && Format.compact(h.median_30d)) || "—"}
+                    </dd>
+                    <dt class="eth-muted">{gettext("Volumen diario 7 d")}</dt>
+                    <dd class="text-right font-mono">{Format.integer(round(h.volume_avg_7d))}</dd>
+                    <dt class="eth-muted">{gettext("Días operados")}</dt>
+                    <dd class="text-right font-mono">{h.days_traded_30d} / 30</dd>
+                    <dt :if={row.history.origin} class="eth-muted">
+                      {gettext("Mediana 7 d origen")}
+                    </dt>
+                    <dd :if={row.history.origin} class="text-right font-mono">
+                      {(row.history.origin.median_7d &&
+                          Format.compact(row.history.origin.median_7d)) ||
+                        "—"}
+                    </dd>
+                  </dl>
+                  <p class="mt-1 eth-faint">
+                    {gettext(
+                      "Datos hasta el %{date} (ESI publica un día por vez, después del downtime).",
+                      date: Calendar.strftime(h.as_of, "%d/%m")
+                    )}
+                  </p>
+                </div>
+              <% else %>
+                <p id="history" class="text-xs eth-faint">
+                  {gettext(
+                    "Todavía sin historial para este tipo en la región: se pide en orden de prioridad (máx. 250 por minuto)."
+                  )}
+                </p>
+              <% end %>
             </.detail_col>
 
             <:footer>

@@ -225,9 +225,10 @@ defmodule EthWeb.TradingComponents do
 
   def book_next(assigns) do
     ~H"""
-    <div id={@id} class="mt-1.5 border-t border-dashed border-base-300 pt-1 eth-faint">
-      <div class="mb-0.5 font-sans text-[10px] uppercase tracking-wider">
-        {if @levels == [], do: gettext("no hay más órdenes"), else: gettext("siguen")}
+    <div id={@id} class="eth-faint">
+      <div class="my-1 flex items-center gap-1.5 font-sans text-[9px] uppercase tracking-wider">
+        <span class="flex-1 border-t border-dashed border-base-300"></span>
+        {if @levels == [], do: gettext("no hay más"), else: gettext("siguen")}
       </div>
       <div :for={{price, qty} <- @levels}>
         {EthWeb.Format.compact(price)} × {EthWeb.Format.integer(qty)}
