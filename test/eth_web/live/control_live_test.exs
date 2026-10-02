@@ -252,6 +252,26 @@ defmodule EthWeb.ControlLiveTest do
     end
 
     @tag :tmp_dir
+    test "los anillos se animan: descarga en curso, error y datos nuevos", %{
+      conn: conn,
+      tmp_dir: tmp_dir
+    } do
+      :ok = EngineFixture.load_sde(tmp_dir)
+      {:ok, view, _html} = live(conn, ~p"/control/market?view=map")
+
+      # Snapshot recién llegado con páginas nuevas: destella una vez (por generación).
+      send(view.pid, {:region_status, region_status(%{})})
+      assert has_element?(view, "#map-region-10000002 #map-ping-10000002-2.eth-map-ping")
+
+      send(view.pid, {:region_status, region_status(%{status: :fetching, progress: {10, 400}})})
+      assert has_element?(view, "#map-region-10000002 .eth-map-spin")
+
+      send(view.pid, {:region_status, region_status(%{status: :backoff})})
+      assert has_element?(view, "#map-region-10000002 .eth-map-alarm")
+      refute has_element?(view, "#map-region-10000002 .eth-map-spin")
+    end
+
+    @tag :tmp_dir
     test "capas que se encienden por separado y opciones del mapa", %{
       conn: conn,
       tmp_dir: tmp_dir

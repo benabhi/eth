@@ -42,6 +42,9 @@ defmodule EthWeb.ControlLive do
 
   # Capas del mapa: se encienden y apagan por separado.
   @map_layers ~w(pollers radar opps pilots routes stations borders)a
+  # Segundos en que un anillo destella después de un snapshot con datos nuevos.
+  @ping_seconds 4
+
   # Por defecto solo los pollers; Rutas se enciende sola con una ruta del tablón o un viaje.
   @map_layers_default [:pollers]
   @map_options %{
@@ -1648,6 +1651,7 @@ defmodule EthWeb.ControlLive do
     assigns =
       assigns
       |> assign(flags)
+      |> assign(poller_motion(status, key, now))
       |> assign(
         r: r,
         label: label,
@@ -1685,9 +1689,19 @@ defmodule EthWeb.ControlLive do
           fill-opacity={if(@alerts?, do: "0.3", else: "0.12")}
         />
         <%= if @pollers? do %>
+          <%!-- Datos nuevos: un destello que se expande una sola vez (un elemento por generación) --%>
+          <circle
+            :if={@ping}
+            id={"map-ping-#{@node.id}-#{@ping}"}
+            r={@r}
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            class={["eth-map-ping", tone_text(@color)]}
+          />
           <circle
             r={@r}
-            class={["fill-base-100", tone_text(@color)]}
+            class={["fill-base-100", tone_text(@color), @alarm? && "eth-map-alarm"]}
             stroke="currentColor"
             stroke-opacity="0.3"
             stroke-width="2"
@@ -1696,10 +1710,21 @@ defmodule EthWeb.ControlLive do
             r={@r}
             fill="none"
             stroke="currentColor"
-            class={tone_text(@color)}
+            class={["eth-map-arc", tone_text(@color)]}
             stroke-width="2.5"
             stroke-dasharray={GalaxyMap.arc_dash(@fraction, @r)}
             transform="rotate(-90)"
+          />
+          <%!-- Descargando: un tramo corto que gira por fuera del anillo --%>
+          <circle
+            :if={@fetching?}
+            r={@r + 3}
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-dasharray={GalaxyMap.arc_dash(0.2, @r + 3)}
+            class="eth-map-spin text-info"
           />
           <circle r="2.5" fill="currentColor" class={tone_text(@color)} />
         <% else %>
@@ -1755,6 +1780,25 @@ defmodule EthWeb.ControlLive do
       major?: hub?(status) or assigns.selected or alerts? or pilots?
     }
   end
+
+  # Animaciones del anillo: descarga en curso, error o límite (parpadeo) y datos nuevos
+  # (destello, solo en los segundos después de un snapshot con cambios).
+  defp poller_motion(nil, _key, _now), do: %{fetching?: false, alarm?: false, ping: nil}
+
+  defp poller_motion(status, key, now) do
+    %{
+      fetching?: status.status == :fetching,
+      alarm?: key in [:backoff, :rate_limited],
+      ping: if(fresh_snapshot?(status, now), do: status[:generation])
+    }
+  end
+
+  defp fresh_snapshot?(%{history: [%{at: %DateTime{} = at} = last | _]}, now) do
+    changed? = Map.get(last, :not_modified, 0) < Map.get(last, :pages, 1)
+    changed? and DateTime.diff(now, at) <= @ping_seconds
+  end
+
+  defp fresh_snapshot?(_status, _now), do: false
 
   defp hub?(%{tier: :hub}), do: true
   defp hub?(_status), do: false

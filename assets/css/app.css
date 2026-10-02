@@ -579,6 +579,27 @@ svg[data-zoomed="near"] .eth-map-label-minor { display: inline; }
   color: var(--color-base-content);
   font-variant-numeric: tabular-nums;
 }
+/* Anillos de los pollers en el mapa: el arco avanza de corrido, un tramo gira mientras
+   descarga, el anillo parpadea lento con error o límite y destella con datos nuevos. */
+.eth-map-arc { transition: stroke-dasharray 1s linear; }
+@keyframes eth-map-spin { to { transform: rotate(360deg); } }
+.eth-map-spin { transform-origin: 0 0; animation: eth-map-spin 1.4s linear infinite; }
+@keyframes eth-map-alarm { 0%, 100% { stroke-opacity: 0.3; } 50% { stroke-opacity: 0.9; } }
+.eth-map-alarm { animation: eth-map-alarm 1.6s ease-in-out infinite; }
+@keyframes eth-map-ping {
+  0% { opacity: 0.9; transform: scale(1); }
+  100% { opacity: 0; transform: scale(2.6); }
+}
+.eth-map-ping {
+  transform-origin: 0 0;
+  opacity: 0;
+  animation: eth-map-ping 1.4s ease-out 1 forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .eth-map-arc { transition: none; }
+  .eth-map-spin, .eth-map-alarm, .eth-map-ping { animation: none; }
+}
+
 /* Leyenda plegable dentro del lienzo. */
 .eth-map-legend > summary { list-style: none; cursor: pointer; }
 .eth-map-legend > summary::-webkit-details-marker { display: none; }
