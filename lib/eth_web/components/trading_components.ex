@@ -87,7 +87,15 @@ defmodule EthWeb.TradingComponents do
   def board_header(assigns) do
     ~H"""
     <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
-      <h1 class="font-display text-2xl font-semibold eth-strong sm:text-[26px]">{@title}</h1>
+      <h1 class="flex items-center gap-3 font-display text-2xl font-semibold eth-strong sm:text-[26px]">
+        {@title}
+        <%!-- "Caza" es la forma de jugar con los trades, no combate: se aclara acá --%>
+        <.help topic={:board} title={@title} align="start">
+          {gettext(
+            "No es combate: es la forma gamificada de salir a buscar trades. Cada fila es un contrato (comprar acá y vender allá) con su recompensa, su peligro y un rango de S a D; elegí uno, iniciá la caza y la app te acompaña en el viaje."
+          )}
+        </.help>
+      </h1>
       <.family_nav active={@family} search={@search} />
       <div class="flex-1"></div>
       <div class="flex items-end gap-6">{render_slot(@stats)}</div>

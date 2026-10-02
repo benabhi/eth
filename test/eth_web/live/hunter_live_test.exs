@@ -34,6 +34,8 @@ defmodule EthWeb.HunterLiveTest do
   test "sin evaluación todavía muestra el estado de espera", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/")
     assert has_element?(view, "#hunter-status", "todavía no evaluó")
+    # El título explica que la "caza" es la forma de buscar trades, no combate.
+    assert has_element?(view, "h1 .eth-help[aria-label='Ayuda: Tablón de caza']")
     assert has_element?(view, "#opportunities-empty")
   end
 
