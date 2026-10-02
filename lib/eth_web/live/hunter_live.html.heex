@@ -389,7 +389,6 @@
           <.row_detail
             :if={@selected == row.id}
             id="detail"
-            flow
             label={gettext("Ficha de %{name}", name: row.opportunity.type_name)}
           >
             <div
@@ -397,7 +396,7 @@
               id="shield-alert"
               role={if scam?(row), do: "alert", else: "status"}
               class={[
-                "mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 border px-3 py-2 text-sm [column-span:all]",
+                "flex flex-wrap items-center gap-x-3 gap-y-1 border px-3 py-2 text-sm md:col-span-2 xl:col-span-4",
                 if(scam?(row),
                   do: "border-error/50 bg-error/10",
                   else: "border-warning/50 bg-warning/10"
@@ -426,7 +425,7 @@
               </button>
             </div>
 
-            <.detail_col boxed title={gettext("Cálculo")} topic={:profit}>
+            <.detail_col title={gettext("Cálculo")} topic={:profit}>
               <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm tabular-nums">
                 <dt class="eth-muted">{gettext("Cantidad")}</dt>
                 <dd class="text-right font-mono">
@@ -467,187 +466,31 @@
                   </span>
                 </dd>
               </dl>
-
-              <%!-- Colchón del contrato (RF-6.16): si otro piloto llega antes a la mejor compra --%>
-              <div
-                :if={@book_depth}
-                id="book-fallback"
-                class="mt-1.5 flex items-baseline justify-between gap-3 border-t border-dashed border-base-300 pt-1.5 text-sm"
-              >
-                <span class="flex items-center gap-1 eth-muted">
-                  {gettext("Si falla la mejor compra")}
-                  <.help topic={:book_depth} title={gettext("Si falla la mejor compra")}>
-                    {gettext(
-                      "Beneficio si la orden de compra de mayor precio desaparece antes de que llegues (otro piloto le vendió primero o el comprador la canceló): se vende a las siguientes."
-                    )}
-                  </.help>
-                </span>
-                <span class={["text-right font-mono", fallback_class(@book_depth.fallback, row)]}>
-                  <%= if fb = @book_depth.fallback do %>
-                    {Format.compact(fb.profit)}
-                    <span class="eth-faint">({fallback_change(fb, row)})</span>
-                  <% else %>
-                    {gettext("deja de ser rentable")}
-                  <% end %>
-                </span>
-              </div>
+              <.skill_gains gains={@skill_gains} />
             </.detail_col>
 
-            <.detail_col
-              :if={@skill_gains != []}
-              boxed
-              title={gettext("Si entrenás")}
-              topic={:skills}
-              help={
-                gettext(
-                  "Lo que sumaría este mismo contrato con más nivel en cada habilidad: menos impuestos y comisiones, y a veces más cantidad con margen. Se calcula con tu nivel actual (o el del filtro)."
-                )
-              }
-            >
-              <.skill_gains gains={@skill_gains} heading={false} />
-            </.detail_col>
-
-            <.detail_col boxed title={gettext("Libro consumido")} topic={:walk}>
+            <.detail_col title={gettext("Libro consumido")} topic={:walk}>
               <div class="grid grid-cols-2 gap-3 font-mono text-xs">
                 <div>
                   <div class="mb-0.5 font-sans eth-faint">{gettext("Compra (ventas)")}</div>
                   <div :for={{price, qty} <- row.asks_used}>
                     {Format.compact(price)} × {Format.integer(qty)}
                   </div>
-                  <.book_next :if={@book_depth} id="book-next-asks" levels={@book_depth.asks} />
                 </div>
                 <div>
                   <div class="mb-0.5 font-sans eth-faint">{gettext("Venta (compras)")}</div>
                   <div :for={{price, qty, min_volume} <- row.bids_used}>
                     {Format.compact(price)} × {Format.integer(qty)}<span :if={min_volume > 1}> (mín. {min_volume})</span>
                   </div>
-                  <.book_next :if={@book_depth} id="book-next-bids" levels={@book_depth.bids} />
                 </div>
               </div>
-            </.detail_col>
 
-            <%!-- Ruta: sistemas del camino, seguridad y amenazas del radar --%>
-            <.detail_col
-              boxed
-              title={gettext("Ruta (%{mode})", mode: route_label(@query.route_mode))}
-              topic={:radar}
-              help={
-                gettext(
-                  "En negrita, el origen (se compra ahí). Pasá el mouse para ver el riesgo."
-                )
-              }
-            >
-              <p class="mb-2 font-mono text-xs eth-faint">
-                {row.jumps_to_origin} {gettext("saltos al origen")} + {row.jumps} {gettext(
-                  "al destino"
-                )}
-              </p>
-              <%= cond do %>
-                <% @route_loading -> %>
-                  <.spinner
-                    id="route-loading"
-                    size={18}
-                    label={gettext("Calculando la ruta…")}
-                    hint={gettext("Sistemas, seguridad y amenazas del radar")}
-                  />
-                <% @route_details -> %>
-                  <div :for={d <- [@route_details]} id="route" class="text-xs">
-                    <%!-- Una ruta larga no estira toda la ficha: scroll propio desde md --%>
-                    <div class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono md:max-h-80 md:overflow-y-auto md:pr-1">
-                      <span
-                        :for={{s, i} <- Enum.with_index(d.to_origin ++ tl(d.route))}
-                        title={"#{s.name} · #{pct(s.probability)}"}
-                        class={[
-                          "whitespace-nowrap",
-                          s.type && "bg-error px-1 text-error-content",
-                          i == length(d.to_origin) - 1 && "font-bold underline"
-                        ]}
-                      >
-                        <span style={sec_style(s.security)}>{sec_label(s.security)}</span> {s.name}
-                      </span>
-                    </div>
-                    <ul
-                      :if={Enum.any?(d.to_origin ++ d.route, & &1.type)}
-                      class="mt-2 space-y-0.5"
-                    >
-                      <li
-                        :for={
-                          s <-
-                            Enum.uniq_by(
-                              Enum.filter(d.to_origin ++ d.route, & &1.type),
-                              & &1.system_id
-                            )
-                        }
-                        class="text-error"
-                      >
-                        {s.name}: {s.description} · {gettext("riesgo")} {pct(s.probability)}
-                      </li>
-                    </ul>
-                  </div>
-                <% true -> %>
-                  <p class="text-xs eth-faint">{gettext("Sin ruta disponible.")}</p>
-              <% end %>
-            </.detail_col>
-
-            <.detail_col
-              boxed
-              title={gettext("¿Por qué TVS %{tvs}?", tvs: row.tvs)}
-              topic={:tvs}
-            >
-              <p class="eth-formula">
-                {gettext("utilidad")} {:erlang.float_to_binary(row.utility, decimals: 2)} × {gettext(
-                  "certeza"
-                )} {:erlang.float_to_binary(row.certainty, decimals: 2)} = {row.tvs} → {Grade.rank(
-                  row.tvs
-                )}
-              </p>
-              <ul class="mt-2 space-y-0.5 text-xs tabular-nums">
-                <li class="flex justify-between gap-3">
-                  <span class="eth-muted">{gettext("Órdenes vigentes al llegar")}</span>
-                  <span class="font-mono">{pct(row.breakdown.order_certainty)}</span>
-                </li>
-                <li class="flex justify-between gap-3">
-                  <span class="eth-muted">{gettext("Frescura de datos")}</span>
-                  <span class="font-mono">{pct(row.breakdown.data_certainty)}</span>
-                </li>
-                <li class="flex justify-between gap-3">
-                  <span class="eth-muted">
-                    {gettext("Anti-scam (%{status})", status: shield_label(row.shield.status))}
-                  </span>
-                  <span class="font-mono">{pct(row.breakdown.scam_certainty)}</span>
-                </li>
-                <li class="flex justify-between gap-3">
-                  <span class="eth-muted">{gettext("Acceso")}</span>
-                  <span class="font-mono">{pct(row.breakdown.access_certainty)}</span>
-                </li>
-                <li class="flex justify-between gap-3">
-                  <span class="eth-muted">
-                    {gettext("Ruta (amenazas y riesgo base)")}
-                    <span :if={@radar_degraded} class="text-warning">
-                      · {gettext("radar degradado")}
-                    </span>
-                  </span>
-                  <span class="font-mono">{pct(row.breakdown.route_certainty)}</span>
-                </li>
-                <li class="flex justify-between gap-3">
-                  <span class="eth-muted">
-                    <%= if row.history.destination do %>
-                      {gettext("Liquidez")}
-                    <% else %>
-                      {gettext("Liquidez (neutra hasta tener historial)")}
-                    <% end %>
-                  </span>
-                  <span class="font-mono">{pct(row.breakdown.liquidity)}</span>
-                </li>
-              </ul>
-            </.detail_col>
-
-            <.detail_col
-              boxed
-              title={gettext("Historial del destino")}
-              topic={:liquidity}
-              help={gettext("Precio y volumen de los últimos 30 días en la región de destino.")}
-            >
+              <h3 class="eth-kicker mt-4 mb-2 flex items-center gap-2 text-[11px] text-primary">
+                {gettext("Historial del destino")}
+                <.help topic={:liquidity} title={gettext("Historial")}>
+                  {gettext("Precio y volumen de los últimos 30 días en la región de destino.")}
+                </.help>
+              </h3>
               <%= if h = row.history.destination do %>
                 <div id="history" class="text-xs">
                   <svg
@@ -702,6 +545,116 @@
                   )}
                 </p>
               <% end %>
+            </.detail_col>
+
+            <%!-- Ruta: sistemas del camino, seguridad y amenazas del radar --%>
+            <.detail_col
+              title={gettext("Ruta (%{mode})", mode: route_label(@query.route_mode))}
+              topic={:radar}
+              help={
+                gettext(
+                  "En negrita, el origen (se compra ahí). Pasá el mouse para ver el riesgo."
+                )
+              }
+            >
+              <p class="mb-2 font-mono text-xs eth-faint">
+                {row.jumps_to_origin} {gettext("saltos al origen")} + {row.jumps} {gettext(
+                  "al destino"
+                )}
+              </p>
+              <%= cond do %>
+                <% @route_loading -> %>
+                  <.spinner
+                    id="route-loading"
+                    size={18}
+                    label={gettext("Calculando la ruta…")}
+                    hint={gettext("Sistemas, seguridad y amenazas del radar")}
+                  />
+                <% @route_details -> %>
+                  <div :for={d <- [@route_details]} id="route" class="text-xs">
+                    <div class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono">
+                      <span
+                        :for={{s, i} <- Enum.with_index(d.to_origin ++ tl(d.route))}
+                        title={"#{s.name} · #{pct(s.probability)}"}
+                        class={[
+                          "whitespace-nowrap",
+                          s.type && "bg-error px-1 text-error-content",
+                          i == length(d.to_origin) - 1 && "font-bold underline"
+                        ]}
+                      >
+                        <span style={sec_style(s.security)}>{sec_label(s.security)}</span> {s.name}
+                      </span>
+                    </div>
+                    <ul
+                      :if={Enum.any?(d.to_origin ++ d.route, & &1.type)}
+                      class="mt-2 space-y-0.5"
+                    >
+                      <li
+                        :for={
+                          s <-
+                            Enum.uniq_by(
+                              Enum.filter(d.to_origin ++ d.route, & &1.type),
+                              & &1.system_id
+                            )
+                        }
+                        class="text-error"
+                      >
+                        {s.name}: {s.description} · {gettext("riesgo")} {pct(s.probability)}
+                      </li>
+                    </ul>
+                  </div>
+                <% true -> %>
+                  <p class="text-xs eth-faint">{gettext("Sin ruta disponible.")}</p>
+              <% end %>
+            </.detail_col>
+
+            <.detail_col title={gettext("¿Por qué TVS %{tvs}?", tvs: row.tvs)} topic={:tvs}>
+              <p class="eth-formula">
+                {gettext("utilidad")} {:erlang.float_to_binary(row.utility, decimals: 2)} × {gettext(
+                  "certeza"
+                )} {:erlang.float_to_binary(row.certainty, decimals: 2)} = {row.tvs} → {Grade.rank(
+                  row.tvs
+                )}
+              </p>
+              <ul class="mt-2 space-y-0.5 text-xs tabular-nums">
+                <li class="flex justify-between gap-3">
+                  <span class="eth-muted">{gettext("Órdenes vigentes al llegar")}</span>
+                  <span class="font-mono">{pct(row.breakdown.order_certainty)}</span>
+                </li>
+                <li class="flex justify-between gap-3">
+                  <span class="eth-muted">{gettext("Frescura de datos")}</span>
+                  <span class="font-mono">{pct(row.breakdown.data_certainty)}</span>
+                </li>
+                <li class="flex justify-between gap-3">
+                  <span class="eth-muted">
+                    {gettext("Anti-scam (%{status})", status: shield_label(row.shield.status))}
+                  </span>
+                  <span class="font-mono">{pct(row.breakdown.scam_certainty)}</span>
+                </li>
+                <li class="flex justify-between gap-3">
+                  <span class="eth-muted">{gettext("Acceso")}</span>
+                  <span class="font-mono">{pct(row.breakdown.access_certainty)}</span>
+                </li>
+                <li class="flex justify-between gap-3">
+                  <span class="eth-muted">
+                    {gettext("Ruta (amenazas y riesgo base)")}
+                    <span :if={@radar_degraded} class="text-warning">
+                      · {gettext("radar degradado")}
+                    </span>
+                  </span>
+                  <span class="font-mono">{pct(row.breakdown.route_certainty)}</span>
+                </li>
+                <li class="flex justify-between gap-3">
+                  <span class="eth-muted">
+                    <%= if row.history.destination do %>
+                      {gettext("Liquidez")}
+                    <% else %>
+                      {gettext("Liquidez (neutra hasta tener historial)")}
+                    <% end %>
+                  </span>
+                  <span class="font-mono">{pct(row.breakdown.liquidity)}</span>
+                </li>
+              </ul>
             </.detail_col>
 
             <:footer>

@@ -71,21 +71,16 @@ El resultado se ordena en el servidor y se corta en 200 filas (RNF-1.6).
 Las tres consultas aceptan `no_structures` (saca orígenes, destinos o lugares que son
 estructuras Upwell) y el orden `:newest` (por `first_seen`, RF-6.14).
 
-**Ficha del contrato (RF-6.15, RF-6.16).** Solo para la fila abierta:
-
-- `Eth.Engine.skill_gains/3` vuelve a personalizar el contrato con Accounting (y Broker
-  Relations en Estación y Por órdenes) al nivel siguiente y al V, con la misma función de la
-  consulta (`SkillGains`), y resta el valor actual.
-- `Eth.Engine.book_depth/2` lee de ETS las ventas del origen y las compras que cubren el
-  destino (con `Range`), devuelve las 5 que siguen a las consumidas (`BookDepth.next_levels/3`)
-  y repite el walk-the-book sin la mejor compra (`BookDepth.without_best_bid/4`).
+**Ficha del contrato (RF-6.15).** Solo para la fila abierta, `Eth.Engine.skill_gains/3`
+vuelve a personalizar el contrato con Accounting (y Broker Relations en Estación y Por
+órdenes) al nivel siguiente y al V, con la misma función de la consulta (`SkillGains`), y
+resta el valor actual.
 
 ## Módulos de apoyo
 
 | Módulo | Qué hace |
 |---|---|
 | `Book` | Walk-the-book: cuánto se compra y se vende orden por orden. |
-| `BookDepth` | Órdenes que siguen a las consumidas y el contrato sin la mejor compra (RF-6.16). |
 | `FirstSeen` | Momento de aparición de cada oportunidad entre evaluaciones (RF-6.14). |
 | `SkillGains` | Cuánto suma subir una habilidad de comercio en un contrato (RF-6.15). |
 | `Fees` | Sales tax y broker fee (NPC) según habilidades y standings. |

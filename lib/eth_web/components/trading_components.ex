@@ -10,11 +10,10 @@ defmodule EthWeb.TradingComponents do
   escucha el teclado de la ventana y actúa sobre elementos marcados con
   `data-shortcut`, más el diálogo de ayuda que abre `?`.
 
-  También el tiempo de cada contrato en el tablón (`board_age/1`, RF-6.14), lo que
-  sumaría subir las habilidades de comercio (`skill_gains/1`, RF-6.15) y las órdenes que
-  siguen a las consumidas (`book_next/1`, RF-6.16).
+  También el tiempo de cada contrato en el tablón (`board_age/1`, RF-6.14) y lo que
+  sumaría subir las habilidades de comercio (`skill_gains/1`, RF-6.15).
 
-  Implementa: RF-6.4, RF-6.5, RF-6.9, RF-6.12, RF-6.13, RF-6.14, RF-6.15, RF-6.16, RF-11.2.
+  Implementa: RF-6.4, RF-6.5, RF-6.9, RF-6.12, RF-6.13, RF-6.14, RF-6.15, RF-11.2.
   """
   use EthWeb, :html
 
@@ -162,15 +161,11 @@ defmodule EthWeb.TradingComponents do
   """
   attr :gains, :list, required: true, doc: "de `Eth.Engine.skill_gains/3`"
   attr :unit, :string, default: nil, doc: "sufijo del valor, p. ej. \"/día\""
-  attr :heading, :boolean, default: true, doc: "sin encabezado si ya va en su tarjeta"
 
   def skill_gains(assigns) do
     ~H"""
-    <div :if={@gains != []} id="skill-gains" class={@heading && "mt-4"}>
-      <h3
-        :if={@heading}
-        class="eth-kicker mb-2 flex items-center gap-2 text-[11px] text-primary"
-      >
+    <div :if={@gains != []} id="skill-gains" class="mt-4">
+      <h3 class="eth-kicker mb-2 flex items-center gap-2 text-[11px] text-primary">
         {gettext("Si entrenás")}
         <.help topic={:skills} title={gettext("Si entrenás")}>
           {gettext(
@@ -219,27 +214,6 @@ defmodule EthWeb.TradingComponents do
   defp skill_name(:broker_relations), do: "Broker Relations"
 
   defp level_roman(level), do: Enum.at(~w(0 I II III IV V), level)
-
-  @doc """
-  Órdenes que siguen a las consumidas en el libro (RF-6.16), atenuadas debajo de ellas:
-  muestran el colchón del contrato si cambian las primeras.
-  """
-  attr :id, :string, required: true
-  attr :levels, :list, required: true, doc: "`[{precio, cantidad}]` del mejor al peor"
-
-  def book_next(assigns) do
-    ~H"""
-    <div id={@id} class="eth-faint">
-      <div class="my-1 flex items-center gap-1.5 font-sans text-[9px] uppercase tracking-wider">
-        <span class="flex-1 border-t border-dashed border-base-300"></span>
-        {if @levels == [], do: gettext("no hay más"), else: gettext("siguen")}
-      </div>
-      <div :for={{price, qty} <- @levels}>
-        {EthWeb.Format.compact(price)} × {EthWeb.Format.integer(qty)}
-      </div>
-    </div>
-    """
-  end
 
   @doc "Anillo de Certeza con el porcentaje al centro y color por tramo."
   attr :value, :float, required: true
@@ -552,14 +526,9 @@ defmodule EthWeb.TradingComponents do
   @doc """
   Contenedor de la ficha que se despliega bajo la fila: se desenrolla al abrir, se
   desvanece al cerrar y se desplaza a la vista si quedó fuera de la pantalla.
-
-  Con `flow`, las secciones (tarjetas `detail_col boxed`) se acomodan en mosaico: fluyen en
-  columnas que el navegador equilibra para que terminen a la misma altura, sea cual sea el
-  largo de cada una (una ruta de 4 o de 80 saltos, dos órdenes o diez).
   """
   attr :id, :string, required: true
   attr :label, :string, required: true
-  attr :flow, :boolean, default: false, doc: "mosaico equilibrado en lugar de grilla fija"
   slot :inner_block, required: true
   slot :footer
 
@@ -576,12 +545,7 @@ defmodule EthWeb.TradingComponents do
       }
       class="eth-unfold cursor-default border-t border-primary/30 bg-base-200/70 px-4 pt-4 pb-3"
     >
-      <div class={
-        if(@flow,
-          do: "columns-1 gap-x-4 md:columns-2 xl:columns-4",
-          else: "grid gap-x-6 gap-y-5 md:grid-cols-2 xl:grid-cols-4"
-        )
-      }>
+      <div class="grid gap-x-6 gap-y-5 md:grid-cols-2 xl:grid-cols-4">
         {render_slot(@inner_block)}
       </div>
       <div
@@ -605,24 +569,16 @@ defmodule EthWeb.TradingComponents do
     """
   end
 
-  @doc """
-  Columna de la ficha: título en versalitas con su \"?\" y contenido. Con `boxed`, es una
-  tarjeta del mosaico (`row_detail flow`): no se corta entre columnas.
-  """
+  @doc "Columna de la ficha: título en versalitas con su \"?\" y contenido."
   attr :title, :string, required: true
   attr :topic, :atom, default: nil
   attr :help, :string, default: nil
-  attr :boxed, :boolean, default: false
   attr :class, :any, default: nil
   slot :inner_block, required: true
 
   def detail_col(assigns) do
     ~H"""
-    <div class={[
-      "min-w-0",
-      @boxed && "mb-4 break-inside-avoid border border-base-300/60 bg-base-100/40 p-3",
-      @class
-    ]}>
+    <div class={["min-w-0", @class]}>
       <h3 class="eth-kicker mb-2 flex items-center gap-2 text-[11px] text-primary">
         {@title}
         <.help :if={@topic && @help} topic={@topic} title={@title}>{@help}</.help>

@@ -2,15 +2,13 @@ defmodule Eth.Engine do
   @moduledoc """
   API pública del motor de evaluación para la web y otros contextos (RNF-7.3).
 
-  Implementa: RF-4.8, RF-4.12, RF-4.13, RF-4.14, RF-6.5, RF-6.14, RF-6.15, RF-6.16.
+  Implementa: RF-4.8, RF-4.12, RF-4.13, RF-4.14, RF-6.5, RF-6.14, RF-6.15.
   """
 
   alias Eth.{Clock, Events, GameRules, Market, Repo}
 
   alias Eth.Engine.{
-    BookDepth,
     Coordinator,
-    Fees,
     FirstSeen,
     Locations,
     Opportunity,
@@ -19,7 +17,6 @@ defmodule Eth.Engine do
     OwnOrders,
     PublishLocations,
     Query,
-    Range,
     RouteRisk,
     SaleQuote,
     ScamReport,
@@ -29,7 +26,7 @@ defmodule Eth.Engine do
     Summary
   }
 
-  alias Eth.Market.{History, OrderBook, TableOwner}
+  alias Eth.Market.{History, TableOwner}
 
   @doc "Tópico con los anuncios de nueva versión de oportunidades."
   @spec topic() :: String.t()
@@ -151,7 +148,7 @@ defmodule Eth.Engine do
   defp region_of({:region, id}, _entry), do: id
   defp region_of({:structure, _id}, entry), do: entry.meta[:region_id]
 
-  ## Ficha del contrato: antigüedad, habilidades y libro (RF-6.14 a RF-6.16)
+  ## Ficha del contrato: antigüedad y habilidades (RF-6.14, RF-6.15)
 
   @doc """
   Minutos que lleva una oportunidad en el tablón y si es una cota inferior (ya estaba al
@@ -197,78 +194,6 @@ defmodule Eth.Engine do
 
   defp value(nil, _field), do: nil
   defp value(row, field), do: Map.fetch!(row, field)
-
-  @book_depth_levels 5
-  # Órdenes de venta del origen que se leen como máximo (el libro de un hub puede tener
-  # cientos; las consumidas más las siguientes casi nunca pasan de unas decenas).
-  @book_depth_scan 300
-
-  @doc """
-  Libro más allá de lo que consume un contrato directo (`Eth.Engine.BookDepth`): las
-  siguientes ventas del origen y compras que cubren el destino, y el beneficio si la
-  mejor compra desaparece antes de llegar (`nil` si deja de ser rentable). Lee las tablas
-  de órdenes en memoria, sin consultar a ESI. `nil` si el libro ya no está.
-  """
-  @spec book_depth(map(), map()) ::
-          %{asks: [BookDepth.level()], bids: [BookDepth.level()], fallback: map() | nil} | nil
-  def book_depth(%{opportunity: opp} = row, params) do
-    p = Map.merge(Query.defaults(), params)
-    asks = origin_asks(opp)
-    bids = destination_bids(opp)
-
-    limits = %{
-      capital: p.capital || :infinity,
-      cargo_m3: p.cargo_m3 || :infinity,
-      unit_volume: opp.unit_volume,
-      min_unit_margin: GameRules.get(:min_unit_margin_isk)
-    }
-
-    %{
-      asks: BookDepth.next_levels(asks, consumed(row.asks_used), @book_depth_levels),
-      bids:
-        BookDepth.next_levels(
-          Enum.map(bids, fn {price, qty, _min} -> {price, qty} end),
-          consumed(row.bids_used),
-          @book_depth_levels
-        ),
-      fallback: BookDepth.without_best_bid(asks, bids, Fees.sales_tax(p.accounting), limits)
-    }
-  rescue
-    # La generación pudo borrarse tras su período de gracia en plena lectura.
-    ArgumentError -> nil
-  end
-
-  defp consumed(levels), do: Enum.sum_by(levels, &elem(&1, 1))
-
-  # Ventas del origen, de menor a mayor precio: la estructura si se lee directo; si no, la
-  # región.
-  defp origin_asks(%{origin: origin, type_id: type_id}) do
-    source =
-      if TableOwner.current({:structure, origin.location_id}),
-        do: {:structure, origin.location_id},
-        else: {:region, origin.region_id}
-
-    case TableOwner.current(source) do
-      %{tid: tid} ->
-        tid
-        |> OrderBook.at_location(type_id, :sell, origin.location_id, @book_depth_scan)
-        |> Enum.map(fn {price, qty, _id, _issued, _min} -> {price, qty} end)
-
-      nil ->
-        []
-    end
-  end
-
-  # Compras de todas las fuentes cuyo rango cubre el destino, de mayor a menor precio.
-  defp destination_bids(%{destination: destination, type_id: type_id}) do
-    jumps = &Eth.Routing.distance(&1, &2, :shortest)
-
-    type_id
-    |> bids()
-    |> Enum.filter(&Range.covers?(&1, destination, jumps))
-    |> Enum.sort_by(& &1.price, :desc)
-    |> Enum.map(&{&1.price, &1.volume, &1.min_volume})
-  end
 
   @doc "Consulta personalizada (RF-4.14): `{filas, total}`."
   @spec query(Query.params()) :: {[map()], non_neg_integer()}
