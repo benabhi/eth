@@ -582,8 +582,23 @@ svg[data-zoomed="near"] .eth-map-label-minor { display: inline; }
 /* Leyenda plegable dentro del lienzo. */
 .eth-map-legend > summary { list-style: none; cursor: pointer; }
 .eth-map-legend > summary::-webkit-details-marker { display: none; }
-.eth-map:fullscreen { display: flex; align-items: center; background: var(--color-base-100); }
-.eth-map:fullscreen > svg { height: 100%; }
+/* Pantalla completa del visor: la barra arriba, el lienzo ocupa el resto y el inspector
+   tiene scroll propio al costado (debajo en pantallas angostas). */
+.eth-map-frame:fullscreen {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.25rem;
+  overflow: auto;
+  background: var(--color-base-100);
+}
+.eth-map-frame:fullscreen > .eth-map-body { flex: 1; min-height: 0; }
+.eth-map-frame:fullscreen .eth-map-main { display: flex; flex-direction: column; min-height: 0; }
+.eth-map-frame:fullscreen .eth-map-stage { flex: 1; min-height: 20rem; }
+.eth-map-frame:fullscreen .eth-map,
+.eth-map-frame:fullscreen .eth-map > svg { height: 100%; }
+@media (min-width: 80rem) {
+  .eth-map-frame:fullscreen #map-inspector { overflow-y: auto; min-height: 0; }
+}
 
 /* Etapa en curso del viaje (RF-7.2): late suave para indicar actividad real. */
 @keyframes eth-pulse-bar {

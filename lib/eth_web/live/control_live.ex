@@ -1428,9 +1428,11 @@ defmodule EthWeb.ControlLive do
             this.view = {...this.base}
             this.apply()
           }
+          // Pantalla completa del visor entero (barra, lienzo e inspector), no solo del svg.
           if (action === "full") {
+            const frame = this.el.closest("[data-map-frame]") || this.el
             if (document.fullscreenElement) document.exitFullscreen()
-            else if (this.el.requestFullscreen) this.el.requestFullscreen()
+            else if (frame.requestFullscreen) frame.requestFullscreen()
           }
         },
         point(e) {
@@ -1473,18 +1475,19 @@ defmodule EthWeb.ControlLive do
         },
         // Grilla de fondo apenas visible que acompaña el zoom y el arrastre (da profundidad
         // sin competir con el dibujo): el paso se mantiene entre 24 y 48 px en pantalla.
+        // Con la matriz de pantalla: vale también en pantalla completa, donde el dibujo queda
+        // centrado con márgenes (preserveAspectRatio).
         grid() {
-          const v = this.view
-          const width = this.svg.clientWidth
-          if (!width) return
-          const scale = width / v.w
-          let step = 50 * scale
+          const ctm = this.svg.getScreenCTM()
+          if (!ctm || !ctm.a) return
+          const box = this.svg.getBoundingClientRect()
+          let step = 50 * ctm.a
           while (step > 48) step /= 2
           while (step < 24) step *= 2
           const mod = (n) => ((n % step) + step) % step
           this.svg.style.setProperty("--grid-step", `${step.toFixed(2)}px`)
-          this.svg.style.setProperty("--grid-x", `${mod(-v.x * scale).toFixed(2)}px`)
-          this.svg.style.setProperty("--grid-y", `${mod(-v.y * scale).toFixed(2)}px`)
+          this.svg.style.setProperty("--grid-x", `${mod(ctm.e - box.left).toFixed(2)}px`)
+          this.svg.style.setProperty("--grid-y", `${mod(ctm.f - box.top).toFixed(2)}px`)
         },
         // Tooltip: título y filas "etiqueta⇥valor" (solo texto: nada de HTML del servidor).
         renderTip(target) {

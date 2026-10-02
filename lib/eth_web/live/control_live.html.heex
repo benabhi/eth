@@ -532,212 +532,215 @@
                 <% region? = @selected != nil and @region_map != nil %>
                 <% region_name = region? && map_region_name(@galaxy, @selected) %>
                 <% routes = map_routes(@map_layers, @url_route, @trips) %>
-                <%!-- Barra de herramientas: dónde estoy, buscar, capas y opciones --%>
-                <div
-                  id="map-toolbar"
-                  class="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-base-300 pb-3"
-                >
-                  <nav
-                    id="map-breadcrumb"
-                    class="flex min-w-0 items-center gap-1"
-                    aria-label={gettext("Ubicación en el mapa")}
+                <%!-- Visor: barra, lienzo e inspector; la pantalla completa los lleva juntos --%>
+                <div id="map-frame" data-map-frame class="eth-map-frame">
+                  <%!-- Barra de herramientas: dónde estoy, buscar, capas y opciones --%>
+                  <div
+                    id="map-toolbar"
+                    class="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-base-300 pb-3"
                   >
-                    <button
-                      id="map-back"
-                      type="button"
-                      phx-click="map_back"
-                      aria-current={!region? && "page"}
-                      class={[
-                        "btn btn-xs",
-                        if(region?, do: "btn-ghost border-base-300", else: "btn-primary")
-                      ]}
+                    <nav
+                      id="map-breadcrumb"
+                      class="flex min-w-0 items-center gap-1"
+                      aria-label={gettext("Ubicación en el mapa")}
                     >
-                      <.icon name="hero-globe-alt" class="size-3.5" /> {gettext("Universo")}
-                    </button>
-                    <%= if region? do %>
-                      <.icon name="hero-chevron-right" class="size-3.5 shrink-0 eth-faint" />
-                      <span
-                        id="map-breadcrumb-region"
-                        aria-current="page"
-                        class="truncate font-display text-sm text-primary"
+                      <button
+                        id="map-back"
+                        type="button"
+                        phx-click="map_back"
+                        aria-current={!region? && "page"}
+                        class={[
+                          "btn btn-xs",
+                          if(region?, do: "btn-ghost border-base-300", else: "btn-primary")
+                        ]}
                       >
-                        {region_name}
-                      </span>
-                    <% end %>
-                  </nav>
-                  <.help topic={:region_map} title={gettext("Mapa del universo")}>
-                    {gettext(
-                      "Un solo lienzo: el universo con sus regiones y, al tocar una, sus sistemas. Las capas se encienden por separado; el inspector resume lo que está a la vista."
-                    )}
-                  </.help>
-
-                  <div class="join" role="group" aria-label={gettext("Capas del mapa")}>
-                    <button
-                      :for={{layer, label, icon} <- map_layer_buttons(region?)}
-                      id={"map-layer-#{layer}"}
-                      type="button"
-                      phx-click="map_layer"
-                      phx-value-layer={layer}
-                      aria-pressed={to_string(layer in @map_layers)}
-                      class={[
-                        "btn join-item btn-xs",
-                        if(layer in @map_layers,
-                          do: "btn-primary",
-                          else: "btn-ghost border-base-300 eth-muted"
-                        )
-                      ]}
-                    >
-                      <.icon name={icon} class="size-3.5" /> {label}
-                    </button>
-                  </div>
-
-                  <.map_choice
-                    :if={!region?}
-                    option="filter"
-                    label={gettext("Resaltar")}
-                    value={@map_filter}
-                    choices={[
-                      {:all, gettext("Todas")},
-                      {:problems, gettext("Con problemas")},
-                      {:heat, gettext("Con calor")},
-                      {:opps, gettext("Con oportunidades")}
-                    ]}
-                  />
-                  <.map_choice
-                    :if={region?}
-                    option="color"
-                    label={gettext("Color")}
-                    value={@map_color}
-                    choices={[{:security, gettext("Seguridad")}, {:heat, gettext("Calor")}]}
-                  />
-                  <.map_choice
-                    option="labels"
-                    label={gettext("Nombres")}
-                    value={@map_labels}
-                    choices={[{:auto, gettext("Auto")}, {:all, gettext("Todos")}]}
-                  />
-
-                  <.form
-                    for={@map_find}
-                    id="map-find"
-                    phx-submit="map_find"
-                    class="w-full sm:ml-auto sm:w-64"
-                  >
-                    <.filter_field
-                      field={@map_find[:q]}
-                      label={gettext("Buscar")}
-                      placeholder={
-                        if(region?,
-                          do: gettext("Sistema o región…"),
-                          else: gettext("Región o sistema…")
-                        )
-                      }
-                      list="map-find-options"
-                      autocomplete="off"
-                    />
-                    <datalist id="map-find-options">
-                      <option
-                        :for={n <- (region? && @region_map.nodes) || []}
-                        value={n.name}
-                      >
-                      </option>
-                      <option :for={n <- @galaxy.nodes} value={n.name}></option>
-                    </datalist>
-                  </.form>
-                </div>
-
-                <%!-- Lienzo e inspector: lado a lado en pantallas anchas --%>
-                <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-                  <div class="min-w-0">
-                    <div class="eth-chamfer border border-base-300 bg-base-200/40 p-2">
-                      <.map_canvas
-                        id="map-canvas"
-                        key={if(region?, do: "region-#{@selected}", else: "universe")}
-                      >
-                        <%= if region? do %>
-                          <.region_systems_map
-                            map={@region_map}
-                            heat={@system_heat}
-                            opps={@opps.systems}
-                            pilots={pilots}
-                            layers={@map_layers}
-                            labels={@map_labels}
-                            color={@map_color}
-                            selected={@map_system}
-                            routes={routes}
-                          />
-                        <% else %>
-                          <.galaxy_map
-                            map={@galaxy}
-                            regions={@regions}
-                            heat={@heat}
-                            opps={@opps.regions}
-                            pilots={pilots_by_region(pilots)}
-                            layers={@map_layers}
-                            filter={@map_filter}
-                            labels={@map_labels}
-                            selected={@selected}
-                            routes={routes}
-                            now={@now}
-                          />
-                        <% end %>
-                        <:legend>
-                          <.map_legend in_region={region?} />
-                        </:legend>
-                      </.map_canvas>
-                    </div>
-                    <p class="mt-1.5 text-[11px] eth-faint">
+                        <.icon name="hero-globe-alt" class="size-3.5" /> {gettext("Universo")}
+                      </button>
                       <%= if region? do %>
-                        {gettext(
-                          "Rueda o +/− para el zoom, arrastrá para moverte y doble clic para acercarte. Tocá un sistema para ver su ficha; una salida o Esc te llevan a otra región o al universo."
-                        )}
-                      <% else %>
-                        {gettext(
-                          "Vista desde arriba, como el mapa del juego. Rueda o +/− para el zoom, arrastrá para moverte y doble clic para acercarte. Tocá una región para entrar a sus sistemas."
-                        )}
+                        <.icon name="hero-chevron-right" class="size-3.5 shrink-0 eth-faint" />
+                        <span
+                          id="map-breadcrumb-region"
+                          aria-current="page"
+                          class="truncate font-display text-sm text-primary"
+                        >
+                          {region_name}
+                        </span>
                       <% end %>
-                    </p>
+                    </nav>
+                    <.help topic={:region_map} title={gettext("Mapa del universo")}>
+                      {gettext(
+                        "Un solo lienzo: el universo con sus regiones y, al tocar una, sus sistemas. Las capas se encienden por separado; el inspector resume lo que está a la vista."
+                      )}
+                    </.help>
+
+                    <div class="join" role="group" aria-label={gettext("Capas del mapa")}>
+                      <button
+                        :for={{layer, label, icon} <- map_layer_buttons(region?)}
+                        id={"map-layer-#{layer}"}
+                        type="button"
+                        phx-click="map_layer"
+                        phx-value-layer={layer}
+                        aria-pressed={to_string(layer in @map_layers)}
+                        class={[
+                          "btn join-item btn-xs",
+                          if(layer in @map_layers,
+                            do: "btn-primary",
+                            else: "btn-ghost border-base-300 eth-muted"
+                          )
+                        ]}
+                      >
+                        <.icon name={icon} class="size-3.5" /> {label}
+                      </button>
+                    </div>
+
+                    <.map_choice
+                      :if={!region?}
+                      option="filter"
+                      label={gettext("Resaltar")}
+                      value={@map_filter}
+                      choices={[
+                        {:all, gettext("Todas")},
+                        {:problems, gettext("Con problemas")},
+                        {:heat, gettext("Con calor")},
+                        {:opps, gettext("Con oportunidades")}
+                      ]}
+                    />
+                    <.map_choice
+                      :if={region?}
+                      option="color"
+                      label={gettext("Color")}
+                      value={@map_color}
+                      choices={[{:security, gettext("Seguridad")}, {:heat, gettext("Calor")}]}
+                    />
+                    <.map_choice
+                      option="labels"
+                      label={gettext("Nombres")}
+                      value={@map_labels}
+                      choices={[{:auto, gettext("Auto")}, {:all, gettext("Todos")}]}
+                    />
+
+                    <.form
+                      for={@map_find}
+                      id="map-find"
+                      phx-submit="map_find"
+                      class="w-full sm:ml-auto sm:w-64"
+                    >
+                      <.filter_field
+                        field={@map_find[:q]}
+                        label={gettext("Buscar")}
+                        placeholder={
+                          if(region?,
+                            do: gettext("Sistema o región…"),
+                            else: gettext("Región o sistema…")
+                          )
+                        }
+                        list="map-find-options"
+                        autocomplete="off"
+                      />
+                      <datalist id="map-find-options">
+                        <option
+                          :for={n <- (region? && @region_map.nodes) || []}
+                          value={n.name}
+                        >
+                        </option>
+                        <option :for={n <- @galaxy.nodes} value={n.name}></option>
+                      </datalist>
+                    </.form>
                   </div>
 
-                  <aside
-                    id="map-inspector"
-                    class="min-w-0 xl:border-l xl:border-base-300 xl:pl-4"
-                    aria-label={gettext("Inspector del mapa")}
-                  >
-                    <%!-- Rutas a la vista: la del tablón y los viajes activos --%>
-                    <div :if={routes != []} id="map-routes" class="mb-4 space-y-2">
-                      <.map_route_card
-                        :for={r <- routes}
-                        route={r}
-                        hot_index={@hot_index}
-                        galaxy={@galaxy}
-                        remove={r.kind == :route && ~p"/control/market?view=map"}
-                      />
+                  <%!-- Lienzo e inspector: lado a lado en pantallas anchas --%>
+                  <div class="eth-map-body grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+                    <div class="eth-map-main min-w-0">
+                      <div class="eth-map-stage eth-chamfer border border-base-300 bg-base-200/40 p-2">
+                        <.map_canvas
+                          id="map-canvas"
+                          key={if(region?, do: "region-#{@selected}", else: "universe")}
+                        >
+                          <%= if region? do %>
+                            <.region_systems_map
+                              map={@region_map}
+                              heat={@system_heat}
+                              opps={@opps.systems}
+                              pilots={pilots}
+                              layers={@map_layers}
+                              labels={@map_labels}
+                              color={@map_color}
+                              selected={@map_system}
+                              routes={routes}
+                            />
+                          <% else %>
+                            <.galaxy_map
+                              map={@galaxy}
+                              regions={@regions}
+                              heat={@heat}
+                              opps={@opps.regions}
+                              pilots={pilots_by_region(pilots)}
+                              layers={@map_layers}
+                              filter={@map_filter}
+                              labels={@map_labels}
+                              selected={@selected}
+                              routes={routes}
+                              now={@now}
+                            />
+                          <% end %>
+                          <:legend>
+                            <.map_legend in_region={region?} />
+                          </:legend>
+                        </.map_canvas>
+                      </div>
+                      <p class="mt-1.5 text-[11px] eth-faint">
+                        <%= if region? do %>
+                          {gettext(
+                            "Rueda o +/− para el zoom, arrastrá para moverte y doble clic para acercarte. Tocá un sistema para ver su ficha; una salida o Esc te llevan a otra región o al universo."
+                          )}
+                        <% else %>
+                          {gettext(
+                            "Vista desde arriba, como el mapa del juego. Rueda o +/− para el zoom, arrastrá para moverte y doble clic para acercarte. Tocá una región para entrar a sus sistemas."
+                          )}
+                        <% end %>
+                      </p>
                     </div>
-                    <%= if region? do %>
-                      <.map_region_panel
-                        region_id={@selected}
-                        name={region_name}
-                        map={@region_map}
-                        status={@regions[@selected]}
-                        heat={@heat[@selected]}
-                        opps={@opps}
-                        hot_index={@hot_index}
-                        system_heat={@system_heat}
-                        pilots={pilots}
-                        system={@map_system}
-                        now={@now}
-                      />
-                    <% else %>
-                      <.map_universe_panel
-                        galaxy={@galaxy}
-                        regions={@regions}
-                        heat={@heat}
-                        opps={@opps}
-                        pilots={pilots}
-                      />
-                    <% end %>
-                  </aside>
+
+                    <aside
+                      id="map-inspector"
+                      class="min-w-0 xl:border-l xl:border-base-300 xl:pl-4"
+                      aria-label={gettext("Inspector del mapa")}
+                    >
+                      <%!-- Rutas a la vista: la del tablón y los viajes activos --%>
+                      <div :if={routes != []} id="map-routes" class="mb-4 space-y-2">
+                        <.map_route_card
+                          :for={r <- routes}
+                          route={r}
+                          hot_index={@hot_index}
+                          galaxy={@galaxy}
+                          remove={r.kind == :route && ~p"/control/market?view=map"}
+                        />
+                      </div>
+                      <%= if region? do %>
+                        <.map_region_panel
+                          region_id={@selected}
+                          name={region_name}
+                          map={@region_map}
+                          status={@regions[@selected]}
+                          heat={@heat[@selected]}
+                          opps={@opps}
+                          hot_index={@hot_index}
+                          system_heat={@system_heat}
+                          pilots={pilots}
+                          system={@map_system}
+                          now={@now}
+                        />
+                      <% else %>
+                        <.map_universe_panel
+                          galaxy={@galaxy}
+                          regions={@regions}
+                          heat={@heat}
+                          opps={@opps}
+                          pilots={pilots}
+                        />
+                      <% end %>
+                    </aside>
+                  </div>
                 </div>
 
                 <%!-- Poller de la región (RF-8.3): el mismo detalle que en los mosaicos --%>
