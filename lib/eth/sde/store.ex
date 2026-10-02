@@ -155,7 +155,14 @@ defmodule Eth.Sde.Store do
       error -> fail(state, error)
     end
   rescue
-    error -> fail(state, {:exception, Exception.message(error)})
+    error ->
+      # El registro de eventos lleva el mensaje; el log, dónde ocurrió (para diagnosticar
+      # un SDE nuevo con un formato inesperado).
+      Logger.error(
+        "Error al procesar el SDE:\n" <> Exception.format(:error, error, __STACKTRACE__)
+      )
+
+      fail(state, {:exception, Exception.message(error)})
   end
 
   defp ensure_zip(build, zip) do

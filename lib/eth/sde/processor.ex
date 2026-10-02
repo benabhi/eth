@@ -30,6 +30,10 @@ defmodule Eth.Sde.Processor do
   alias Eth.GameRules
   alias Eth.Sde.Dogma
 
+  # Seguridad de un sistema que en el SDE viene sin `securityStatus`: null-sec, lo más
+  # conservador (la ruta segura lo evita y el riesgo lo trata como espacio sin ley).
+  @unknown_security -1.0
+
   @type data :: %{
           regions: map(),
           systems: map(),
@@ -77,7 +81,7 @@ defmodule Eth.Sde.Processor do
            name: en(s["name"]),
            region_id: s["regionID"],
            constellation_id: s["constellationID"],
-           security: s["securityStatus"] / 1,
+           security: number(s["securityStatus"]) || @unknown_security,
            neighbors: neighbors |> Map.get(s["_key"], []) |> Enum.uniq() |> Enum.sort(),
            x: coordinate(s["position"], "x"),
            z: coordinate(s["position"], "z")
@@ -198,9 +202,9 @@ defmodule Eth.Sde.Processor do
          name_es: get_in(t, ["name", "es"]) || en(t["name"]),
          group_id: t["groupID"],
          market_group_id: t["marketGroupID"],
-         volume: (t["volume"] || 0) / 1,
-         packaged_volume: (t["packagedVolume"] || t["volume"] || 0) / 1,
-         capacity: (t["capacity"] || 0) / 1
+         volume: number(t["volume"]) || 0.0,
+         packaged_volume: number(t["packagedVolume"]) || number(t["volume"]) || 0.0,
+         capacity: number(t["capacity"]) || 0.0
        }}
     end)
   end
@@ -237,12 +241,11 @@ defmodule Eth.Sde.Processor do
   end
 
   # Coordenada de `position` (`%{"x", "y", "z"}`) como float, o `nil` si falta.
-  defp coordinate(%{} = position, axis) do
-    case position[axis] do
-      n when is_number(n) -> n / 1
-      _ -> nil
-    end
-  end
-
+  defp coordinate(%{} = position, axis), do: number(position[axis])
   defp coordinate(_position, _axis), do: nil
+
+  # Un número del SDE como float; `nil` si falta o viene en otro formato (una versión nueva
+  # del SDE no debe romper el procesamiento por un campo vacío).
+  defp number(n) when is_number(n), do: n / 1
+  defp number(_value), do: nil
 end

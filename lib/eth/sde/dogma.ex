@@ -73,8 +73,7 @@ defmodule Eth.Sde.Dogma do
           MapSet.member?(relevant, a["_key"]),
           into: %{},
           do:
-            {a["_key"],
-             %{default: (a["defaultValue"] || 0) / 1, stackable: a["stackable"] != false}}
+            {a["_key"], %{default: number(a["defaultValue"]), stackable: a["stackable"] != false}}
         ),
       types: types(type_rows, effects, relevant)
     }
@@ -105,6 +104,7 @@ defmodule Eth.Sde.Dogma do
         attrs =
           for(
             %{"attributeID" => id, "value" => value} <- row["dogmaAttributes"] || [],
+            is_number(value),
             MapSet.member?(relevant, id),
             into: %{},
             do: {id, value / 1}
@@ -262,4 +262,8 @@ defmodule Eth.Sde.Dogma do
 
   defp safe_div(value, divisor) when abs(divisor) < 1.0e-12, do: value
   defp safe_div(value, divisor), do: value / divisor
+
+  # Valor numérico del SDE como float (0.0 si falta o viene en otro formato).
+  defp number(n) when is_number(n), do: n / 1
+  defp number(_value), do: 0.0
 end

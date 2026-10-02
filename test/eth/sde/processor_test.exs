@@ -100,8 +100,8 @@ defmodule Eth.Sde.ProcessorTest do
     "dogmaAttributes" => [%{"_key" => 38, "defaultValue" => 0.0, "stackable" => true}]
   }
 
-  defp write_files(dir) do
-    for {name, rows} <- @files do
+  defp write_files(dir, files \\ @files) do
+    for {name, rows} <- files do
       File.write!(
         Path.join(dir, name <> ".jsonl"),
         Enum.map_join(rows, "\n", &Jason.encode!/1) <> "\n"
@@ -168,6 +168,30 @@ defmodule Eth.Sde.ProcessorTest do
     assert :ok = Processor.extract(zip, out)
     assert File.exists?(Path.join(out, "types.jsonl"))
     refute File.exists?(Path.join(out, "mapMoons.jsonl"))
+  end
+
+  test "un SDE nuevo con números faltantes no rompe el procesamiento", %{tmp_dir: dir} do
+    files =
+      @files
+      |> Map.update!("mapSolarSystems", fn systems ->
+        systems ++
+          [
+            %{
+              "_key" => 30_000_999,
+              "name" => %{"en" => "Sin Datos"},
+              "regionID" => 10_000_002,
+              "constellationID" => 20_000_020
+            }
+          ]
+      end)
+      |> Map.update!("dogmaAttributes", &[%{"_key" => 38, "defaultValue" => nil} | tl(&1)])
+
+    write_files(dir, files)
+    data = Processor.process(dir, fn _ids -> %{} end)
+
+    # Sin seguridad: null-sec (lo más conservador para las rutas); sin posición, fuera del mapa.
+    assert %{security: -1.0, x: nil, z: nil} = data.systems[30_000_999]
+    assert data.systems[30_000_142].security == 0.945913
   end
 
   test "números romanos de planetas" do
