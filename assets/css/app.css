@@ -600,14 +600,6 @@ svg[data-zoomed="near"] .eth-map-label-minor { display: inline; }
   .eth-map-spin, .eth-map-alarm, .eth-map-ping { animation: none; }
 }
 
-/* Texto sobre el mapa con un borde del color del fondo: se lee sobre líneas y puntos. */
-.eth-map-outline {
-  paint-order: stroke;
-  stroke: var(--color-base-100);
-  stroke-width: 3px;
-  stroke-linejoin: round;
-}
-
 /* Leyenda plegable dentro del lienzo. */
 .eth-map-legend > summary { list-style: none; cursor: pointer; }
 .eth-map-legend > summary::-webkit-details-marker { display: none; }

@@ -2176,19 +2176,22 @@ defmodule EthWeb.ControlLive do
       {tip, deg} = if dir == :out, do: {46, angle}, else: {14, angle + 180}
       name = (Sde.region(region_id) || %{name: "?"}).name
 
+      text =
+        if dir == :out,
+          do: gettext("hacia %{region}", region: name),
+          else: gettext("desde %{region}", region: name)
+
+      {lx, ly} = {r1(dx * 54), r1(dy * 54)}
+      width = r1(10 + 5.6 * String.length(text))
+
       %{
         key: "#{dir}-#{node.id}-#{region_id}",
         x: node.x,
         y: node.y,
         line: {r1(dx * 12), r1(dy * 12), r1(dx * 46), r1(dy * 46)},
         tip: {r1(dx * tip), r1(dy * tip), Float.round(deg, 1)},
-        label: {r1(dx * 54), r1(dy * 54 + 3)},
-        anchor: anchor(dx),
-        text:
-          if(dir == :out,
-            do: gettext("hacia %{region}", region: name),
-            else: gettext("desde %{region}", region: name)
-          )
+        label: {label_x(lx, width, anchor(dx)), ly - 7, width},
+        text: text
       }
     end
   end
@@ -2202,9 +2205,14 @@ defmodule EthWeb.ControlLive do
 
   defp r1(value), do: Float.round(value / 1, 1)
 
-  defp anchor(dx) when dx > 0.3, do: "start"
-  defp anchor(dx) when dx < -0.3, do: "end"
-  defp anchor(_dx), do: "middle"
+  defp anchor(dx) when dx > 0.3, do: :start
+  defp anchor(dx) when dx < -0.3, do: :end
+  defp anchor(_dx), do: :middle
+
+  # Borde izquierdo de la etiqueta según hacia dónde apunta la flecha.
+  defp label_x(x, _width, :start), do: x
+  defp label_x(x, width, :end), do: r1(x - width)
+  defp label_x(x, width, :middle), do: r1(x - width / 2)
 
   # Marcas de una ruta ubicadas en el lienzo: inicio, compra y venta. Si caen en el mismo
   # lugar, las etiquetas se apilan.
@@ -2309,15 +2317,27 @@ defmodule EthWeb.ControlLive do
               fill="currentColor"
               transform={"translate(#{elem(c.tip, 0)} #{elem(c.tip, 1)}) rotate(#{elem(c.tip, 2)})"}
             />
-            <text
-              x={elem(c.label, 0)}
-              y={elem(c.label, 1)}
-              text-anchor={c.anchor}
-              fill="currentColor"
-              class="eth-map-outline font-display text-[10px] font-semibold"
-            >
-              {c.text}
-            </text>
+            <%!-- Etiqueta con fondo: se lee sobre líneas y puntos sin contorno en las letras --%>
+            <g transform={"translate(#{elem(c.label, 0)} #{elem(c.label, 1)})"}>
+              <rect
+                width={elem(c.label, 2)}
+                height="14"
+                rx="2"
+                class="fill-base-100/90"
+                stroke="currentColor"
+                stroke-opacity="0.6"
+                stroke-width="1"
+              />
+              <text
+                x={elem(c.label, 2) / 2}
+                y="10"
+                text-anchor="middle"
+                fill="currentColor"
+                class="font-display text-[9px] font-semibold tracking-[0.04em]"
+              >
+                {c.text}
+              </text>
+            </g>
           </g>
         </g>
         <g
