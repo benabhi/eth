@@ -18,7 +18,7 @@ defmodule Eth.Engine.StationQuery do
   alias Eth.{GameRules, Sde}
   alias Eth.Market.{History, Prices}
 
-  @sorts [:score, :profit_day, :margin, :volume, :age]
+  @sorts [:score, :profit_day, :margin, :volume, :age, :newest]
 
   @type params :: %{
           optional(:accounting) => 0..5,
@@ -31,6 +31,7 @@ defmodule Eth.Engine.StationQuery do
           optional(:min_profit_day) => number(),
           optional(:own_order_ids) => MapSet.t(),
           optional(:shield) => :all | :hide_scam | :safe,
+          optional(:no_structures) => boolean(),
           optional(:search) => String.t(),
           optional(:sort) => atom(),
           optional(:limit) => pos_integer()
@@ -56,6 +57,8 @@ defmodule Eth.Engine.StationQuery do
       min_profit_day: 0,
       own_order_ids: MapSet.new(),
       shield: :hide_scam,
+      # Sin estructuras Upwell (RF-6.4); también lo hereda `Eth.Engine.OrderQuery`.
+      no_structures: false,
       search: "",
       sort: :score,
       limit: 200
@@ -73,6 +76,7 @@ defmodule Eth.Engine.StationQuery do
     rows =
       opportunities
       |> Stream.filter(&(is_nil(p.location_id) or &1.location.location_id == p.location_id))
+      |> Stream.reject(&(p.no_structures and &1.location.structure))
       |> Stream.filter(&matches?(&1, search))
       |> Stream.map(&{&1, History.stats(&1.location.region_id, &1.type_id)})
       # Primero lo barato: sin historial suficiente no se propone (la mayoría).
@@ -226,6 +230,10 @@ defmodule Eth.Engine.StationQuery do
   defp sort(rows, :margin), do: Enum.sort_by(rows, &{-&1.margin_pct, -&1.score})
   defp sort(rows, :volume), do: Enum.sort_by(rows, &{-&1.daily_volume, -&1.score})
   defp sort(rows, :age), do: Enum.sort_by(rows, &{&1.age_min, -&1.score})
+  # Recientes primero (RF-6.14).
+  defp sort(rows, :newest), do: Enum.sort_by(rows, &{-first_seen(&1), -&1.score})
   defp sort(rows, :profit_day), do: Enum.sort_by(rows, &{-&1.profit_day, -&1.score})
   defp sort(rows, _score), do: Enum.sort_by(rows, &{-&1.score, -&1.profit_day})
+
+  defp first_seen(row), do: row.opportunity.first_seen || 0
 end

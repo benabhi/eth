@@ -6,8 +6,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.9 |
-| Fecha | 2026-09-29 |
+| Versión | 1.10 |
+| Fecha | 2026-10-02 |
 | Estado | Base para desarrollo — decisiones a confirmar en §15.2 |
 | Autor | Hernan Jalabert |
 | Repositorio | <https://github.com/benabhi/eth> |
@@ -17,6 +17,7 @@
 | Versión | Fecha | Cambios |
 |---|---|---|
 | 0.1 | 2026-09 | Borrador inicial de ideas. |
+| 1.10 | 2026-10-02 | **v1.x, a pedido del usuario:** antigüedad de cada contrato en el tablón y orden Recientes (RF-6.14), cuánto suma entrenar Accounting o Broker Relations en cada contrato (RF-6.15), las órdenes que siguen a las consumidas y el beneficio si falla la mejor compra (RF-6.16), e interruptor "Sin estructuras" en las tres familias (RF-6.4). |
 | 1.9 | 2026-09-30 | **F11 implementada** (v1.0 pendiente de revisión): atajos de teclado (RF-6.9), exportar e importar la configuración (RF-9.7), resaltado de filas nuevas y cambiadas (RF-6.3), imagen de producción y guía de instalación (RNF-10.5–10.7, D-22), universo completo por defecto y optimizado (consultas en paralelo, texto buscable precalculado, intervalo mínimo del motor, tablas cedidas con `give_away`; parámetros nuevos en B.7) y auditoría previa a v1.0 en `docs/audit-v1.0.md` (§11.6). Propuesta pendiente de decisión: ajustar RNF-1.2 al universo completo (hallazgo A-04). |
 | 1.8 | 2026-09-30 | **F10 implementada:** identidad visual con temas oscuro y claro y tipografías propias; componentes compartidos (`EthWeb.UI`, `EthWeb.TradingComponents`); tablón con rango, sellos, peligro y anillo de Certeza, filtros acoplados a la tabla y ficha que se despliega bajo la fila con secciones en columnas (RF-6.5, a pedido del usuario, en lugar de pestañas); Centro de control por pestañas con instrumentos (RF-8.10); registro del cazador con rango, racha e hitos (RF-7.7); manual integrado en HEEx (D-21); indicador de carga inmediato en las filas y WebSocket sin fallback a long polling (RNF-5.15). |
 | 1.7 | 2026-09-29 | **Diseño final y cierre de v1.0:** principio "trades rápido primero" (RNF-5.13); explicación de cada cifra con tooltip, fórmula con los valores reales y enlace al manual (RNF-5.14); instrumentos del Centro de control (anillos de progreso para pollers, medidores por tipo de proceso, §9.10); hitos y rachas del registro del cazador con datos reales (RF-7.7); nuevo módulo M11 **Manual integrado** (`/docs`, RF-11.1–11.4); auditoría total de sistemas como última tarea de v1.0 (§11.6, F11). |
@@ -891,6 +892,8 @@ Selector del personaje activo en la cabecera; los personajes no activos mantiene
 
 *(F12: los presets quedan fuera por decisión del operador (2026-09-30); los marcadores del navegador cumplen ese papel porque los filtros viven en la URL.)*
 
+*Implementación (v1.x, pedido del usuario):* el filtro de estructuras es el interruptor **Sin estructuras** (`no_structures`) en las tres familias: saca los contratos con origen o destino en una estructura Upwell (en Estación, el lugar). Por defecto se incluyen; queda en la URL como el resto.
+
 #### RF-6.5 · Ficha del contrato (detalle y explicabilidad) — M · F3 (ficha expandible en F10)
 
 Al hacer clic en una fila, **la propia fila se despliega** hacia abajo y muestra la ficha del contrato, sin columnas ni paneles laterales: la tabla conserva todo el ancho y el contexto de la fila queda a la vista. Una sola ficha abierta a la vez; se cierra con otro clic, `Esc` o al abrir otra; mientras está abierta, la grilla se congela (RF-6.3). En móvil la ficha ocupa la tarjeta completa. Pestañas de la ficha:
@@ -956,6 +959,35 @@ Temas de daisyUI, persistidos por navegador y sin parpadeo al cargar.
 **CA:** cambiar de familia conserva los demás filtros; la URL restaura la familia; las tres vistas respetan el máximo de 200 filas.
 
 - Implementación (F9): cada familia es una ruta propia, que conserva la familia en la URL: `/` (Directo, `HunterLive`), `/station` (Estación, `StationLive`) y, más adelante, la de Por órdenes. El selector (`EthWeb.TradingComponents.family_nav/1`) mantiene la búsqueda al cambiar de familia; los filtros propios de cada familia viven en su URL. En Estación los precios sugeridos se copian sin separadores de miles para pegarlos en la ventana de orden del cliente. Además del anti-scam, se descartan las cotizaciones irreales: ambos precios sugeridos deben caer dentro de ×2 / ÷2 de la mediana de 7 días (`max_price_to_median`), para que una venta publicada a un precio absurdo no infle el margen.
+
+#### RF-6.14 · Antigüedad del contrato en el tablón — S · v1.x
+
+- Cada fila de las tres familias muestra cuánto hace que el contrato está en el tablón sin interrupción (reloj junto a la cantidad); lo aparecido hace menos de 5 minutos se destaca.
+- Un contrato que desaparece de una evaluación y vuelve empieza de cero.
+- Orden **Recientes** en las tres familias.
+- No se persiste: al reiniciar, lo que ya estaba en la primera evaluación se muestra como cota inferior ("≥ 2 h").
+
+**CA:** una oportunidad conserva su momento de aparición entre evaluaciones; una nueva toma el de su evaluación; no se confunde con la frescura de los datos (`age_min`).
+
+*Implementación:* `Eth.Engine.FirstSeen` (función pura) y el coordinador, que guarda `%{id => unix}` por familia entre evaluaciones y estampa `first_seen` en cada oportunidad; `seen_since` en los metadatos del motor marca la primera evaluación desde el arranque. `Eth.Engine.board_age/3` y el componente `board_age/1`.
+
+#### RF-6.15 · Cuánto suma entrenar una habilidad — S · v1.x
+
+- La ficha muestra, por habilidad de comercio que modela el motor, cuánto más dejaría ese contrato con el nivel siguiente y con el V: **Accounting** (sales tax, las tres familias) y **Broker Relations** (broker fee, Estación y Por órdenes; sin efecto en una estructura con broker propio).
+- Parte del nivel de la consulta (el del piloto o el del filtro). En Estación, por día.
+- No se muestran tiempos de entrenamiento (la aplicación no lee los puntos de habilidad).
+
+**CA:** la ganancia sale de volver a personalizar el contrato con el nivel subido, con la misma función que el tablón (sin fórmulas paralelas); al nivel V no se ofrece nada.
+
+*Implementación:* `Eth.Engine.SkillGains` (pura) y `Eth.Engine.skill_gains/3`; componente `skill_gains/1` en la ficha.
+
+#### RF-6.16 · Lo que sigue en el libro — S · v1.x
+
+- En la ficha de la familia Directo, debajo de las órdenes consumidas, hasta 5 órdenes más por lado: ventas del origen y compras cuyo rango cubre el destino (RF-4.3), del mejor al peor precio; una orden consumida a medias aparece con su resto.
+- **Si falla la mejor compra:** beneficio sin la orden de compra de mayor precio, con el mismo walk-the-book, el impuesto, el capital y la bodega de la consulta; o "deja de ser rentable".
+- Se lee de las tablas de órdenes en memoria, solo para la ficha abierta: sin llamadas a ESI.
+
+*Implementación:* `Eth.Engine.BookDepth` (pura) y `Eth.Engine.book_depth/2`; componente `book_next/1`.
 
 ### M7 · Viaje activo y resultados
 
@@ -2117,7 +2149,7 @@ Antes de publicar v1.0 se hace un **relevamiento y auditoría completa** de todo
 | **F9** Trading por órdenes | Más estrategias | RF-4.1 (Listado y compra por orden), 4.16, 4.17; RF-6.12; RF-10.5; scope 13 | Station trading y órdenes propias con datos reales; familias diferenciadas en el Cazador; alertas de órdenes superadas |
 | **F10** Rediseño: tablón de caza | Interfaz final | RNF-5.4, 5.9–5.14; §9.9 y §9.10 en todas las vistas; RF-6.13 (tablón), RF-6.5 (ficha expandible), RF-7.7 (registro del cazador con hitos), RF-8.10 (Centro de control por pestañas e instrumentos); M11 (manual integrado, RF-11.1–11.4) | Mockups aprobados; todas las vistas migradas; manual con las secciones mínimas; CA de §9.9, RF-6.13, RF-8.10 y M11 |
 | **F11** Endurecimiento | **v1.0** | RNF de rendimiento, seguridad y accesibilidad; RF-6.9, 9.7; release descargable y guía de instalación (RNF-10.5–10.7); **última tarea: auditoría total (§11.6)** | Checklist §11.4 completo; benchmarks dentro de RNF-1; informe de auditoría sin hallazgos altos abiertos |
-| **F12** v1.x | Evolución | Pendientes de la auditoría (A-08, A-11): RF-6.3 (filas expiradas, congelado con el puntero), RF-8.4, RF-8.5 (tendencia), RF-8.9, RF-9.4 (broker de estructuras en el motor), RF-9.5 (Ajustes → Motor), glosario (RF-11.2); después RF-10.4, vista geográfica de regiones, EVE-Scout/Thera | Pendientes hechos (2026-09-30) salvo RF-7.6 (calibración, necesita viajes) y RF-6.4 presets (descartados); el resto según priorización |
+| **F12** v1.x | Evolución | Pendientes de la auditoría (A-08, A-11): RF-6.3 (filas expiradas, congelado con el puntero), RF-8.4, RF-8.5 (tendencia), RF-8.9, RF-9.4 (broker de estructuras en el motor), RF-9.5 (Ajustes → Motor), glosario (RF-11.2); después RF-10.4, vista geográfica de regiones, EVE-Scout/Thera | Pendientes hechos (2026-09-30) salvo RF-7.6 (calibración, necesita viajes) y RF-6.4 presets (descartados); a pedido del usuario (2026-10-02): RF-6.14 (antigüedad), RF-6.15 (habilidades), RF-6.16 (libro siguiente) y "Sin estructuras" (RF-6.4); el resto según priorización |
 
 
 El rediseño visual (F10) va después de completar las funciones y antes del endurecimiento, para que la verificación de accesibilidad y rendimiento de la v1.0 se haga sobre la interfaz definitiva (D-11).

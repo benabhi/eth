@@ -33,6 +33,8 @@ defmodule Eth.Engine.Opportunity do
     :bid_issued,
     remote_sale: false,
     search_text: "",
+    # Desde cuándo está en el tablón (unix, `Eth.Engine.FirstSeen`, RF-6.14).
+    first_seen: nil,
     asks: [],
     bids: []
   ]
@@ -57,6 +59,7 @@ defmodule Eth.Engine.Opportunity do
           bid_issued: DateTime.t() | nil,
           remote_sale: boolean(),
           search_text: String.t(),
+          first_seen: integer() | nil,
           asks: [{float(), pos_integer()}],
           bids: [{float(), pos_integer(), pos_integer()}]
         }

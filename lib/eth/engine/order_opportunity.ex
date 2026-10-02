@@ -34,6 +34,8 @@ defmodule Eth.Engine.OrderOpportunity do
     :secure_jumps,
     :last_modified,
     search_text: "",
+    # Desde cuándo está en el tablón (unix, `Eth.Engine.FirstSeen`, RF-6.14).
+    first_seen: nil,
     buy_book: [],
     sell_book: []
   ]
@@ -53,6 +55,7 @@ defmodule Eth.Engine.OrderOpportunity do
           secure_jumps: non_neg_integer() | nil,
           last_modified: DateTime.t(),
           search_text: String.t(),
+          first_seen: integer() | nil,
           buy_book: list(),
           sell_book: list()
         }

@@ -37,7 +37,7 @@ defmodule Eth.Engine.OrderQuery do
   alias Eth.{GameRules, Routing}
   alias Eth.Market.{History, Prices}
 
-  @sorts [:score, :profit, :margin, :days, :jumps]
+  @sorts [:score, :profit, :margin, :days, :jumps, :newest]
 
   @type params :: %{optional(atom()) => any()}
 
@@ -73,6 +73,8 @@ defmodule Eth.Engine.OrderQuery do
     rows =
       opportunities
       |> Stream.filter(&(is_nil(p.mode) or &1.mode == p.mode))
+      # Sin estructuras Upwell en el origen ni en el destino (RF-6.4).
+      |> Stream.reject(&(p.no_structures and (&1.origin.structure or &1.destination.structure)))
       |> Stream.filter(&matches?(&1, search))
       |> Stream.map(&build(&1, p, now))
       |> Enum.filter(&(&1 && keep?(&1, p)))
@@ -398,5 +400,9 @@ defmodule Eth.Engine.OrderQuery do
   defp sort(rows, :margin), do: Enum.sort_by(rows, &{-&1.margin_pct, -&1.score})
   defp sort(rows, :days), do: Enum.sort_by(rows, &{&1.days, -&1.score})
   defp sort(rows, :jumps), do: Enum.sort_by(rows, &{&1.total_jumps, -&1.score})
+  # Recientes primero (RF-6.14).
+  defp sort(rows, :newest), do: Enum.sort_by(rows, &{-first_seen(&1), -&1.score})
   defp sort(rows, _score), do: Enum.sort_by(rows, &{-&1.score, -&1.profit})
+
+  defp first_seen(row), do: row.opportunity.first_seen || 0
 end

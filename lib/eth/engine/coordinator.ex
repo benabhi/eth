@@ -15,8 +15,11 @@ defmodule Eth.Engine.Coordinator do
   - Evalúa también los candidatos de station trading de los hubs (RF-4.16) y los de la
     familia por órdenes entre estaciones (RF-4.1), y los publica en sus propias tablas
     (`current_station/0`, `current_orders/0`), con el mismo versionado.
+  - Recuerda desde cuándo aparece cada oportunidad de las tres familias
+    (`Eth.Engine.FirstSeen`, RF-6.14): el momento pasa de una evaluación a la siguiente
+    mientras la oportunidad siga.
 
-  Implementa: RF-1.12, RF-4.13, RF-4.16, RNF-1.2, RNF-9.1.
+  Implementa: RF-1.12, RF-4.13, RF-4.16, RF-6.14, RNF-1.2, RNF-9.1.
   """
   use GenServer
 
@@ -25,6 +28,7 @@ defmodule Eth.Engine.Coordinator do
   alias Eth.Engine.{
     Evaluator,
     Fees,
+    FirstSeen,
     Opportunity,
     OrderEvaluator,
     OrderOpportunity,
@@ -101,7 +105,11 @@ defmodule Eth.Engine.Coordinator do
       pending: false,
       timer: nil,
       version: 0,
-      last_started: nil
+      last_started: nil,
+      # Momento de aparición por familia (`Eth.Engine.FirstSeen`) y de la primera
+      # evaluación desde el arranque (lo anterior no se conoce).
+      seen: %{direct: %{}, station: %{}, orders: %{}},
+      seen_since: nil
     }
 
     {:ok, schedule(state)}
@@ -172,11 +180,12 @@ defmodule Eth.Engine.Coordinator do
   defp start(state) do
     summarized = state.summarized
     types = state.types
+    seen = state.seen
     owner = self()
 
     task =
       Task.Supervisor.async_nolink(Eth.Engine.TaskSupervisor, fn ->
-        evaluate(summarized, types, owner)
+        evaluate(summarized, types, seen, owner)
       end)
 
     %{state | task: task, last_started: System.monotonic_time(:millisecond)}
@@ -186,8 +195,9 @@ defmodule Eth.Engine.Coordinator do
   # llenan acá y se ceden al coordinador (`:ets.give_away/3`): así las listas grandes
   # (decenas de miles de candidatos con sus libros) nunca se copian a su heap, que es de
   # larga vida y quedaba inflado después de cada evaluación (RNF-1.5).
-  defp evaluate(summarized, types, owner) do
+  defp evaluate(summarized, types, seen, owner) do
     started = System.monotonic_time(:millisecond)
+    now = DateTime.to_unix(Clock.utc_now())
     entries = TableOwner.all()
     sources = Enum.map(entries, &source/1)
 
@@ -206,11 +216,11 @@ defmodule Eth.Engine.Coordinator do
     # Cada familia se evalúa, se vuelca a su tabla y se suelta antes de la siguiente, con
     # una recolección en el medio: sus listas (decenas de miles de candidatos con sus
     # libros) nunca conviven y el pico de memoria de la tarea baja (RNF-1.5).
-    direct = stage(fn -> direct_stage(sources, all_types, owner) end)
+    direct = stage(fn -> direct_stage(sources, all_types, {seen.direct, now}, owner) end)
     direct_at = System.monotonic_time(:millisecond)
-    station = stage(fn -> station_stage(entries, types, owner) end)
+    station = stage(fn -> station_stage(entries, types, {seen.station, now}, owner) end)
     station_at = System.monotonic_time(:millisecond)
-    orders = stage(fn -> orders_stage(sources, all_types, owner) end)
+    orders = stage(fn -> orders_stage(sources, all_types, {seen.orders, now}, owner) end)
     orders_at = System.monotonic_time(:millisecond)
 
     History.demand(direct.demand ++ station.demand ++ orders.demand)
@@ -226,11 +236,13 @@ defmodule Eth.Engine.Coordinator do
       sources: length(sources),
       opportunities: direct.count,
       station_candidates: station.count,
-      order_candidates: orders.count
+      order_candidates: orders.count,
+      evaluated_unix: now
     }
 
     tables = %{current: direct.tid, station: station.tid, orders: orders.tid}
-    {summarized, types, tables, stats}
+    seen = %{direct: direct.seen, station: station.seen, orders: orders.seen}
+    {summarized, types, tables, stats, seen}
   end
 
   # Resume solo las fuentes con generación nueva.
@@ -264,8 +276,8 @@ defmodule Eth.Engine.Coordinator do
     result
   end
 
-  defp direct_stage(sources, all_types, owner) do
-    opportunities =
+  defp direct_stage(sources, all_types, {seen, now}, owner) do
+    {opportunities, seen} =
       sources
       |> Evaluator.run(all_types,
         tax: Fees.sales_tax(GameRules.get(:guest_accounting_level)),
@@ -275,16 +287,22 @@ defmodule Eth.Engine.Coordinator do
       |> Enum.take(GameRules.get(:max_universal_opportunities))
       # Texto buscable una sola vez por evaluación, no en cada consulta (RNF-1.1).
       |> Opportunity.index_search()
+      |> FirstSeen.stamp(seen, now)
 
     %{
       tid: fill(:eth_opportunities, Enum.map(opportunities, &{&1.id, &1}), owner),
       demand: history_demand(opportunities),
-      count: length(opportunities)
+      count: length(opportunities),
+      seen: seen
     }
   end
 
-  defp station_stage(entries, types, owner) do
-    stations = entries |> StationEvaluator.run(types) |> StationOpportunity.index_search()
+  defp station_stage(entries, types, {seen, now}, owner) do
+    {stations, seen} =
+      entries
+      |> StationEvaluator.run(types)
+      |> StationOpportunity.index_search()
+      |> FirstSeen.stamp(seen, now)
 
     %{
       # Con la clave (región, tipo) aparte: la consulta filtra por historial sin copiar el
@@ -296,16 +314,19 @@ defmodule Eth.Engine.Coordinator do
           owner
         ),
       demand: station_history_demand(stations),
-      count: length(stations)
+      count: length(stations),
+      seen: seen
     }
   end
 
   # Por órdenes: solo candidatos con historial en el hub y viables en el mejor caso; de
   # los demás se pide el historial (entran en la evaluación siguiente). Sin esto:
   # ~170.000 candidatos, ~380 MB y ~0,5 s por consulta (RNF-1.1).
-  defp orders_stage(sources, all_types, owner) do
+  defp orders_stage(sources, all_types, {seen, now}, owner) do
     %{candidates: candidates, missing_history: missing} = OrderEvaluator.run(sources, all_types)
-    order_opps = OrderOpportunity.index_search(candidates)
+
+    {order_opps, seen} =
+      candidates |> OrderOpportunity.index_search() |> FirstSeen.stamp(seen, now)
 
     %{
       # Con el par (región del hub, tipo) aparte, como en station trading.
@@ -316,7 +337,8 @@ defmodule Eth.Engine.Coordinator do
           owner
         ),
       demand: order_history_demand(missing),
-      count: length(order_opps)
+      count: length(order_opps),
+      seen: seen
     }
   end
 
@@ -401,7 +423,7 @@ defmodule Eth.Engine.Coordinator do
     }
   end
 
-  defp publish({summarized, types, tables, stats}, state) do
+  defp publish({summarized, types, tables, stats, seen}, state) do
     %{current: tid, station: station_tid, orders: orders_tid} = tables
 
     case current_station() do
@@ -419,7 +441,11 @@ defmodule Eth.Engine.Coordinator do
     :ets.insert(@catalog, {:orders, orders_tid})
 
     version = state.version + 1
-    meta = Map.merge(stats, %{version: version, evaluated_at: Clock.utc_now()})
+    # Lo que estaba en la primera evaluación desde el arranque lleva "al menos" ese tiempo.
+    seen_since = state.seen_since || stats.evaluated_unix
+
+    meta =
+      Map.merge(stats, %{version: version, evaluated_at: Clock.utc_now(), seen_since: seen_since})
 
     case current() do
       {old, _meta} -> Process.send_after(self(), {:drop, old}, GameRules.get(:engine_grace_ms))
@@ -438,6 +464,13 @@ defmodule Eth.Engine.Coordinator do
       )
     end
 
-    %{state | summarized: summarized, types: types, version: version}
+    %{
+      state
+      | summarized: summarized,
+        types: types,
+        version: version,
+        seen: seen,
+        seen_since: seen_since
+    }
   end
 end

@@ -37,6 +37,8 @@ LiveViews: tablón (/, /orders, /station), viaje (/run), Centro de control, Ajus
 2. El **coordinador del motor** agrupa los snapshots nuevos (debounce de 2 s, intervalo
    mínimo `:engine_min_interval_ms`), recalcula los resúmenes de las fuentes que
    cambiaron y evalúa las tres familias. Publica tablas nuevas y anuncia la versión.
+   Entre una evaluación y otra conserva en su estado el momento de aparición de cada
+   oportunidad (`seen`, RF-6.14), que estampa en las nuevas.
 3. Cada **LiveView** vuelve a consultar al recibir el anuncio. La consulta personaliza
    con el contexto del piloto y el radar, filtra, ordena y devuelve a lo sumo 200 filas.
 

@@ -40,6 +40,13 @@ ERS §8; este documento dice dónde vive cada una.
 
 El texto buscable de cada candidato se precalcula al publicar (`Eth.Engine.Search`).
 
+**Antigüedad en el tablón (RF-6.14).** El coordinador guarda, por familia, `%{id => unix}`
+con el momento en que apareció cada oportunidad y se lo pasa a la evaluación siguiente:
+`Eth.Engine.FirstSeen.stamp/3` pone `first_seen` en cada una (la que sigue conserva el
+suyo; la nueva o la que vuelve toma el de esa evaluación) y devuelve el mapa de las
+vigentes. Los metadatos llevan `seen_since` (la primera evaluación desde el arranque): lo
+que ya estaba entonces se muestra como "al menos". No se persiste.
+
 **Generaciones borradas a mitad de evaluación.** Una evaluación larga (sobre todo al
 arrancar, con el CPU ocupado por las descargas) puede seguir leyendo una generación de
 mercado que ya se borró tras `:snapshot_grace_ms`. Ninguna lectura tira abajo la
@@ -61,11 +68,26 @@ filas) y descarta primero, sin copiar los candidatos, los pares sin historial su
 
 El resultado se ordena en el servidor y se corta en 200 filas (RNF-1.6).
 
+Las tres consultas aceptan `no_structures` (saca orígenes, destinos o lugares que son
+estructuras Upwell) y el orden `:newest` (por `first_seen`, RF-6.14).
+
+**Ficha del contrato (RF-6.15, RF-6.16).** Solo para la fila abierta:
+
+- `Eth.Engine.skill_gains/3` vuelve a personalizar el contrato con Accounting (y Broker
+  Relations en Estación y Por órdenes) al nivel siguiente y al V, con la misma función de la
+  consulta (`SkillGains`), y resta el valor actual.
+- `Eth.Engine.book_depth/2` lee de ETS las ventas del origen y las compras que cubren el
+  destino (con `Range`), devuelve las 5 que siguen a las consumidas (`BookDepth.next_levels/3`)
+  y repite el walk-the-book sin la mejor compra (`BookDepth.without_best_bid/4`).
+
 ## Módulos de apoyo
 
 | Módulo | Qué hace |
 |---|---|
 | `Book` | Walk-the-book: cuánto se compra y se vende orden por orden. |
+| `BookDepth` | Órdenes que siguen a las consumidas y el contrato sin la mejor compra (RF-6.16). |
+| `FirstSeen` | Momento de aparición de cada oportunidad entre evaluaciones (RF-6.14). |
+| `SkillGains` | Cuánto suma subir una habilidad de comercio en un contrato (RF-6.15). |
 | `Fees` | Sales tax y broker fee (NPC) según habilidades y standings. |
 | `OrderRules` | Tick de precio legal, costo de modificar (relist), límite de órdenes. |
 | `Shield` | Escudo anti-scam AS-1…AS-7 y la Certeza de cada estado. |

@@ -21,6 +21,8 @@ defmodule Eth.Engine.StationOpportunity do
     # Broker fee de la estructura (RF-9.4); `nil` en los hubs NPC.
     broker_override: nil,
     search_text: "",
+    # Desde cuándo está en el tablón (unix, `Eth.Engine.FirstSeen`, RF-6.14).
+    first_seen: nil,
     bids: [],
     asks: []
   ]
@@ -37,6 +39,7 @@ defmodule Eth.Engine.StationOpportunity do
           last_modified: DateTime.t(),
           broker_override: float() | nil,
           search_text: String.t(),
+          first_seen: integer() | nil,
           bids: [book_order()],
           asks: [book_order()]
         }

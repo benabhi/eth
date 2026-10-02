@@ -19,7 +19,7 @@ defmodule Eth.Engine.Query do
   alias Eth.{GameRules, Routing}
   alias Eth.Market.{History, Prices, StructureManager}
 
-  @sorts [:tvs, :profit, :isk_per_hour, :roi, :jumps, :cost, :age]
+  @sorts [:tvs, :profit, :isk_per_hour, :roi, :jumps, :cost, :age, :newest]
 
   @type params :: %{
           optional(:accounting) => 0..5,
@@ -33,6 +33,7 @@ defmodule Eth.Engine.Query do
           optional(:min_roi) => number(),
           optional(:shield) => :all | :hide_scam | :safe,
           optional(:liquid_only) => boolean(),
+          optional(:no_structures) => boolean(),
           optional(:search) => String.t(),
           optional(:sort) => atom(),
           optional(:limit) => pos_integer()
@@ -59,6 +60,8 @@ defmodule Eth.Engine.Query do
       # La seguridad del jugador primero: los SCAM se ocultan salvo que se pida verlos.
       shield: :hide_scam,
       liquid_only: false,
+      # Sin estructuras Upwell en el origen ni en el destino (RF-6.4).
+      no_structures: false,
       search: "",
       sort: :tvs,
       limit: 200
@@ -76,6 +79,7 @@ defmodule Eth.Engine.Query do
 
     rows =
       opportunities
+      |> Stream.reject(&(p.no_structures and structure?(&1)))
       |> Stream.filter(&matches?(&1, search))
       |> Stream.map(&personalize(&1, p, now))
       |> Enum.filter(&(&1 && keep?(&1, p)))
@@ -304,6 +308,9 @@ defmodule Eth.Engine.Query do
   def shield_visible?(status, :hide_scam), do: status != :scam
   def shield_visible?(status, :safe), do: status in [:ok, :no_history]
 
+  # ¿Pasa por una estructura Upwell (origen o destino)? Filtro "Sin estructuras" (RF-6.4).
+  defp structure?(opp), do: opp.origin.structure or opp.destination.structure
+
   defp matches?(_opp, ""), do: true
   defp matches?(opp, search), do: Search.matches?(Opportunity.search_text(opp), search)
 
@@ -315,5 +322,7 @@ defmodule Eth.Engine.Query do
   defp sort(rows, :jumps), do: Enum.sort_by(rows, &{&1.total_jumps, -&1.tvs})
   defp sort(rows, :cost), do: Enum.sort_by(rows, &{-&1.cost, -&1.tvs})
   defp sort(rows, :age), do: Enum.sort_by(rows, &{&1.age_min, -&1.tvs})
+  # Recientes primero (RF-6.14): lo que acaba de aparecer en el tablón.
+  defp sort(rows, :newest), do: Enum.sort_by(rows, &{-(&1.opportunity.first_seen || 0), -&1.tvs})
   defp sort(rows, field), do: Enum.sort_by(rows, &{-Map.fetch!(&1, field), -&1.profit})
 end
