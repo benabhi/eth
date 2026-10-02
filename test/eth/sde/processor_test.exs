@@ -14,7 +14,8 @@ defmodule Eth.Sde.ProcessorTest do
         "name" => %{"en" => "Jita"},
         "regionID" => 10_000_002,
         "constellationID" => 20_000_020,
-        "securityStatus" => 0.945913
+        "securityStatus" => 0.945913,
+        "position" => %{"x" => -1.29e17, "y" => 6.07e16, "z" => 1.17e17}
       },
       %{
         "_key" => 30_000_144,
@@ -124,6 +125,10 @@ defmodule Eth.Sde.ProcessorTest do
 
     # La seguridad entera del JSON se normaliza a float.
     assert data.systems[30_000_144].security === 1.0
+
+    # Posición para el mapa (RF-8.2): X y Z del SDE; sin `position`, nil.
+    assert %{x: -1.29e17, z: 1.17e17} = data.systems[30_000_142]
+    assert %{x: nil, z: nil} = data.systems[30_000_144]
 
     assert data.stations[60_003_760] == %{
              name: "Jita IV - Moon 4 - Caldari Navy Assembly Plant",

@@ -72,6 +72,7 @@ defmodule EthWeb.Docs do
     own_orders: {"ordenes", "tus-ordenes"},
     control: {"centro-de-control", "como-leerlo"},
     pollers: {"centro-de-control", "pollers"},
+    region_map: {"centro-de-control", "mapa-de-regiones"},
     budgets: {"centro-de-control", "presupuestos-de-esi"},
     history_queue: {"centro-de-control", "cola-de-historial"},
     radar_feed: {"centro-de-control", "feed-del-radar"},
@@ -234,6 +235,9 @@ defmodule EthWeb.Docs do
       gettext(
         "Procesos que descargan el mercado de cada región: N1 los hubs, N2 las activas y N3 el resto. Anillo exterior: tiempo hasta datos nuevos; interior: páginas descargadas."
       )
+
+  def summary(:region_map),
+    do: gettext("Las regiones en su lugar del universo, con su poller y el calor del radar.")
 
   def summary(:budgets),
     do:

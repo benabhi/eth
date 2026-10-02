@@ -9,7 +9,10 @@ defmodule EthWeb.ControlLive do
       pollers de los hubs como anillos dobles, la evaluación del motor como barra
       segmentada, los presupuestos de ESI como arcos, la cola de historial como medidor
       de caudal, el feed del radar como pulso y el SDE como secuencia de pasos.
-    - **Mercado:** mapa de regiones por nivel con su detalle y acciones (RF-8.2, RF-8.3).
+    - **Mercado:** regiones por nivel (mosaicos) o en el mapa del universo, con su detalle
+      y acciones (RF-8.2, RF-8.3). El mapa (`?view=map`) ubica cada región según el SDE con
+      el estado de su poller y el calor del radar; al elegir una, muestra sus sistemas con
+      la seguridad y las kills de cada uno (capas: pollers, radar o ambos).
     - **Radar:** feed, sistemas calientes y últimas kills relevantes (RF-8.5).
     - **Personajes:** sesiones y tokens, con un anillo por recurso (RF-8.6).
     - **Registros:** eventos del sistema filtrables (RF-8.7).
@@ -27,7 +30,7 @@ defmodule EthWeb.ControlLive do
   alias Eth.Characters.Sessions
   alias Eth.{Clock, Engine, Events, Market, Metrics, Sde, Threat}
   alias Eth.Esi.{Budget, ServerStatus}
-  alias EthWeb.Format
+  alias EthWeb.{Format, GalaxyMap}
 
   @event_limit 60
   @radar_hot 15
@@ -51,6 +54,10 @@ defmodule EthWeb.ControlLive do
       |> assign(:page_title, gettext("Centro de control"))
       |> assign(:regions, Map.new(Market.region_statuses(), &{&1.region_id, &1}))
       |> assign(:selected, nil)
+      |> assign(:region_map, nil)
+      |> assign(:market_view, "tiles")
+      |> assign(:map_layer, :both)
+      |> assign(:galaxy, Sde.galaxy())
       |> assign(:event_level, nil)
       |> assign(:events, Events.recent(@event_limit))
       |> assign(:tiers, @tiers)
@@ -71,7 +78,8 @@ defmodule EthWeb.ControlLive do
         {:noreply,
          socket
          |> assign(:tab, tab)
-         |> assign(:selected, selected_region(params, socket.assigns.selected))}
+         |> assign(:market_view, if(params["view"] == "map", do: "map", else: "tiles"))
+         |> assign_selected(selected_region(params, socket.assigns.selected))}
 
       _unknown ->
         {:noreply, push_patch(socket, to: ~p"/control")}
@@ -110,6 +118,14 @@ defmodule EthWeb.ControlLive do
     do: {:noreply, update(socket, :kills, &Enum.take([kill | &1], @radar_kills))}
 
   def handle_info({:heatmap, _version}, socket), do: {:noreply, refresh_radar(socket)}
+  # Con el SDE listo (o recargado) se rehace la geometría del mapa (RF-8.2).
+  def handle_info({:sde_status, %{state: :ready} = status}, socket) do
+    {:noreply,
+     socket
+     |> assign(sde: status, galaxy: Sde.galaxy())
+     |> assign_selected(socket.assigns.selected)}
+  end
+
   def handle_info({:sde_status, status}, socket), do: {:noreply, assign(socket, :sde, status)}
   def handle_info({:esi_paused, _until, _reason}, socket), do: {:noreply, refresh_health(socket)}
   def handle_info(:esi_resumed, socket), do: {:noreply, refresh_health(socket)}
@@ -131,11 +147,17 @@ defmodule EthWeb.ControlLive do
   def handle_event("select_region", %{"id" => id}, socket) do
     id = String.to_integer(id)
     selected = if socket.assigns.selected == id, do: nil, else: id
-    {:noreply, assign(socket, :selected, selected)}
+    {:noreply, assign_selected(socket, selected)}
   end
 
   def handle_event("close_detail", _params, socket),
-    do: {:noreply, assign(socket, :selected, nil)}
+    do: {:noreply, assign_selected(socket, nil)}
+
+  # Capas del mapa (RF-8.2): estado de los pollers, calor del radar o ambos.
+  def handle_event("map_layer", %{"layer" => layer}, socket) do
+    layer = Enum.find([:pollers, :radar, :both], :both, &(Atom.to_string(&1) == layer))
+    {:noreply, assign(socket, :map_layer, layer)}
+  end
 
   def handle_event("refresh_now", %{"id" => id}, socket) do
     case Market.refresh_now(String.to_integer(id)) do
@@ -375,12 +397,30 @@ defmodule EthWeb.ControlLive do
   defp schedule_tick, do: Process.send_after(self(), :tick, 1_000)
 
   defp refresh_radar(socket) do
+    hot = Threat.hot_systems()
+
     assign(socket,
       feed: Threat.feed_status(),
       baseline: Threat.baseline_meta(),
-      hot: Enum.take(Threat.hot_systems(), @radar_hot)
+      hot: Enum.take(hot, @radar_hot),
+      # Calor del radar para el mapa (RF-8.2): por región y por sistema.
+      heat: GalaxyMap.region_heat(hot, &system_region/1),
+      system_heat: Map.new(hot, &{&1.system_id, GalaxyMap.system_heat(&1)})
     )
   end
+
+  defp system_region(system_id) do
+    case Sde.system(system_id) do
+      %{region_id: region_id} -> region_id
+      nil -> nil
+    end
+  end
+
+  # Región elegida (detalle y, en el mapa, sus sistemas).
+  defp assign_selected(socket, nil), do: assign(socket, selected: nil, region_map: nil)
+
+  defp assign_selected(socket, region_id),
+    do: assign(socket, selected: region_id, region_map: Sde.region_map(region_id))
 
   defp feed_label(%{source: :off}), do: gettext("Feed apagado (ETH_KILLFEED=off)")
 
@@ -703,6 +743,408 @@ defmodule EthWeb.ControlLive do
           "#{Float.round(i * step, 1)},#{Float.round(20 - v / max(max, 1) * 18, 1)}"
         end)
     end
+  end
+
+  ## Detalle de una región (RF-8.3): el mismo en los mosaicos y en el mapa
+
+  attr :r, :map, required: true, doc: "estado público del poller"
+  attr :now, :any, required: true
+
+  defp region_detail(assigns) do
+    ~H"""
+    <% r = @r %>
+    <% {_key, label, color} = display(r, @now) %>
+    <.row_detail id="region-detail" label={gettext("Detalle de %{name}", name: r.name)}>
+      <div class="flex items-center gap-4">
+        <.double_ring
+          outer={expires_fraction(r, @now)}
+          inner={pages_fraction(r)}
+          size={88}
+          outer_class={tone_text(color)}
+          label={label}
+        >
+          <span class="font-mono text-xs eth-strong">{timing(r, @now)}</span>
+        </.double_ring>
+        <div class="min-w-0">
+          <h2 id="detail-title" class="font-display text-lg font-semibold eth-strong">
+            {r.name}
+          </h2>
+          <div class={["text-sm", tone_text(color)]}>{label}</div>
+          <div class="font-mono text-xs eth-faint">
+            {r.region_id} · {tier_label(r.tier)} ·
+            <.term name={:generation}>{gettext("gen.")}</.term>
+            {r.generation || "—"}
+          </div>
+        </div>
+      </div>
+
+      <.detail_col title={gettext("Caché de ESI")} topic={:pollers}>
+        <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
+          <dt class="eth-muted">Last-Modified</dt>
+          <dd class="text-right font-mono">
+            {Format.eve_time(r.last_modified)}
+            <span class="eth-faint">({Format.ago(r.last_modified, @now)})</span>
+          </dd>
+          <dt class="eth-muted">Expires</dt>
+          <dd class="text-right font-mono">
+            {Format.eve_time(r.expires)}
+            <span class="eth-faint">(T-{Format.countdown(r.expires, @now)})</span>
+          </dd>
+          <dt class="eth-muted">{gettext("Próximo ciclo")}</dt>
+          <dd class="text-right font-mono">{Format.eve_time(r.next_at)}</dd>
+          <dt class="eth-muted">{gettext("Páginas")}</dt>
+          <dd class="text-right font-mono">
+            {r.pages || "—"} ({r.not_modified_pages || 0} × 304)
+          </dd>
+          <dt class="eth-muted">{gettext("Estado interno")}</dt>
+          <dd class="text-right font-mono eth-faint">{r.status}</dd>
+        </dl>
+      </.detail_col>
+
+      <.detail_col title={gettext("Órdenes en memoria")}>
+        <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
+          <dt class="eth-muted">{gettext("Total")}</dt>
+          <dd class="text-right font-mono eth-strong">{Format.integer(r.orders)}</dd>
+          <dt class="eth-muted">{gettext("Venta")}</dt>
+          <dd class="text-right font-mono">{Format.compact(r.sell_orders)}</dd>
+          <dt class="eth-muted">{gettext("Compra")}</dt>
+          <dd class="text-right font-mono">{Format.compact(r.buy_orders)}</dd>
+          <dt class="eth-muted">{gettext("Memoria ETS")}</dt>
+          <dd class="text-right font-mono">{Format.bytes(r.bytes)}</dd>
+          <dt class="eth-muted">{gettext("Fallos seguidos")}</dt>
+          <dd class={["text-right font-mono", r.failures > 0 && "text-warning"]}>
+            {r.failures}
+          </dd>
+        </dl>
+        <p :if={r.last_error} class="mt-2 text-xs text-error">{r.last_error}</p>
+      </.detail_col>
+
+      <.detail_col title={gettext("Duración de los ciclos")}>
+        <%= if r.history != [] do %>
+          <svg viewBox="0 0 100 20" class="h-12 w-full text-primary" aria-hidden="true">
+            <polyline
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              vector-effect="non-scaling-stroke"
+              points={sparkline_points(r.history)}
+            />
+          </svg>
+          <p class="mt-1 text-xs eth-faint">
+            {gettext("Últimos %{n} ciclos", n: length(r.history))} · {gettext("último")}: {Format.duration(
+              div(hd(r.history).duration_ms, 1000)
+            )}
+          </p>
+        <% else %>
+          <p class="text-xs eth-faint">{gettext("Todavía sin ciclos completos.")}</p>
+        <% end %>
+      </.detail_col>
+
+      <:footer>
+        <button
+          phx-click="refresh_now"
+          phx-value-id={r.region_id}
+          class="btn btn-primary btn-sm"
+        >
+          <.icon name="hero-arrow-path" class="size-4" /> {gettext("Actualizar ahora")}
+        </button>
+        <button
+          :if={r.status != :paused or r.pause_reason != :manual}
+          phx-click="pause_region"
+          phx-value-id={r.region_id}
+          class="btn btn-outline btn-sm"
+        >
+          <.icon name="hero-pause" class="size-4" /> {gettext("Pausar")}
+        </button>
+        <button
+          :if={r.status == :paused and r.pause_reason == :manual}
+          phx-click="resume_region"
+          phx-value-id={r.region_id}
+          class="btn btn-outline btn-sm"
+        >
+          <.icon name="hero-play" class="size-4" /> {gettext("Reanudar región")}
+        </button>
+        <span class="text-xs eth-faint">
+          {gettext(
+            "\"Actualizar ahora\" solo actúa si ESI ya publicó datos nuevos o si la región está en error."
+          )}
+        </span>
+        <button
+          type="button"
+          phx-click="close_detail"
+          class="btn btn-ghost btn-sm ml-auto eth-muted"
+        >
+          <.icon name="hero-chevron-up" class="size-4" /> {gettext("Cerrar")}
+          <kbd class="kbd kbd-xs">Esc</kbd>
+        </button>
+      </:footer>
+    </.row_detail>
+    """
+  end
+
+  ## Mapa del universo (RF-8.2)
+
+  attr :map, :map, required: true, doc: "`Eth.Sde.galaxy/0`"
+  attr :regions, :map, required: true
+  attr :heat, :map, required: true
+  attr :layer, :atom, required: true
+  attr :selected, :integer, default: nil
+  attr :now, :any, required: true
+
+  defp galaxy_map(assigns) do
+    max_orders =
+      assigns.regions |> Map.values() |> Enum.map(&(&1.orders || 0)) |> Enum.max(fn -> 1 end)
+
+    assigns =
+      assign(assigns,
+        points: Map.new(assigns.map.nodes, &{&1.id, &1}),
+        max_orders: max(max_orders, 1)
+      )
+
+    ~H"""
+    <svg
+      id="galaxy-map"
+      viewBox={"0 0 #{@map.width} #{@map.height}"}
+      class="h-auto w-full"
+      role="group"
+      aria-label={gettext("Mapa de regiones")}
+    >
+      <g aria-hidden="true" class="text-base-content/15">
+        <line
+          :for={{a, b} <- @map.links}
+          x1={@points[a].x}
+          y1={@points[a].y}
+          x2={@points[b].x}
+          y2={@points[b].y}
+          stroke="currentColor"
+          stroke-width="1"
+          vector-effect="non-scaling-stroke"
+        />
+      </g>
+      <.map_region
+        :for={n <- @map.nodes}
+        node={n}
+        status={@regions[n.id]}
+        heat={@heat[n.id]}
+        layer={@layer}
+        selected={@selected == n.id}
+        max_orders={@max_orders}
+        now={@now}
+      />
+    </svg>
+    """
+  end
+
+  attr :node, :map, required: true
+  attr :status, :map, default: nil, doc: "estado del poller (`nil` si la región no se sigue)"
+  attr :heat, :map, default: nil
+  attr :layer, :atom, required: true
+  attr :selected, :boolean, default: false
+  attr :max_orders, :integer, required: true
+  attr :now, :any, required: true
+
+  # Una región: anillo con el estado y la cuenta regresiva de su poller, tamaño según sus
+  # órdenes y halo rojo con el calor del radar.
+  defp map_region(assigns) do
+    %{status: status, heat: heat, layer: layer, now: now} = assigns
+
+    {_key, label, color} =
+      if status, do: display(status, now), else: {:none, gettext("Sin poller"), "neutral"}
+
+    r = if status, do: GalaxyMap.node_radius(status.orders, assigns.max_orders), else: 3.5
+    radar? = layer in [:radar, :both]
+    alerts? = radar? and heat != nil and heat.alerts > 0
+
+    assigns =
+      assign(assigns,
+        r: r,
+        label: label,
+        color: color,
+        pollers?: status != nil and layer in [:pollers, :both],
+        halo: radar? && GalaxyMap.halo_radius(heat, r),
+        alerts?: alerts?,
+        fraction: status && map_fraction(status, now),
+        named?: (status != nil and status.tier == :hub) or assigns.selected or alerts?
+      )
+
+    ~H"""
+    <g
+      id={"map-region-#{@node.id}"}
+      class="cursor-pointer outline-none"
+      role="button"
+      tabindex="0"
+      phx-click="select_region"
+      phx-keydown="select_region"
+      phx-key="Enter"
+      phx-value-id={@node.id}
+      aria-label={"#{@node.name}: #{@label}"}
+      aria-pressed={to_string(@selected)}
+    >
+      <title>{region_title(@node, @status, @label, @heat)}</title>
+      <circle
+        :if={@halo}
+        cx={@node.x}
+        cy={@node.y}
+        r={@halo}
+        class={["fill-error", @alerts? && "eth-pulse-bar"]}
+        fill-opacity={if(@alerts?, do: "0.3", else: "0.12")}
+      />
+      <%= if @pollers? do %>
+        <circle
+          cx={@node.x}
+          cy={@node.y}
+          r={@r}
+          class={["fill-base-100", tone_text(@color)]}
+          stroke="currentColor"
+          stroke-opacity="0.3"
+          stroke-width="2"
+          vector-effect="non-scaling-stroke"
+        />
+        <circle
+          cx={@node.x}
+          cy={@node.y}
+          r={@r}
+          fill="none"
+          stroke="currentColor"
+          class={tone_text(@color)}
+          stroke-width="2.5"
+          stroke-dasharray={GalaxyMap.arc_dash(@fraction, @r)}
+          transform={"rotate(-90 #{@node.x} #{@node.y})"}
+        />
+        <circle cx={@node.x} cy={@node.y} r="2.5" fill="currentColor" class={tone_text(@color)} />
+      <% else %>
+        <circle
+          cx={@node.x}
+          cy={@node.y}
+          r={if(@status, do: 4, else: 3)}
+          class={if(@status, do: "fill-base-content/50", else: "fill-base-content/25")}
+        />
+      <% end %>
+      <circle
+        :if={@selected}
+        cx={@node.x}
+        cy={@node.y}
+        r={@r + 5}
+        fill="none"
+        stroke="currentColor"
+        class="text-primary"
+        stroke-width="1.5"
+        vector-effect="non-scaling-stroke"
+      />
+      <text
+        :if={@named?}
+        x={@node.x}
+        y={@node.y + @r + 14}
+        text-anchor="middle"
+        class={[
+          "font-display text-[12px]",
+          if(@selected, do: "fill-primary", else: "fill-base-content/80")
+        ]}
+      >
+        {@node.name}
+      </text>
+    </g>
+    """
+  end
+
+  defp market_view_path("map"), do: ~p"/control/market?view=map"
+  defp market_view_path(_tiles), do: ~p"/control/market"
+
+  defp map_region_name(galaxy, region_id) do
+    case Enum.find(galaxy.nodes, &(&1.id == region_id)) do
+      %{name: name} -> name
+      nil -> Integer.to_string(region_id)
+    end
+  end
+
+  # Anillo de la región: páginas mientras descarga; si no, tiempo hasta `Expires`.
+  defp map_fraction(%{status: :fetching} = status, _now), do: pages_fraction(status)
+  defp map_fraction(status, now), do: expires_fraction(status, now)
+
+  defp region_title(node, status, label, heat) do
+    poller =
+      if status,
+        do: "#{label} · #{Format.compact(status.orders)} #{gettext("órdenes")}",
+        else: label
+
+    [node.name, poller, heat_text(heat)] |> Enum.reject(&is_nil/1) |> Enum.join(" · ")
+  end
+
+  defp heat_text(nil), do: nil
+  defp heat_text(%{kills: 0}), do: nil
+
+  defp heat_text(%{alerts: 0, kills: kills}),
+    do: ngettext("%{count} kill", "%{count} kills", kills)
+
+  defp heat_text(%{alerts: alerts, kills: kills}) do
+    ngettext("%{count} sistema en alerta", "%{count} sistemas en alerta", alerts) <>
+      ", " <> ngettext("%{count} kill", "%{count} kills", kills)
+  end
+
+  attr :map, :map, required: true, doc: "`Eth.Sde.region_map/1`"
+  attr :heat, :map, required: true, doc: "calor del radar por sistema"
+  attr :layer, :atom, required: true
+
+  # Sistemas de una región: color de seguridad, stargates internos y kills del radar.
+  defp region_systems_map(assigns) do
+    assigns =
+      assign(assigns,
+        points: Map.new(assigns.map.nodes, &{&1.id, &1}),
+        radar?: assigns.layer in [:radar, :both],
+        all_names?: length(assigns.map.nodes) <= 40
+      )
+
+    ~H"""
+    <svg
+      id="region-systems-map"
+      viewBox={"0 0 #{@map.width} #{@map.height}"}
+      class="h-auto w-full"
+      role="img"
+      aria-label={gettext("Sistemas de la región")}
+    >
+      <g aria-hidden="true" class="text-base-content/20">
+        <line
+          :for={{a, b} <- @map.links}
+          x1={@points[a].x}
+          y1={@points[a].y}
+          x2={@points[b].x}
+          y2={@points[b].y}
+          stroke="currentColor"
+          stroke-width="1"
+          vector-effect="non-scaling-stroke"
+        />
+      </g>
+      <g :for={n <- @map.nodes} id={"map-system-#{n.id}"}>
+        <title>{system_title(n, @heat[n.id])}</title>
+        <circle
+          :if={@radar? && GalaxyMap.halo_radius(@heat[n.id], 5)}
+          cx={n.x}
+          cy={n.y}
+          r={GalaxyMap.halo_radius(@heat[n.id], 5)}
+          class={["fill-error", @heat[n.id].alerts > 0 && "eth-pulse-bar"]}
+          fill-opacity={if(@heat[n.id].alerts > 0, do: "0.35", else: "0.15")}
+        />
+        <circle cx={n.x} cy={n.y} r="5" style={"fill: #{Sde.security_color(n.security)}"} />
+        <text
+          :if={@all_names? or (@radar? and @heat[n.id] != nil)}
+          x={n.x}
+          y={n.y - 9}
+          text-anchor="middle"
+          class={[
+            "font-mono text-[11px]",
+            if(@radar? and @heat[n.id] != nil, do: "fill-error", else: "fill-base-content/70")
+          ]}
+        >
+          {n.name}
+        </text>
+      </g>
+    </svg>
+    """
+  end
+
+  defp system_title(node, heat) do
+    sec = :erlang.float_to_binary(Sde.security_display(node.security), decimals: 1)
+    [node.name, sec, heat_text(heat)] |> Enum.reject(&is_nil/1) |> Enum.join(" · ")
   end
 
   ## Sesiones de personajes (RF-8.6)

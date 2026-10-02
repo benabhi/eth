@@ -210,6 +210,32 @@ defmodule EthWeb.ControlLiveTest do
     end
   end
 
+  describe "mapa de regiones (RF-8.2)" do
+    @tag :tmp_dir
+    test "mosaicos o mapa, con la región elegida y sus sistemas", %{conn: conn, tmp_dir: tmp_dir} do
+      :ok = EngineFixture.load_sde(tmp_dir)
+      {:ok, view, _html} = live(conn, ~p"/control/market?view=map")
+      send(view.pid, {:region_status, region_status(%{})})
+
+      assert has_element?(view, "#market-view-map[aria-current=page]")
+      assert has_element?(view, "#galaxy-map #map-region-10000002")
+
+      # Al elegir una región: sus sistemas (la fixture tiene tres) y el detalle del poller.
+      view |> element("#map-region-10000002") |> render_click()
+      assert has_element?(view, "#region-systems-map #map-system-30000142")
+      assert has_element?(view, "#map-region-panel #region-detail")
+
+      view |> element("#map-layer-radar") |> render_click()
+      assert has_element?(view, "#map-layer-radar[aria-pressed=true]")
+
+      # Volver a los mosaicos.
+      view |> element("#market-view-tiles") |> render_click()
+      assert_patch(view, ~p"/control/market")
+      refute has_element?(view, "#galaxy-map")
+      assert has_element?(view, "#region-10000002")
+    end
+  end
+
   describe "radar (RF-8.5, RF-3.8)" do
     test "sin radar en vivo muestra el indicador de degradado en la cabecera", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/control/radar")

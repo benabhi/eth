@@ -6,7 +6,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.10 |
+| Versión | 1.11 |
 | Fecha | 2026-10-02 |
 | Estado | Base para desarrollo — decisiones a confirmar en §15.2 |
 | Autor | Hernan Jalabert |
@@ -17,6 +17,7 @@
 | Versión | Fecha | Cambios |
 |---|---|---|
 | 0.1 | 2026-09 | Borrador inicial de ideas. |
+| 1.11 | 2026-10-02 | Mapa de regiones en el Centro de control (RF-8.2): vista geográfica con el estado de cada poller y el calor del radar, y los sistemas de la región elegida; el SDE procesado suma la posición de los sistemas. |
 | 1.10 | 2026-10-02 | **v1.x, a pedido del usuario:** antigüedad de cada contrato en el tablón y orden Recientes (RF-6.14), cuánto suma entrenar Accounting o Broker Relations en cada contrato (RF-6.15) e interruptor "Sin estructuras" en las tres familias (RF-6.4). Las órdenes que siguen a las consumidas y el beneficio si falla la mejor compra (RF-6.16) entran con la ficha de alto fijo y franjas alineadas (RF-6.5). |
 | 1.9 | 2026-09-30 | **F11 implementada** (v1.0 pendiente de revisión): atajos de teclado (RF-6.9), exportar e importar la configuración (RF-9.7), resaltado de filas nuevas y cambiadas (RF-6.3), imagen de producción y guía de instalación (RNF-10.5–10.7, D-22), universo completo por defecto y optimizado (consultas en paralelo, texto buscable precalculado, intervalo mínimo del motor, tablas cedidas con `give_away`; parámetros nuevos en B.7) y auditoría previa a v1.0 en `docs/audit-v1.0.md` (§11.6). Propuesta pendiente de decisión: ajustar RNF-1.2 al universo completo (hallazgo A-04). |
 | 1.8 | 2026-09-30 | **F10 implementada:** identidad visual con temas oscuro y claro y tipografías propias; componentes compartidos (`EthWeb.UI`, `EthWeb.TradingComponents`); tablón con rango, sellos, peligro y anillo de Certeza, filtros acoplados a la tabla y ficha que se despliega bajo la fila con secciones en columnas (RF-6.5, a pedido del usuario, en lugar de pestañas); Centro de control por pestañas con instrumentos (RF-8.10); registro del cazador con rango, racha e hitos (RF-7.7); manual integrado en HEEx (D-21); indicador de carga inmediato en las filas y WebSocket sin fallback a long polling (RNF-5.15). |
@@ -1080,6 +1081,8 @@ Mosaicos:
 - **Cada mosaico muestra:** color según el estado, cuenta regresiva a `Expires`, barra de páginas mientras descarga, órdenes y edad de los datos.
 - **Filtros** por estado ("solo con problemas"); un clic abre el panel de detalle.
 - *(C)* Vista geográfica según las coordenadas de las regiones en el SDE.
+
+*Implementación (v1.x, pedido del usuario):* la pestaña Mercado tiene el selector **Mosaicos · Mapa** (`?view=map`). El SDE procesado guarda `x` y `z` de cada sistema (`position` de `mapSolarSystems`: +X al Este, +Z al Norte) y `Eth.Sde.Galaxy` arma la vista desde arriba: cada región en el centro de sus sistemas (solo el espacio conocido) y unida a las que comparten un stargate. Cada región seguida es un anillo con el color de su estado, el arco de la cuenta regresiva (o de las páginas) y el tamaño por órdenes; el halo rojo es el calor del radar (`EthWeb.GalaxyMap`). Al elegir una región se ven sus sistemas con la seguridad, los stargates internos y las kills, y el detalle del poller (RF-8.3). Capas: pollers, radar o ambos. SVG generado en el servidor, sin dependencias nuevas; se actualiza con los mismos mensajes que los mosaicos y el radar.
 
 #### RF-8.3 · Detalle de proceso — M · F1
 

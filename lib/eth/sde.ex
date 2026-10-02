@@ -3,10 +3,11 @@ defmodule Eth.Sde do
   API de datos estáticos del juego (RF-2.2, RF-2.6). Lectura sin copia desde
   `:persistent_term`; los datos los publica `Eth.Sde.Store`.
 
-  Implementa: RF-2.2, RF-2.3, RF-2.6.
+  Implementa: RF-2.2, RF-2.3, RF-2.6, RF-8.2.
   """
 
   alias Eth.GameRules
+  alias Eth.Sde.Galaxy
 
   @doc "¿Hay datos cargados?"
   @spec ready?() :: boolean()
@@ -31,6 +32,27 @@ defmodule Eth.Sde do
   @doc "Región por ID."
   @spec region(pos_integer()) :: map() | nil
   def region(id), do: get(:regions, id)
+
+  @doc """
+  Mapa de las regiones del espacio conocido para el Centro de control (RF-8.2): posición
+  2D de cada una y uniones por stargate (`Eth.Sde.Galaxy`). `nil` sin SDE.
+  """
+  @spec galaxy() :: Galaxy.layout() | nil
+  def galaxy do
+    case data() do
+      nil -> nil
+      d -> Galaxy.regions(d.systems, d.regions)
+    end
+  end
+
+  @doc "Mapa de los sistemas de una región (RF-8.2). `nil` sin SDE."
+  @spec region_map(pos_integer()) :: Galaxy.layout() | nil
+  def region_map(region_id) do
+    case data() do
+      nil -> nil
+      d -> Galaxy.region(d.systems, region_id)
+    end
+  end
 
   @doc "Estación NPC por ID."
   @spec station(pos_integer()) :: map() | nil

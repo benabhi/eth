@@ -16,9 +16,9 @@ defmodule Eth.SdeFixture do
     %{
       "mapRegions" => [%{"_key" => 10_000_002, "name" => %{"en" => "The Forge"}}],
       "mapSolarSystems" => [
-        system(30_000_142, "Jita", 0.945913),
-        system(30_000_144, "Perimeter", 0.949),
-        system(30_005_196, "Ahbazon", 0.421)
+        system(30_000_142, "Jita", 0.945913, {-1.29e17, 1.17e17}),
+        system(30_000_144, "Perimeter", 0.949, {-1.26e17, 1.15e17}),
+        system(30_005_196, "Ahbazon", 0.421, {-1.20e17, 1.10e17})
       ],
       "mapStargates" => [
         gate(1, 30_000_142, 30_000_144),
@@ -205,13 +205,15 @@ defmodule Eth.SdeFixture do
     }
   end
 
-  defp system(id, name, sec) do
+  # `{x, z}`: posición del SDE (la `y` no se usa en el mapa).
+  defp system(id, name, sec, {x, z}) do
     %{
       "_key" => id,
       "name" => %{"en" => name},
       "regionID" => 10_000_002,
       "constellationID" => 20_000_020,
-      "securityStatus" => sec
+      "securityStatus" => sec,
+      "position" => %{"x" => x, "y" => 0.0, "z" => z}
     }
   end
 

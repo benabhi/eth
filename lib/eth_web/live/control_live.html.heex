@@ -490,202 +490,202 @@
           <span class="text-xs eth-muted">
             {gettext("%{fresh} con datos frescos", fresh: totals(@regions).fresh)}
           </span>
-        </:actions>
-
-        <p :if={@regions == %{}} class="text-sm eth-muted">
-          {gettext(
-            "Todavía no hay pollers corriendo. El mercado arranca unos segundos después del servidor."
-          )}
-        </p>
-
-        <div
-          :for={{tier, tier_title} <- @tiers}
-          :if={regions_in_tier(@regions, tier) != []}
-          class="mb-5 last:mb-0"
-        >
-          <h3 class="eth-kicker mb-2 text-[11px]">{tier_title}</h3>
-          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            <button
-              :for={{r, {_key, label, color}} <- tiles(@regions, tier, @now)}
-              id={"region-#{r.region_id}"}
-              type="button"
-              phx-click="select_region"
-              phx-value-id={r.region_id}
-              aria-label={"#{r.name}: #{label}"}
-              aria-expanded={to_string(@selected == r.region_id)}
+          <%!-- Mosaicos o mapa (RF-8.2): la vista queda en la URL --%>
+          <div class="join" role="group" aria-label={gettext("Vista de las regiones")}>
+            <.link
+              :for={
+                {view, label, icon} <- [
+                  {"tiles", gettext("Mosaicos"), "hero-squares-2x2"},
+                  {"map", gettext("Mapa"), "hero-map"}
+                ]
+              }
+              id={"market-view-#{view}"}
+              patch={market_view_path(view)}
+              aria-current={@market_view == view && "page"}
               class={[
-                "flex items-center gap-3 border border-l-4 border-base-300 bg-base-200 p-2.5 text-left transition-colors hover:border-primary/60 phx-click-loading:opacity-70",
-                tone_border(color),
-                @selected == r.region_id && "border-primary bg-primary/10"
+                "btn join-item btn-xs",
+                if(@market_view == view, do: "btn-primary", else: "btn-ghost border-base-300")
               ]}
             >
-              <.ring
-                value={
-                  if(r.status == :fetching,
-                    do: pages_fraction(r),
-                    else: expires_fraction(r, @now)
-                  )
-                }
-                size={36}
-                stroke={3}
-                class={tone_text(color)}
-              />
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-sm font-semibold eth-strong">{r.name}</span>
-                <span class={["block text-xs", tone_text(color)]}>
-                  {label} · <span class="font-mono">{timing(r, @now)}</span>
-                </span>
-                <span class="block font-mono text-[11px] eth-faint">
-                  {Format.compact(r.orders)} {gettext("órd.")} · {Format.ago(
-                    r.last_modified,
-                    @now
-                  )}
-                </span>
-              </span>
-              <.icon
-                name="hero-chevron-down"
-                class={[
-                  "size-4 shrink-0 eth-muted transition-transform duration-200",
-                  @selected == r.region_id && "rotate-180 text-primary"
-                ]}
-              />
-            </button>
+              <.icon name={icon} class="size-3.5" /> {label}
+            </.link>
           </div>
+        </:actions>
 
-          <%!-- Detalle de la región elegida, a todo el ancho (RF-8.3) --%>
-          <div
-            :for={r <- [@regions[@selected]]}
-            :if={@selected && @regions[@selected] && @regions[@selected].tier == tier}
-            class="mt-2 border border-base-300"
-          >
-            <% {_key, label, color} = display(r, @now) %>
-            <.row_detail id="region-detail" label={gettext("Detalle de %{name}", name: r.name)}>
-              <div class="flex items-center gap-4">
-                <.double_ring
-                  outer={expires_fraction(r, @now)}
-                  inner={pages_fraction(r)}
-                  size={88}
-                  outer_class={tone_text(color)}
-                  label={label}
-                >
-                  <span class="font-mono text-xs eth-strong">{timing(r, @now)}</span>
-                </.double_ring>
-                <div class="min-w-0">
-                  <h2 id="detail-title" class="font-display text-lg font-semibold eth-strong">
-                    {r.name}
-                  </h2>
-                  <div class={["text-sm", tone_text(color)]}>{label}</div>
-                  <div class="font-mono text-xs eth-faint">
-                    {r.region_id} · {tier_label(r.tier)} ·
-                    <.term name={:generation}>{gettext("gen.")}</.term>
-                    {r.generation || "—"}
+        <%= if @market_view == "map" do %>
+          <%!-- Mapa del universo (RF-8.2): pollers y calor del radar por región --%>
+          <div id="market-map">
+            <%= cond do %>
+              <% is_nil(@galaxy) -> %>
+                <.spinner
+                  label={gettext("Cargando los datos estáticos…")}
+                  hint={gettext("El mapa usa la posición de las regiones del SDE.")}
+                />
+              <% @galaxy.nodes == [] -> %>
+                <p class="text-sm eth-muted">
+                  {gettext(
+                    "Los datos estáticos procesados no traen posiciones todavía: se vuelven a procesar al reiniciar la aplicación."
+                  )}
+                </p>
+              <% true -> %>
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                  <div class="join" role="group" aria-label={gettext("Capas del mapa")}>
+                    <button
+                      :for={
+                        {layer, label} <- [
+                          {:pollers, gettext("Pollers")},
+                          {:radar, gettext("Radar")},
+                          {:both, gettext("Ambos")}
+                        ]
+                      }
+                      id={"map-layer-#{layer}"}
+                      type="button"
+                      phx-click="map_layer"
+                      phx-value-layer={layer}
+                      aria-pressed={to_string(@map_layer == layer)}
+                      class={[
+                        "btn join-item btn-xs",
+                        if(@map_layer == layer, do: "btn-primary", else: "btn-ghost border-base-300")
+                      ]}
+                    >
+                      {label}
+                    </button>
+                  </div>
+                  <%!-- Leyenda: el color nunca va solo (RNF-5.2) --%>
+                  <ul class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] eth-muted">
+                    <li
+                      :for={
+                        {class, label} <- [
+                          {"bg-success", gettext("fresco")},
+                          {"bg-info", gettext("descargando")},
+                          {"bg-warning", gettext("degradado")},
+                          {"bg-error", gettext("error")},
+                          {"bg-base-content/30", gettext("sin poller")}
+                        ]
+                      }
+                      class="flex items-center gap-1"
+                    >
+                      <span class={["inline-block size-2 rounded-full", class]}></span>
+                      {label}
+                    </li>
+                    <li class="flex items-center gap-1">
+                      <span class="inline-block size-2.5 rounded-full bg-error/30"></span>
+                      {gettext("halo: calor del radar")}
+                    </li>
+                  </ul>
+                </div>
+
+                <div class="eth-chamfer border border-base-300 bg-base-200/40 p-2">
+                  <.galaxy_map
+                    map={@galaxy}
+                    regions={@regions}
+                    heat={@heat}
+                    layer={@map_layer}
+                    selected={@selected}
+                    now={@now}
+                  />
+                </div>
+                <p class="mt-2 text-xs eth-faint">
+                  {gettext(
+                    "Vista desde arriba, como el mapa del juego. El anillo es la cuenta regresiva del poller y el tamaño, sus órdenes. Tocá una región para ver sus sistemas y su detalle."
+                  )}
+                </p>
+
+                <%!-- Región elegida: sus sistemas y el detalle del poller (RF-8.3) --%>
+                <div :if={@selected && @region_map} id="map-region-panel" class="mt-4">
+                  <% name = map_region_name(@galaxy, @selected) %>
+                  <h3 class="eth-kicker mb-2 flex items-center gap-2 text-[11px] text-primary">
+                    {gettext("Sistemas de %{name}", name: name)}
+                    <.help topic={:region_map} title={gettext("Sistemas de la región")}>
+                      {gettext(
+                        "Cada sistema con el color de su seguridad y los stargates internos. Con la capa Radar, los que tienen kills en la ventana llevan un halo rojo (late si están en alerta)."
+                      )}
+                    </.help>
+                  </h3>
+                  <div class="eth-chamfer border border-base-300 bg-base-200/40 p-2">
+                    <.region_systems_map
+                      map={@region_map}
+                      heat={@system_heat}
+                      layer={@map_layer}
+                    />
+                  </div>
+                  <div :if={@regions[@selected]} class="mt-2 border border-base-300">
+                    <.region_detail r={@regions[@selected]} now={@now} />
                   </div>
                 </div>
-              </div>
-
-              <.detail_col title={gettext("Caché de ESI")} topic={:pollers}>
-                <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
-                  <dt class="eth-muted">Last-Modified</dt>
-                  <dd class="text-right font-mono">
-                    {Format.eve_time(r.last_modified)}
-                    <span class="eth-faint">({Format.ago(r.last_modified, @now)})</span>
-                  </dd>
-                  <dt class="eth-muted">Expires</dt>
-                  <dd class="text-right font-mono">
-                    {Format.eve_time(r.expires)}
-                    <span class="eth-faint">(T-{Format.countdown(r.expires, @now)})</span>
-                  </dd>
-                  <dt class="eth-muted">{gettext("Próximo ciclo")}</dt>
-                  <dd class="text-right font-mono">{Format.eve_time(r.next_at)}</dd>
-                  <dt class="eth-muted">{gettext("Páginas")}</dt>
-                  <dd class="text-right font-mono">
-                    {r.pages || "—"} ({r.not_modified_pages || 0} × 304)
-                  </dd>
-                  <dt class="eth-muted">{gettext("Estado interno")}</dt>
-                  <dd class="text-right font-mono eth-faint">{r.status}</dd>
-                </dl>
-              </.detail_col>
-
-              <.detail_col title={gettext("Órdenes en memoria")}>
-                <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
-                  <dt class="eth-muted">{gettext("Total")}</dt>
-                  <dd class="text-right font-mono eth-strong">{Format.integer(r.orders)}</dd>
-                  <dt class="eth-muted">{gettext("Venta")}</dt>
-                  <dd class="text-right font-mono">{Format.compact(r.sell_orders)}</dd>
-                  <dt class="eth-muted">{gettext("Compra")}</dt>
-                  <dd class="text-right font-mono">{Format.compact(r.buy_orders)}</dd>
-                  <dt class="eth-muted">{gettext("Memoria ETS")}</dt>
-                  <dd class="text-right font-mono">{Format.bytes(r.bytes)}</dd>
-                  <dt class="eth-muted">{gettext("Fallos seguidos")}</dt>
-                  <dd class={["text-right font-mono", r.failures > 0 && "text-warning"]}>
-                    {r.failures}
-                  </dd>
-                </dl>
-                <p :if={r.last_error} class="mt-2 text-xs text-error">{r.last_error}</p>
-              </.detail_col>
-
-              <.detail_col title={gettext("Duración de los ciclos")}>
-                <%= if r.history != [] do %>
-                  <svg viewBox="0 0 100 20" class="h-12 w-full text-primary" aria-hidden="true">
-                    <polyline
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.5"
-                      vector-effect="non-scaling-stroke"
-                      points={sparkline_points(r.history)}
-                    />
-                  </svg>
-                  <p class="mt-1 text-xs eth-faint">
-                    {gettext("Últimos %{n} ciclos", n: length(r.history))} · {gettext("último")}: {Format.duration(
-                      div(hd(r.history).duration_ms, 1000)
-                    )}
-                  </p>
-                <% else %>
-                  <p class="text-xs eth-faint">{gettext("Todavía sin ciclos completos.")}</p>
-                <% end %>
-              </.detail_col>
-
-              <:footer>
-                <button
-                  phx-click="refresh_now"
-                  phx-value-id={r.region_id}
-                  class="btn btn-primary btn-sm"
-                >
-                  <.icon name="hero-arrow-path" class="size-4" /> {gettext("Actualizar ahora")}
-                </button>
-                <button
-                  :if={r.status != :paused or r.pause_reason != :manual}
-                  phx-click="pause_region"
-                  phx-value-id={r.region_id}
-                  class="btn btn-outline btn-sm"
-                >
-                  <.icon name="hero-pause" class="size-4" /> {gettext("Pausar")}
-                </button>
-                <button
-                  :if={r.status == :paused and r.pause_reason == :manual}
-                  phx-click="resume_region"
-                  phx-value-id={r.region_id}
-                  class="btn btn-outline btn-sm"
-                >
-                  <.icon name="hero-play" class="size-4" /> {gettext("Reanudar región")}
-                </button>
-                <span class="text-xs eth-faint">
-                  {gettext(
-                    "\"Actualizar ahora\" solo actúa si ESI ya publicó datos nuevos o si la región está en error."
-                  )}
-                </span>
-                <button
-                  type="button"
-                  phx-click="close_detail"
-                  class="btn btn-ghost btn-sm ml-auto eth-muted"
-                >
-                  <.icon name="hero-chevron-up" class="size-4" /> {gettext("Cerrar")}
-                  <kbd class="kbd kbd-xs">Esc</kbd>
-                </button>
-              </:footer>
-            </.row_detail>
+            <% end %>
           </div>
-        </div>
+        <% else %>
+          <p :if={@regions == %{}} class="text-sm eth-muted">
+            {gettext(
+              "Todavía no hay pollers corriendo. El mercado arranca unos segundos después del servidor."
+            )}
+          </p>
+
+          <div
+            :for={{tier, tier_title} <- @tiers}
+            :if={regions_in_tier(@regions, tier) != []}
+            class="mb-5 last:mb-0"
+          >
+            <h3 class="eth-kicker mb-2 text-[11px]">{tier_title}</h3>
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              <button
+                :for={{r, {_key, label, color}} <- tiles(@regions, tier, @now)}
+                id={"region-#{r.region_id}"}
+                type="button"
+                phx-click="select_region"
+                phx-value-id={r.region_id}
+                aria-label={"#{r.name}: #{label}"}
+                aria-expanded={to_string(@selected == r.region_id)}
+                class={[
+                  "flex items-center gap-3 border border-l-4 border-base-300 bg-base-200 p-2.5 text-left transition-colors hover:border-primary/60 phx-click-loading:opacity-70",
+                  tone_border(color),
+                  @selected == r.region_id && "border-primary bg-primary/10"
+                ]}
+              >
+                <.ring
+                  value={
+                    if(r.status == :fetching,
+                      do: pages_fraction(r),
+                      else: expires_fraction(r, @now)
+                    )
+                  }
+                  size={36}
+                  stroke={3}
+                  class={tone_text(color)}
+                />
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-sm font-semibold eth-strong">{r.name}</span>
+                  <span class={["block text-xs", tone_text(color)]}>
+                    {label} · <span class="font-mono">{timing(r, @now)}</span>
+                  </span>
+                  <span class="block font-mono text-[11px] eth-faint">
+                    {Format.compact(r.orders)} {gettext("órd.")} · {Format.ago(
+                      r.last_modified,
+                      @now
+                    )}
+                  </span>
+                </span>
+                <.icon
+                  name="hero-chevron-down"
+                  class={[
+                    "size-4 shrink-0 eth-muted transition-transform duration-200",
+                    @selected == r.region_id && "rotate-180 text-primary"
+                  ]}
+                />
+              </button>
+            </div>
+
+            <%!-- Detalle de la región elegida, a todo el ancho (RF-8.3) --%>
+            <div
+              :for={r <- [@regions[@selected]]}
+              :if={@selected && @regions[@selected] && @regions[@selected].tier == tier}
+              class="mt-2 border border-base-300"
+            >
+              <.region_detail r={r} now={@now} />
+            </div>
+          </div>
+        <% end %>
       </.panel>
     <% "radar" -> %>
       <%!-- Radar de amenazas (RF-8.5, RF-3.8) --%>

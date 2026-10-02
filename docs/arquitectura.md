@@ -106,7 +106,7 @@ ETS tienen un dueño estable.
 |---|---|---|
 | ESI | `lib/eth/esi` | Único cliente de ESI (`Eth.Esi.Client`): caché, ETag, rate y error limit, pausas. |
 | SSO | `lib/eth/sso` | Estrategia Ueberauth de EVE, JWT/JWKS, scopes. |
-| SDE | `lib/eth/sde` | Descarga, procesa y consulta los datos estáticos (en `persistent_term`). |
+| SDE | `lib/eth/sde` | Descarga, procesa y consulta los datos estáticos (en `persistent_term`); `Galaxy` arma la geometría del mapa del Centro de control (RF-8.2). |
 | Ruteo | `lib/eth/routing` | Grafo, matrices de distancia, modos Rápida/Segura/Evasiva. |
 | Mercado | `lib/eth/market` | Pollers, tablas de órdenes, estructuras, precios, historial. |
 | Radar | `lib/eth/threat` | Feed de kills, línea base, detección y clasificación de amenazas. |

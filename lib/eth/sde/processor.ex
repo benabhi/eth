@@ -6,7 +6,9 @@ defmodule Eth.Sde.Processor do
   Resultado (`t:data/0`):
 
   - `regions`: `id => %{name}`
-  - `systems`: `id => %{name, region_id, constellation_id, security, neighbors}`
+  - `systems`: `id => %{name, region_id, constellation_id, security, neighbors, x, z}`;
+    `x` y `z` son la posición del SDE (`position`; +X al Este, +Z al Norte), para el mapa
+    del Centro de control (RF-8.2). `nil` si el registro no la trae.
   - `stations`: `id => %{name, system_id, region_id, owner_id}`
   - `corporations`: `id => %{name, faction_id}`
   - `types`: solo tipos publicados con grupo de mercado:
@@ -76,7 +78,9 @@ defmodule Eth.Sde.Processor do
            region_id: s["regionID"],
            constellation_id: s["constellationID"],
            security: s["securityStatus"] / 1,
-           neighbors: neighbors |> Map.get(s["_key"], []) |> Enum.uniq() |> Enum.sort()
+           neighbors: neighbors |> Map.get(s["_key"], []) |> Enum.uniq() |> Enum.sort(),
+           x: coordinate(s["position"], "x"),
+           z: coordinate(s["position"], "z")
          }}
       end)
 
@@ -231,4 +235,14 @@ defmodule Eth.Sde.Processor do
     {value, letters} = Enum.find(@romans, fn {v, _} -> n >= v end)
     letters <> roman(n - value)
   end
+
+  # Coordenada de `position` (`%{"x", "y", "z"}`) como float, o `nil` si falta.
+  defp coordinate(%{} = position, axis) do
+    case position[axis] do
+      n when is_number(n) -> n / 1
+      _ -> nil
+    end
+  end
+
+  defp coordinate(_position, _axis), do: nil
 end
