@@ -389,6 +389,7 @@
           <.row_detail
             :if={@selected == row.id}
             id="detail"
+            flow
             label={gettext("Ficha de %{name}", name: row.opportunity.type_name)}
           >
             <div
@@ -396,7 +397,7 @@
               id="shield-alert"
               role={if scam?(row), do: "alert", else: "status"}
               class={[
-                "flex flex-wrap items-center gap-x-3 gap-y-1 border px-3 py-2 text-sm md:col-span-2 xl:col-span-4",
+                "mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 border px-3 py-2 text-sm [column-span:all]",
                 if(scam?(row),
                   do: "border-error/50 bg-error/10",
                   else: "border-warning/50 bg-warning/10"
@@ -425,7 +426,7 @@
               </button>
             </div>
 
-            <.detail_col title={gettext("Cálculo")} topic={:profit}>
+            <.detail_col boxed title={gettext("Cálculo")} topic={:profit}>
               <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm tabular-nums">
                 <dt class="eth-muted">{gettext("Cantidad")}</dt>
                 <dd class="text-right font-mono">
@@ -490,10 +491,23 @@
                   <% end %>
                 </span>
               </div>
-              <.skill_gains gains={@skill_gains} />
             </.detail_col>
 
-            <.detail_col title={gettext("Libro consumido")} topic={:walk}>
+            <.detail_col
+              :if={@skill_gains != []}
+              boxed
+              title={gettext("Si entrenás")}
+              topic={:skills}
+              help={
+                gettext(
+                  "Lo que sumaría este mismo contrato con más nivel en cada habilidad: menos impuestos y comisiones, y a veces más cantidad con margen. Se calcula con tu nivel actual (o el del filtro)."
+                )
+              }
+            >
+              <.skill_gains gains={@skill_gains} heading={false} />
+            </.detail_col>
+
+            <.detail_col boxed title={gettext("Libro consumido")} topic={:walk}>
               <div class="grid grid-cols-2 gap-3 font-mono text-xs">
                 <div>
                   <div class="mb-0.5 font-sans eth-faint">{gettext("Compra (ventas)")}</div>
@@ -514,6 +528,7 @@
 
             <%!-- Ruta: sistemas del camino, seguridad y amenazas del radar --%>
             <.detail_col
+              boxed
               title={gettext("Ruta (%{mode})", mode: route_label(@query.route_mode))}
               topic={:radar}
               help={
@@ -574,7 +589,11 @@
               <% end %>
             </.detail_col>
 
-            <.detail_col title={gettext("¿Por qué TVS %{tvs}?", tvs: row.tvs)} topic={:tvs}>
+            <.detail_col
+              boxed
+              title={gettext("¿Por qué TVS %{tvs}?", tvs: row.tvs)}
+              topic={:tvs}
+            >
               <p class="eth-formula">
                 {gettext("utilidad")} {:erlang.float_to_binary(row.utility, decimals: 2)} × {gettext(
                   "certeza"
@@ -621,13 +640,14 @@
                   <span class="font-mono">{pct(row.breakdown.liquidity)}</span>
                 </li>
               </ul>
+            </.detail_col>
 
-              <h3 class="eth-kicker mt-4 mb-2 flex items-center gap-2 text-[11px] text-primary">
-                {gettext("Historial del destino")}
-                <.help topic={:liquidity} title={gettext("Historial")}>
-                  {gettext("Precio y volumen de los últimos 30 días en la región de destino.")}
-                </.help>
-              </h3>
+            <.detail_col
+              boxed
+              title={gettext("Historial del destino")}
+              topic={:liquidity}
+              help={gettext("Precio y volumen de los últimos 30 días en la región de destino.")}
+            >
               <%= if h = row.history.destination do %>
                 <div id="history" class="text-xs">
                   <svg

@@ -162,11 +162,15 @@ defmodule EthWeb.TradingComponents do
   """
   attr :gains, :list, required: true, doc: "de `Eth.Engine.skill_gains/3`"
   attr :unit, :string, default: nil, doc: "sufijo del valor, p. ej. \"/día\""
+  attr :heading, :boolean, default: true, doc: "sin encabezado si ya va en su tarjeta"
 
   def skill_gains(assigns) do
     ~H"""
-    <div :if={@gains != []} id="skill-gains" class="mt-4">
-      <h3 class="eth-kicker mb-2 flex items-center gap-2 text-[11px] text-primary">
+    <div :if={@gains != []} id="skill-gains" class={@heading && "mt-4"}>
+      <h3
+        :if={@heading}
+        class="eth-kicker mb-2 flex items-center gap-2 text-[11px] text-primary"
+      >
         {gettext("Si entrenás")}
         <.help topic={:skills} title={gettext("Si entrenás")}>
           {gettext(
@@ -548,9 +552,14 @@ defmodule EthWeb.TradingComponents do
   @doc """
   Contenedor de la ficha que se despliega bajo la fila: se desenrolla al abrir, se
   desvanece al cerrar y se desplaza a la vista si quedó fuera de la pantalla.
+
+  Con `flow`, las secciones (tarjetas `detail_col boxed`) se acomodan en mosaico: fluyen en
+  columnas que el navegador equilibra para que terminen a la misma altura, sea cual sea el
+  largo de cada una (una ruta de 4 o de 80 saltos, dos órdenes o diez).
   """
   attr :id, :string, required: true
   attr :label, :string, required: true
+  attr :flow, :boolean, default: false, doc: "mosaico equilibrado en lugar de grilla fija"
   slot :inner_block, required: true
   slot :footer
 
@@ -567,7 +576,12 @@ defmodule EthWeb.TradingComponents do
       }
       class="eth-unfold cursor-default border-t border-primary/30 bg-base-200/70 px-4 pt-4 pb-3"
     >
-      <div class="grid gap-x-6 gap-y-5 md:grid-cols-2 xl:grid-cols-4">
+      <div class={
+        if(@flow,
+          do: "columns-1 gap-x-4 md:columns-2 xl:columns-4",
+          else: "grid gap-x-6 gap-y-5 md:grid-cols-2 xl:grid-cols-4"
+        )
+      }>
         {render_slot(@inner_block)}
       </div>
       <div
@@ -591,16 +605,24 @@ defmodule EthWeb.TradingComponents do
     """
   end
 
-  @doc "Columna de la ficha: título en versalitas con su \"?\" y contenido."
+  @doc """
+  Columna de la ficha: título en versalitas con su \"?\" y contenido. Con `boxed`, es una
+  tarjeta del mosaico (`row_detail flow`): no se corta entre columnas.
+  """
   attr :title, :string, required: true
   attr :topic, :atom, default: nil
   attr :help, :string, default: nil
+  attr :boxed, :boolean, default: false
   attr :class, :any, default: nil
   slot :inner_block, required: true
 
   def detail_col(assigns) do
     ~H"""
-    <div class={["min-w-0", @class]}>
+    <div class={[
+      "min-w-0",
+      @boxed && "mb-4 break-inside-avoid border border-base-300/60 bg-base-100/40 p-3",
+      @class
+    ]}>
       <h3 class="eth-kicker mb-2 flex items-center gap-2 text-[11px] text-primary">
         {@title}
         <.help :if={@topic && @help} topic={@topic} title={@title}>{@help}</.help>
