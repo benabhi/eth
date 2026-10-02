@@ -555,8 +555,12 @@ defmodule EthWeb.ControlLive do
   # Llegar con una ruta (desde la ficha del tablón) enciende la capa Rutas.
   defp assign_url_route(socket, nil), do: assign(socket, :url_route, nil)
 
+  # Desde el tablón se ve solo la ruta: sin los pollers, que la tapan.
   defp assign_url_route(socket, route) do
-    socket |> assign(:url_route, route) |> enable_layer(:routes)
+    socket
+    |> assign(:url_route, route)
+    |> update(:map_layers, &List.delete(&1, :pollers))
+    |> enable_layer(:routes)
   end
 
   defp enable_layer(socket, layer) do

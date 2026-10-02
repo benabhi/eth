@@ -328,6 +328,7 @@ defmodule EthWeb.ControlLiveTest do
       refute has_element?(view, "#map-route-start")
       assert has_element?(view, "#map-routes #map-route-card", "Ruta del tablón")
       assert has_element?(view, "#map-layer-routes[aria-pressed=true]")
+      assert has_element?(view, "#map-layer-pollers[aria-pressed=false]")
 
       # Dentro de la región, los tramos entre sus sistemas.
       view |> element("#map-region-10000002") |> render_click()
