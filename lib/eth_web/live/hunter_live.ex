@@ -52,7 +52,7 @@ defmodule EthWeb.HunterLive do
       |> assign(:selected, nil)
       |> assign(:route_details, nil)
       |> assign(:route_loading, false)
-      |> assign(:skill_gains, [])
+      |> assign(skill_gains: [], book_depth: nil)
       |> assign(:total, 0)
       |> assign(known: nil, highlights: %{}, lingering: %{}, ghosts: %{}, hovering: false)
       |> assign(:reward, 0.0)
@@ -325,13 +325,34 @@ defmodule EthWeb.HunterLive do
       else: socket
   end
 
-  # Lo que sumaría subir las habilidades de comercio en la ficha abierta (RF-6.15). Se
-  # recalcula con la fila: cambia con el mercado y con los filtros (Accounting).
+  # Habilidades y libro siguiente de la ficha abierta (RF-6.15, RF-6.16). Se recalculan
+  # con la fila: cambian con el mercado y con los filtros (Accounting, capital, bodega).
   defp assign_detail_extras(%{assigns: %{selected_row: nil}} = socket),
-    do: assign(socket, :skill_gains, [])
+    do: assign(socket, skill_gains: [], book_depth: nil)
 
-  defp assign_detail_extras(%{assigns: %{selected_row: row, query: query}} = socket),
-    do: assign(socket, :skill_gains, Engine.skill_gains(:direct, row.opportunity, query))
+  defp assign_detail_extras(%{assigns: %{selected_row: row, query: query}} = socket) do
+    assign(socket,
+      skill_gains: Engine.skill_gains(:direct, row.opportunity, query),
+      book_depth: Engine.book_depth(row, query)
+    )
+  end
+
+  # Beneficio sin la mejor compra frente al actual (RF-6.16): verde si conserva casi todo,
+  # ámbar si se resiente, rojo si se pierde.
+  defp fallback_class(nil, _row), do: "text-error"
+
+  defp fallback_class(%{profit: profit}, row) do
+    cond do
+      profit >= row.profit * 0.8 -> "text-success"
+      profit > 0 -> "text-warning"
+      true -> "text-error"
+    end
+  end
+
+  defp fallback_change(%{profit: profit}, row) do
+    change = round((profit - row.profit) / row.profit * 100)
+    if change >= 0, do: "+#{change} %", else: "−#{abs(change)} %"
+  end
 
   defp reinsert_selected(socket), do: reinsert(socket, socket.assigns.selected_row)
 

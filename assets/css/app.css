@@ -515,6 +515,9 @@ body {
   mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent);
 }
 .eth-band-body:focus-visible { outline: 1px solid var(--color-primary); outline-offset: 2px; }
+/* Marca "más ↓": aparece mientras el cuerpo tenga contenido por debajo. */
+.eth-band-more { opacity: 0; transition: opacity 150ms ease; }
+.eth-band-body[data-overflow] + .eth-band-more { opacity: 1; }
 
 /* Etapa en curso del viaje (RF-7.2): late suave para indicar actividad real. */
 @keyframes eth-pulse-bar {

@@ -457,6 +457,32 @@
                     · <.term name={:eta} align="end" /> {Format.travel(row.seconds)}
                   </span>
                 </dd>
+                <%!-- Colchón del contrato (RF-6.16): si otro piloto llega antes a la mejor compra --%>
+                <div
+                  :if={@book_depth}
+                  id="book-fallback"
+                  class="col-span-2 mt-1 flex items-baseline justify-between gap-3 border-t border-dashed border-base-300 pt-1"
+                >
+                  <span class="flex items-center gap-1 eth-muted">
+                    {gettext("Si falla la mejor compra")}
+                    <.help topic={:book_depth} title={gettext("Si falla la mejor compra")}>
+                      {gettext(
+                        "Beneficio si la orden de compra de mayor precio desaparece antes de que llegues (otro piloto le vendió primero o el comprador la canceló): se vende a las siguientes."
+                      )}
+                    </.help>
+                  </span>
+                  <span class={[
+                    "text-right font-mono",
+                    fallback_class(@book_depth.fallback, row)
+                  ]}>
+                    <%= if fb = @book_depth.fallback do %>
+                      {Format.compact(fb.profit)}
+                      <span class="eth-faint">({fallback_change(fb, row)})</span>
+                    <% else %>
+                      {gettext("deja de ser rentable")}
+                    <% end %>
+                  </span>
+                </div>
               </dl>
               <.skill_gains gains={@skill_gains} />
               <:summary>
@@ -477,12 +503,14 @@
                   <div :for={{price, qty} <- row.asks_used}>
                     {Format.compact(price)} × {Format.integer(qty)}
                   </div>
+                  <.book_next :if={@book_depth} id="book-next-asks" levels={@book_depth.asks} />
                 </div>
                 <div>
                   <div class="mb-0.5 font-sans eth-faint">{gettext("Venta (compras)")}</div>
                   <div :for={{price, qty, min_volume} <- row.bids_used}>
                     {Format.compact(price)} × {Format.integer(qty)}<span :if={min_volume > 1}> (mín. {min_volume})</span>
                   </div>
+                  <.book_next :if={@book_depth} id="book-next-bids" levels={@book_depth.bids} />
                 </div>
               </div>
 

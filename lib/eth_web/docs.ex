@@ -46,6 +46,7 @@ defmodule EthWeb.Docs do
     board_age: {"tablon", "antiguedad"},
     no_structures: {"tablon", "sin-estructuras"},
     skills: {"impuestos", "habilidades"},
+    book_depth: {"walk-the-book", "lo-que-sigue-en-el-libro"},
     sales_tax: {"impuestos", "sales-tax"},
     broker: {"impuestos", "broker-fee"},
     relist: {"impuestos", "modificar-una-orden"},
@@ -152,6 +153,9 @@ defmodule EthWeb.Docs do
 
   def summary(:skills),
     do: gettext("Cuánto más dejaría el contrato con más nivel en Accounting o Broker Relations.")
+
+  def summary(:book_depth),
+    do: gettext("Órdenes que siguen a las consumidas y beneficio si falla la mejor compra.")
 
   def summary(:sales_tax),
     do: gettext("Impuesto al vender, más bajo con Accounting.")

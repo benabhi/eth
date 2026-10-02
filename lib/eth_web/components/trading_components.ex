@@ -14,9 +14,10 @@ defmodule EthWeb.TradingComponents do
   sumaría subir las habilidades de comercio (`skill_gains/1`, RF-6.15).
 
   La ficha del Directo usa franjas alineadas de alto fijo (`row_detail bands`,
-  `detail_band/1`).
+  `detail_band/1`) y muestra las órdenes que siguen a las consumidas (`book_next/1`,
+  RF-6.16).
 
-  Implementa: RF-6.4, RF-6.5, RF-6.9, RF-6.12, RF-6.13, RF-6.14, RF-6.15, RF-11.2.
+  Implementa: RF-6.4, RF-6.5, RF-6.9, RF-6.12, RF-6.13, RF-6.14, RF-6.15, RF-6.16, RF-11.2.
   """
   use EthWeb, :html
 
@@ -592,7 +593,8 @@ defmodule EthWeb.TradingComponents do
   Franja de la ficha (RF-6.5): título, cuerpo y resumen. Dentro de un `row_detail bands`
   ocupa tres pistas de la grilla (`subgrid`), así sus títulos, cuerpos y resúmenes quedan
   alineados con los de las otras columnas. Si el cuerpo no entra en su alto, tiene scroll
-  propio y se desvanece abajo mientras quede contenido por ver (hook `.BandOverflow`).
+  propio y, mientras quede contenido por ver, se desvanece abajo y muestra la marca
+  "más ↓" (hook `.BandOverflow`).
   """
   attr :id, :string, required: true
   attr :title, :string, required: true
@@ -612,14 +614,23 @@ defmodule EthWeb.TradingComponents do
         <.help :if={@topic && @help} topic={@topic} title={@title}>{@help}</.help>
         <.help :if={@topic && !@help} topic={@topic} title={@title} />
       </h3>
-      <div
-        id={"#{@id}-body"}
-        phx-hook=".BandOverflow"
-        tabindex="0"
-        aria-label={@title}
-        class="eth-band-body min-h-0 md:overflow-y-auto md:pr-1"
-      >
-        {render_slot(@inner_block)}
+      <div class="relative min-h-0">
+        <div
+          id={"#{@id}-body"}
+          phx-hook=".BandOverflow"
+          tabindex="0"
+          aria-label={@title}
+          class="eth-band-body min-h-0 md:h-full md:overflow-y-auto md:pr-1"
+        >
+          {render_slot(@inner_block)}
+        </div>
+        <%!-- Marca de "hay más": se ve solo mientras quede contenido abajo (CSS) --%>
+        <span
+          class="eth-band-more pointer-events-none absolute right-2 bottom-0.5 inline-flex items-center gap-0.5 border border-primary/40 bg-base-200 px-1.5 py-px font-display text-[9px] uppercase tracking-wider text-primary"
+          aria-hidden="true"
+        >
+          {gettext("más")} <.icon name="hero-chevron-down" class="size-3" />
+        </span>
       </div>
       <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-base-300 pt-2 text-sm">
         {render_slot(@summary)}
@@ -644,6 +655,27 @@ defmodule EthWeb.TradingComponents do
         }
       }
     </script>
+    """
+  end
+
+  @doc """
+  Órdenes que siguen a las consumidas en el libro (RF-6.16), atenuadas debajo de ellas,
+  tras una línea fina: muestran el colchón del contrato si cambian las primeras.
+  """
+  attr :id, :string, required: true
+  attr :levels, :list, required: true, doc: "`[{precio, cantidad}]` del mejor al peor"
+
+  def book_next(assigns) do
+    ~H"""
+    <div id={@id} class="eth-faint">
+      <div class="my-1 flex items-center gap-1.5 font-sans text-[9px] uppercase tracking-wider">
+        <span class="flex-1 border-t border-dashed border-base-300"></span>
+        {if @levels == [], do: gettext("no hay más"), else: gettext("siguen")}
+      </div>
+      <div :for={{price, qty} <- @levels}>
+        {EthWeb.Format.compact(price)} × {EthWeb.Format.integer(qty)}
+      </div>
+    </div>
     """
   end
 
