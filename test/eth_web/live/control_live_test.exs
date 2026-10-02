@@ -224,6 +224,7 @@ defmodule EthWeb.ControlLiveTest do
       assert has_element?(view, "#map-canvas #galaxy-map #map-region-10000002[data-tip]")
       assert has_element?(view, "#map-inspector #map-universe-panel")
       assert has_element?(view, "#map-canvas-in[data-map-action=in]")
+      assert has_element?(view, "#map-canvas-legend #map-legend")
 
       # Un clic entra a la región: sus sistemas (la fixture tiene tres) en el mismo lienzo,
       # su inspector y el detalle del poller.
@@ -258,14 +259,16 @@ defmodule EthWeb.ControlLiveTest do
       :ok = EngineFixture.load_sde(tmp_dir)
       {:ok, view, _html} = live(conn, ~p"/control/market?view=map")
 
-      assert has_element?(view, "#map-layer-radar[aria-pressed=true]")
-      view |> element("#map-layer-radar") |> render_click()
-      assert has_element?(view, "#map-layer-radar[aria-pressed=false]")
+      # Por defecto solo los pollers.
       assert has_element?(view, "#map-layer-pollers[aria-pressed=true]")
+      assert has_element?(view, "#map-layer-radar[aria-pressed=false]")
+      view |> element("#map-layer-radar") |> render_click()
+      assert has_element?(view, "#map-layer-radar[aria-pressed=true]")
 
-      view |> element("#map-filter-heat") |> render_click()
+      # El navegador manda también el `value` (vacío) del botón: no debe pisar la opción.
+      view |> element("#map-filter-heat") |> render_click(%{"value" => ""})
       assert has_element?(view, "#map-filter-heat[aria-pressed=true]")
-      view |> element("#map-labels-all") |> render_click()
+      view |> element("#map-labels-all") |> render_click(%{"value" => ""})
       assert has_element?(view, "#map-labels-all[aria-pressed=true]")
 
       # Dentro de una región: estaciones, salidas y color por calor.
@@ -273,7 +276,7 @@ defmodule EthWeb.ControlLiveTest do
       refute has_element?(view, "#map-layer-pollers")
       view |> element("#map-layer-stations") |> render_click()
       assert has_element?(view, "#map-layer-stations[aria-pressed=true]")
-      view |> element("#map-color-heat") |> render_click()
+      view |> element("#map-color-heat") |> render_click(%{"value" => ""})
       assert has_element?(view, "#map-color-heat[aria-pressed=true]")
     end
 

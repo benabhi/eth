@@ -681,10 +681,12 @@
                             now={@now}
                           />
                         <% end %>
+                        <:legend>
+                          <.map_legend in_region={region?} />
+                        </:legend>
                       </.map_canvas>
                     </div>
-                    <.map_legend in_region={region?} />
-                    <p class="mt-1 text-xs eth-faint">
+                    <p class="mt-1.5 text-[11px] eth-faint">
                       <%= if region? do %>
                         {gettext(
                           "Rueda o +/− para el zoom, arrastrá para moverte y doble clic para acercarte. Tocá un sistema para ver su ficha; una salida o Esc te llevan a otra región o al universo."

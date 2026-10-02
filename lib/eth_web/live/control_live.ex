@@ -42,7 +42,8 @@ defmodule EthWeb.ControlLive do
 
   # Capas del mapa: se encienden y apagan por separado.
   @map_layers ~w(pollers radar opps pilots routes stations borders)a
-  @map_layers_default [:pollers, :radar, :opps, :pilots, :routes, :borders]
+  # Por defecto solo los pollers; Rutas se enciende sola con una ruta del tablón o un viaje.
+  @map_layers_default [:pollers]
   @map_options %{
     "filter" => {:map_filter, ~w(all problems heat opps)a},
     "labels" => {:map_labels, ~w(auto all)a},
@@ -74,7 +75,7 @@ defmodule EthWeb.ControlLive do
       |> assign(map_filter: :all, map_labels: :auto, map_color: :security, map_system: nil)
       |> assign(:map_find, to_form(%{"q" => ""}, as: :find))
       |> assign(:opps, %{regions: %{}, systems: %{}})
-      |> assign(url_route: nil, runs: [], trips: [])
+      |> assign(url_route: nil, runs: [], trips: [], trips_shown: false)
       |> assign(:galaxy, Sde.galaxy())
       |> assign(:event_level, nil)
       |> assign(:events, Events.recent(@event_limit))
@@ -98,7 +99,7 @@ defmodule EthWeb.ControlLive do
          |> assign(:tab, tab)
          |> assign(:market_view, if(params["view"] == "map", do: "map", else: "tiles"))
          |> assign_selected(selected_region(params, socket.assigns.selected))
-         |> assign(:url_route, url_route(params))
+         |> assign_url_route(url_route(params))
          |> refresh_opps()
          |> refresh_runs()}
 
@@ -223,8 +224,9 @@ defmodule EthWeb.ControlLive do
     end
   end
 
-  # Filtro del universo, nombres y color de los sistemas.
-  def handle_event("map_option", %{"option" => option, "value" => value}, socket) do
+  # Filtro del universo, nombres y color de los sistemas. El valor va en `choice`: LiveView
+  # pisa `value` con el del propio botón (vacío).
+  def handle_event("map_option", %{"option" => option, "choice" => value}, socket) do
     with {key, values} <- Map.get(@map_options, option),
          value when value != nil <- Enum.find(values, &(Atom.to_string(&1) == value)) do
       {:noreply, assign(socket, key, value)}
@@ -547,6 +549,19 @@ defmodule EthWeb.ControlLive do
 
   defp url_route(_params), do: nil
 
+  # Llegar con una ruta (desde la ficha del tablón) enciende la capa Rutas.
+  defp assign_url_route(socket, nil), do: assign(socket, :url_route, nil)
+
+  defp assign_url_route(socket, route) do
+    socket |> assign(:url_route, route) |> enable_layer(:routes)
+  end
+
+  defp enable_layer(socket, layer) do
+    if layer in socket.assigns.map_layers,
+      do: socket,
+      else: update(socket, :map_layers, &[layer | &1])
+  end
+
   # Sistema de compra de la ruta: solo si es uno de sus sistemas.
   defp route_stop(text, path) do
     case Integer.parse(text || "") do
@@ -559,6 +574,12 @@ defmodule EthWeb.ControlLive do
   # lista sale de la base al abrir el mapa y con cada aviso del viaje; el camino, del tick.
   defp refresh_runs(%{assigns: %{tab: "market", market_view: "map"}} = socket) do
     runs = for s <- socket.assigns.sessions, run = Tracking.active(s.id), do: {s.name, run}
+
+    # El primer viaje que aparece enciende la capa Rutas (después la maneja el piloto).
+    socket =
+      if runs != [] and not socket.assigns.trips_shown,
+        do: socket |> enable_layer(:routes) |> assign(:trips_shown, true),
+        else: socket
 
     socket |> assign(:runs, runs) |> refresh_trips()
   end
@@ -1133,7 +1154,7 @@ defmodule EthWeb.ControlLive do
           type="button"
           phx-click="map_option"
           phx-value-option={@option}
-          phx-value-value={value}
+          phx-value-choice={value}
           aria-pressed={to_string(@value == value)}
           class={[
             "btn join-item btn-xs",
@@ -1149,64 +1170,71 @@ defmodule EthWeb.ControlLive do
 
   attr :in_region, :boolean, required: true
 
-  # Leyenda del nivel a la vista: el color nunca va solo (RNF-5.2).
+  # Leyenda del nivel a la vista: el color nunca va solo (RNF-5.2). Compacta, para el
+  # panel plegable del lienzo.
   defp map_legend(assigns) do
     ~H"""
     <ul
       id="map-legend"
-      class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] eth-muted"
+      class="grid gap-x-4 gap-y-1 text-[10.5px] leading-tight eth-muted sm:grid-cols-2"
     >
       <%= if @in_region do %>
-        <li :for={sec <- [1.0, 0.5, 0.1, -0.5]} class="flex items-center gap-1">
-          <span
-            class="inline-block size-2 rounded-full"
-            style={"background: #{Sde.security_color(sec)}"}
-          >
+        <li class="flex items-center gap-1.5 sm:col-span-2">
+          <span class="eth-faint">{gettext("Seguridad")}</span>
+          <span :for={sec <- [1.0, 0.5, 0.1, -0.5]} class="flex items-center gap-0.5 font-mono">
+            <span
+              class="inline-block size-1.5 rounded-full"
+              style={"background: #{Sde.security_color(sec)}"}
+            >
+            </span>
+            {security_text(sec)}
           </span>
-          {security_text(sec)}
         </li>
-        <li class="flex items-center gap-1">
-          <span class="inline-block size-2.5 border border-base-content/45"></span>
+        <li class="flex items-center gap-1.5">
+          <span class="inline-block size-2 border border-base-content/45"></span>
           {gettext("estaciones NPC")}
         </li>
-        <li class="flex items-center gap-1">
+        <li class="flex items-center gap-1.5">
           <span class="text-info">▸</span> {gettext("salida a otra región")}
         </li>
       <% else %>
-        <li
-          :for={
-            {class, label} <- [
-              {"bg-success", gettext("fresco")},
-              {"bg-info", gettext("descargando")},
-              {"bg-warning", gettext("degradado")},
-              {"bg-error", gettext("error")},
-              {"bg-base-content/30", gettext("sin poller")}
-            ]
-          }
-          class="flex items-center gap-1"
-        >
-          <span class={["inline-block size-2 rounded-full", class]}></span>
-          {label}
+        <li class="flex flex-wrap items-center gap-x-2 gap-y-1 sm:col-span-2">
+          <span class="eth-faint">{gettext("Poller")}</span>
+          <span
+            :for={
+              {class, label} <- [
+                {"bg-success", gettext("fresco")},
+                {"bg-info", gettext("descargando")},
+                {"bg-warning", gettext("degradado")},
+                {"bg-error", gettext("error")},
+                {"bg-base-content/30", gettext("sin poller")}
+              ]
+            }
+            class="flex items-center gap-1"
+          >
+            <span class={["inline-block size-1.5 rounded-full", class]}></span>
+            {label}
+          </span>
         </li>
       <% end %>
-      <li class="flex items-center gap-1">
-        <span class="inline-block size-2.5 rounded-full bg-error/30"></span>
+      <li class="flex items-center gap-1.5">
+        <span class="inline-block size-2 rounded-full bg-error/30"></span>
         {gettext("halo: calor del radar")}
       </li>
-      <li class="flex items-center gap-1">
-        <span class="border border-success px-1 font-mono text-[9px] leading-tight text-success">
+      <li class="flex items-center gap-1.5">
+        <span class="border border-success px-0.5 font-mono text-[8px] leading-none text-success">
           12
         </span>
         {gettext("oportunidades que compran ahí")}
       </li>
-      <li class="flex items-center gap-1">
-        <span class="text-accent">▼</span> {gettext("piloto")}
+      <li class="flex items-center gap-1.5">
+        <span class="text-[9px] text-accent">▼</span> {gettext("piloto")}
       </li>
-      <li class="flex items-center gap-1">
-        <span class="inline-block h-0.5 w-4 bg-primary"></span> {gettext("ruta del tablón")}
+      <li class="flex items-center gap-1.5">
+        <span class="inline-block h-0.5 w-3 bg-primary"></span> {gettext("ruta del tablón")}
       </li>
-      <li class="flex items-center gap-1">
-        <span class="inline-block h-0.5 w-4 bg-accent"></span>
+      <li class="flex items-center gap-1.5 sm:col-span-2">
+        <span class="inline-block h-0.5 w-3 bg-accent"></span>
         {gettext("viaje activo (anillo: compra · doble: venta)")}
       </li>
     </ul>
@@ -1216,6 +1244,7 @@ defmodule EthWeb.ControlLive do
   attr :id, :string, required: true
   attr :key, :string, required: true, doc: "nivel dibujado: al cambiar, la vista vuelve a 100 %"
   slot :inner_block, required: true
+  slot :legend, doc: "leyenda plegable en la esquina inferior izquierda"
 
   # Lienzo del mapa (hook .MapCanvas): zoom con la rueda, los botones o el teclado,
   # arrastre para desplazarse, doble clic para acercarse, pantalla completa y tooltip.
@@ -1228,12 +1257,25 @@ defmodule EthWeb.ControlLive do
       class="eth-map relative overflow-hidden"
     >
       {render_slot(@inner_block)}
+      <details
+        :if={@legend != []}
+        id={"#{@id}-legend"}
+        phx-mounted={JS.ignore_attributes(["open"])}
+        class="eth-map-legend absolute bottom-2 left-2 z-10 max-w-[calc(100%-3.5rem)] border border-base-300 bg-base-100/90 shadow-sm backdrop-blur-sm"
+      >
+        <summary class="flex items-center gap-1.5 px-2 py-1 font-display text-[10px] tracking-[0.14em] uppercase eth-muted transition-colors hover:text-primary">
+          <.icon name="hero-information-circle" class="size-3.5" /> {gettext("Leyenda")}
+        </summary>
+        <div class="max-h-48 overflow-y-auto border-t border-base-300 px-2.5 py-2">
+          {render_slot(@legend)}
+        </div>
+      </details>
       <div
         id={"#{@id}-tip"}
         data-map-tip
         phx-update="ignore"
         phx-mounted={JS.ignore_attributes(["class", "style"])}
-        class="eth-map-tip pointer-events-none absolute left-0 top-0 z-10 hidden max-w-64 border border-base-300 bg-base-100/95 px-2.5 py-1.5 text-xs shadow-lg"
+        class="eth-map-tip pointer-events-none absolute left-0 top-0 z-10 hidden"
       >
       </div>
       <div
@@ -1341,6 +1383,8 @@ defmodule EthWeb.ControlLive do
             this.act(action)
           }
 
+          this.resize = new ResizeObserver(() => this.grid())
+          this.resize.observe(this.el)
           // Escucha el contenedor: al entrar o salir de una región el svg cambia y todo sigue.
           this.el.addEventListener("wheel", this.onWheel, {passive: false})
           this.el.addEventListener("pointerdown", this.onDown)
@@ -1361,6 +1405,9 @@ defmodule EthWeb.ControlLive do
             this.view = this.clamp({x: x - w / 2, y: y - h / 2, w, h})
             this.apply()
           })
+        },
+        destroyed() {
+          this.resize.disconnect()
         },
         // Universo o región: con otro nivel (otro svg) se vuelve a la vista completa.
         updated() {
@@ -1422,11 +1469,49 @@ defmodule EthWeb.ControlLive do
           this.svg.style.setProperty("--glyph", (1 / k).toFixed(4))
           this.svg.dataset.zoomed = k >= 1.8 ? "near" : "far"
           if (this.zoomLabel) this.zoomLabel.textContent = `${Math.round(k * 100)} %`
+          this.grid()
+        },
+        // Grilla de fondo apenas visible que acompaña el zoom y el arrastre (da profundidad
+        // sin competir con el dibujo): el paso se mantiene entre 24 y 48 px en pantalla.
+        grid() {
+          const v = this.view
+          const width = this.svg.clientWidth
+          if (!width) return
+          const scale = width / v.w
+          let step = 50 * scale
+          while (step > 48) step /= 2
+          while (step < 24) step *= 2
+          const mod = (n) => ((n % step) + step) % step
+          this.svg.style.setProperty("--grid-step", `${step.toFixed(2)}px`)
+          this.svg.style.setProperty("--grid-x", `${mod(-v.x * scale).toFixed(2)}px`)
+          this.svg.style.setProperty("--grid-y", `${mod(-v.y * scale).toFixed(2)}px`)
+        },
+        // Tooltip: título y filas "etiqueta⇥valor" (solo texto: nada de HTML del servidor).
+        renderTip(target) {
+          if (this.tipTarget === target && this.tipText === target.dataset.tip) return
+          this.tipTarget = target
+          this.tipText = target.dataset.tip
+          const [title, ...lines] = this.tipText.split("\n")
+          const head = document.createElement("div")
+          head.className = "eth-map-tip-title"
+          head.textContent = title
+          const rows = document.createElement("dl")
+          rows.className = "eth-map-tip-rows"
+          for (const line of lines) {
+            const [label, value] = line.split("\t")
+            const dt = document.createElement("dt")
+            const dd = document.createElement("dd")
+            dt.textContent = label
+            dd.textContent = value || ""
+            rows.append(dt, dd)
+          }
+          this.tip.replaceChildren(head, rows)
+          this.tip.style.borderLeftColor = target.dataset.tipColor || ""
         },
         showTip(e) {
           const target = e.target.closest("[data-tip]")
           if (!target || !this.tip) return this.hideTip()
-          this.tip.textContent = target.dataset.tip
+          this.renderTip(target)
           this.tip.classList.remove("hidden")
           const box = this.el.getBoundingClientRect()
           let left = e.clientX - box.left + 14
@@ -1438,6 +1523,7 @@ defmodule EthWeb.ControlLive do
         },
         hideTip() {
           if (this.tip) this.tip.classList.add("hidden")
+          this.tipTarget = null
         }
       }
     </script>
@@ -1585,6 +1671,7 @@ defmodule EthWeb.ControlLive do
       aria-label={"#{@node.name}: #{@label}"}
       aria-pressed={to_string(@selected)}
       data-tip={@tip}
+      data-tip-color={tone_color(@color)}
     >
       <g class="eth-map-glyph">
         <circle r={max(@r + 5, 10)} class="fill-transparent" />
@@ -1788,6 +1875,7 @@ defmodule EthWeb.ControlLive do
       aria-label={@node.name}
       aria-pressed={to_string(@selected)}
       data-tip={@tip}
+      data-tip-color={Sde.security_color(@node.security)}
     >
       <g class="eth-map-glyph">
         <circle r="10" class="fill-transparent" />
@@ -1885,43 +1973,60 @@ defmodule EthWeb.ControlLive do
   defp map_fraction(%{status: :fetching} = status, _now), do: pages_fraction(status)
   defp map_fraction(status, now), do: expires_fraction(status, now)
 
-  # Tooltip de una región: una línea por dato (`white-space: pre-line`).
+  # Tooltip de una región o un sistema: el título y filas "etiqueta⇥valor", una por línea
+  # (el hook .MapCanvas las arma como lista; sin HTML del servidor).
   defp region_tip(node, status, label, heat, opps, pilots, now) do
     poller =
-      if status do
-        orders = gettext("%{n} órdenes", n: Format.compact(status.orders))
-        Enum.join([label, timing(status, now), orders], " · ")
-      else
-        label
-      end
+      if status,
+        do: [
+          {gettext("Poller"), "#{label} · #{timing(status, now)}"},
+          {gettext("Órdenes"), Format.compact(status.orders)}
+        ],
+        else: [{gettext("Poller"), label}]
 
-    [node.name, poller, heat_text(heat), opps_text(opps), pilots_text(pilots)]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join("\n")
+    tip_text(node.name, poller ++ tip_rows(heat, opps, pilots))
   end
 
   defp system_tip(node, heat, opps, pilots) do
-    sec = gettext("seguridad %{sec}", sec: security_text(node.security))
+    rows =
+      [
+        {gettext("Seguridad"), security_text(node.security)},
+        node.stations > 0 && {gettext("Estaciones"), Integer.to_string(node.stations)},
+        node.exits != [] && {gettext("Salidas"), Enum.map_join(node.exits, ", ", & &1.name)}
+      ]
+      |> Enum.filter(& &1)
 
-    stations =
-      if node.stations > 0,
-        do: ngettext("%{count} estación", "%{count} estaciones", node.stations)
-
-    exits =
-      if node.exits != [],
-        do: gettext("sale a %{regions}", regions: Enum.map_join(node.exits, ", ", & &1.name))
-
-    [
-      node.name,
-      Enum.reject([sec, stations], &is_nil/1) |> Enum.join(" · "),
-      exits,
-      heat_text(heat),
-      opps_text(opps),
-      pilots_text(pilots)
-    ]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join("\n")
+    tip_text(node.name, rows ++ tip_rows(heat, opps, pilots))
   end
+
+  defp tip_rows(heat, opps, pilots) do
+    [
+      heat_text(heat) && {gettext("Radar"), heat_text(heat)},
+      opps &&
+        {gettext("Oportunidades"),
+         gettext("%{buy} compran · %{sell} venden",
+           buy: Format.integer(opps.buy),
+           sell: Format.integer(opps.sell)
+         )},
+      opps && {gettext("Mejor"), "#{Format.compact(opps.best)} ISK"},
+      pilots != [] && {gettext("Pilotos"), Enum.join(pilots, ", ")}
+    ]
+    |> Enum.filter(& &1)
+  end
+
+  defp tip_text(title, rows),
+    do: Enum.join([title | Enum.map(rows, fn {k, v} -> "#{k}\t#{v}" end)], "\n")
+
+  defp heat_tone(%{alerts: alerts}) when alerts > 0, do: "text-error"
+  defp heat_tone(_heat), do: "text-warning"
+
+  # Color de la franja del tooltip: el del estado del poller.
+  defp tone_color("success"), do: "var(--color-success)"
+  defp tone_color("info"), do: "var(--color-info)"
+  defp tone_color("error"), do: "var(--color-error)"
+  defp tone_color("warning"), do: "var(--color-warning)"
+  defp tone_color("secondary"), do: "var(--color-secondary)"
+  defp tone_color(_neutral), do: "var(--eth-faint)"
 
   defp security_text(sec), do: :erlang.float_to_binary(Sde.security_display(sec), decimals: 1)
 
@@ -1935,22 +2040,6 @@ defmodule EthWeb.ControlLive do
     ngettext("%{count} sistema en alerta", "%{count} sistemas en alerta", alerts) <>
       ", " <> ngettext("%{count} kill", "%{count} kills", kills)
   end
-
-  defp opps_text(nil), do: nil
-
-  defp opps_text(opps) do
-    gettext("Oportunidades: %{buy} compran, %{sell} venden · mejor %{best} ISK",
-      buy: Format.integer(opps.buy),
-      sell: Format.integer(opps.sell),
-      best: Format.compact(opps.best)
-    )
-  end
-
-  defp heat_tone(%{alerts: alerts}) when alerts > 0, do: "text-error"
-  defp heat_tone(_heat), do: "text-warning"
-
-  defp pilots_text([]), do: nil
-  defp pilots_text(names), do: gettext("Pilotos: %{names}", names: Enum.join(names, ", "))
 
   # Pilotos por región (para el universo) a partir de los pilotos por sistema.
   defp pilots_by_region(pilots) do
