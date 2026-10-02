@@ -644,6 +644,16 @@
                 <% true -> %>
                   <p class="text-xs eth-faint">{gettext("Sin ruta disponible.")}</p>
               <% end %>
+              <%!-- La misma ruta dibujada en el mapa del Centro de control (RF-8.2) --%>
+              <:action :if={@route_details}>
+                <.link
+                  id="route-map"
+                  navigate={route_map_path(@route_details, row)}
+                  class="inline-flex items-center gap-1 normal-case tracking-normal transition-colors hover:text-primary eth-muted"
+                >
+                  <.icon name="hero-map" class="size-3.5" /> {gettext("Ver en el mapa")}
+                </.link>
+              </:action>
               <:summary>
                 <span class="eth-muted">{gettext("Saltos")}</span>
                 <span

@@ -287,6 +287,7 @@ defmodule EthWeb.PilotLiveTest do
       assert has_element?(run_view, "#hunter-rank", "I")
       assert has_element?(run_view, "#hunter-milestones li[data-achieved=false]")
 
+      assert has_element?(run_view, "#run-map[href='/control/market?view=map']")
       run_view |> element("#run-set-route") |> render_click()
       assert_receive {:ui, "/ui/autopilot/waypoint", _params}, 2_000
 

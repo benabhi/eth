@@ -519,6 +519,18 @@ body {
 .eth-band-more { opacity: 0; transition: opacity 150ms ease; }
 .eth-band-body[data-overflow] + .eth-band-more { opacity: 1; }
 
+/* Mapa del Centro de control (RF-8.2). Las marcas y los nombres conservan su tamaño con
+   el zoom (`--glyph` lo fija el hook .MapCanvas): al acercarse se separan en lugar de
+   crecer, y los nombres secundarios aparecen recién de cerca. */
+.eth-map-glyph { transform: scale(var(--glyph, 1)); transform-box: view-box; transform-origin: 0 0; }
+.eth-map-label-minor { display: none; }
+svg[data-zoomed="near"] .eth-map-label-minor { display: inline; }
+.eth-map svg [role="button"]:focus-visible .eth-map-glyph { outline: none; filter: drop-shadow(0 0 3px var(--color-primary)); }
+.eth-map-tip { white-space: pre-line; line-height: 1.45; }
+.eth-map-tip::first-line { font-weight: 600; color: var(--eth-strong); }
+.eth-map:fullscreen { display: flex; align-items: center; background: var(--color-base-100); }
+.eth-map:fullscreen > svg { height: 100%; }
+
 /* Etapa en curso del viaje (RF-7.2): late suave para indicar actividad real. */
 @keyframes eth-pulse-bar {
   0%, 100% { opacity: 1; }

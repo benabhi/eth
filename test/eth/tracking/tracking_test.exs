@@ -90,6 +90,11 @@ defmodule Eth.TrackingTest do
     assert run.predicted_profit == row.profit
     assert Tracking.active(@id).id == run.id
 
+    # El camino que falta (mapa del Centro de control): sin ubicación, desde el origen.
+    path = Tracking.remaining_path(run)
+    assert hd(path) == F.jita()
+    assert List.last(path) == F.perimeter()
+
     assert {:error, :already_active} = Tracking.start(@id, row, query)
   end
 

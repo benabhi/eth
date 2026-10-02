@@ -186,6 +186,13 @@ volumen propio), nunca en la base ni en git.
 - **Componentes**: `EthWeb.UI` (sistema visual: paneles, instrumentos, tooltips, `term/1`,
   `spark/1`, `type_icon/1`), `EthWeb.TradingComponents` (tablón, filtros, ficha),
   `EthWeb.Layouts` y `CoreComponents`.
+- **Mapa del Centro de control** (RF-8.2): `Eth.Sde.Galaxy` da la geometría y
+  `EthWeb.GalaxyMap` los cálculos de presentación (calor, oportunidades por lugar, pilotos,
+  búsqueda); `ControlLive` dibuja el SVG en el servidor y el hook `.MapCanvas` maneja zoom,
+  arrastre, tooltip y pantalla completa del lado del cliente. `ControlLive` escucha
+  `engine:opportunities` y, solo con el mapa a la vista, cuenta las oportunidades por lugar;
+  también escucha `run:<personaje>` y dibuja el camino que le falta a cada viaje activo
+  (`Eth.Tracking.remaining_path/1`, que se lo pide al `RunMonitor`).
 - **Documentación y glosario**: `EthWeb.Docs` (páginas y temas), `EthWeb.DocsPages`
   (plantillas HEEx con valores vigentes de las reglas) y `EthWeb.Glossary`.
 - **JS**: solo colocated hooks; el CSP es estricto (sin `unsafe-inline`, `EthWeb.CSP`).

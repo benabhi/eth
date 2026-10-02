@@ -212,27 +212,123 @@ defmodule EthWeb.ControlLiveTest do
 
   describe "mapa de regiones (RF-8.2)" do
     @tag :tmp_dir
-    test "mosaicos o mapa, con la región elegida y sus sistemas", %{conn: conn, tmp_dir: tmp_dir} do
+    test "del universo se entra a una región, con la ficha de un sistema", %{
+      conn: conn,
+      tmp_dir: tmp_dir
+    } do
       :ok = EngineFixture.load_sde(tmp_dir)
       {:ok, view, _html} = live(conn, ~p"/control/market?view=map")
       send(view.pid, {:region_status, region_status(%{})})
 
       assert has_element?(view, "#market-view-map[aria-current=page]")
-      assert has_element?(view, "#galaxy-map #map-region-10000002")
+      assert has_element?(view, "#map-canvas #galaxy-map #map-region-10000002[data-tip]")
+      assert has_element?(view, "#map-inspector #map-universe-panel")
+      assert has_element?(view, "#map-canvas-in[data-map-action=in]")
 
-      # Al elegir una región: sus sistemas (la fixture tiene tres) y el detalle del poller.
+      # Un clic entra a la región: sus sistemas (la fixture tiene tres) en el mismo lienzo,
+      # su inspector y el detalle del poller.
       view |> element("#map-region-10000002") |> render_click()
-      assert has_element?(view, "#region-systems-map #map-system-30000142")
+      refute has_element?(view, "#galaxy-map")
+      assert has_element?(view, "#map-canvas #region-systems-map #map-system-30000142")
+      assert has_element?(view, "#map-breadcrumb-region", "The Forge")
+      assert has_element?(view, "#map-inspector #map-region-inspector")
       assert has_element?(view, "#map-region-panel #region-detail")
 
-      view |> element("#map-layer-radar") |> render_click()
-      assert has_element?(view, "#map-layer-radar[aria-pressed=true]")
+      # Clic en un sistema: su ficha en el inspector.
+      view |> element("#map-system-30000142") |> render_click()
+      assert has_element?(view, "#map-system-card", "Jita")
+      view |> element("#map-system-close") |> render_click()
+      refute has_element?(view, "#map-system-card")
 
-      # Volver a los mosaicos.
+      # Volver al universo y a los mosaicos.
+      view |> element("#map-back") |> render_click()
+      assert has_element?(view, "#galaxy-map")
+
       view |> element("#market-view-tiles") |> render_click()
       assert_patch(view, ~p"/control/market")
       refute has_element?(view, "#galaxy-map")
       assert has_element?(view, "#region-10000002")
+    end
+
+    @tag :tmp_dir
+    test "capas que se encienden por separado y opciones del mapa", %{
+      conn: conn,
+      tmp_dir: tmp_dir
+    } do
+      :ok = EngineFixture.load_sde(tmp_dir)
+      {:ok, view, _html} = live(conn, ~p"/control/market?view=map")
+
+      assert has_element?(view, "#map-layer-radar[aria-pressed=true]")
+      view |> element("#map-layer-radar") |> render_click()
+      assert has_element?(view, "#map-layer-radar[aria-pressed=false]")
+      assert has_element?(view, "#map-layer-pollers[aria-pressed=true]")
+
+      view |> element("#map-filter-heat") |> render_click()
+      assert has_element?(view, "#map-filter-heat[aria-pressed=true]")
+      view |> element("#map-labels-all") |> render_click()
+      assert has_element?(view, "#map-labels-all[aria-pressed=true]")
+
+      # Dentro de una región: estaciones, salidas y color por calor.
+      view |> element("#map-region-10000002") |> render_click()
+      refute has_element?(view, "#map-layer-pollers")
+      view |> element("#map-layer-stations") |> render_click()
+      assert has_element?(view, "#map-layer-stations[aria-pressed=true]")
+      view |> element("#map-color-heat") |> render_click()
+      assert has_element?(view, "#map-color-heat[aria-pressed=true]")
+    end
+
+    @tag :tmp_dir
+    test "buscar un sistema entra a su región y abre su ficha", %{conn: conn, tmp_dir: tmp_dir} do
+      :ok = EngineFixture.load_sde(tmp_dir)
+      {:ok, view, _html} = live(conn, ~p"/control/market?view=map")
+
+      view |> form("#map-find", find: %{q: "jita"}) |> render_submit()
+      assert has_element?(view, "#region-systems-map")
+      assert has_element?(view, "#map-system-card", "Jita")
+
+      assert view |> form("#map-find", find: %{q: "zzz"}) |> render_submit() =~ "No encontré"
+    end
+
+    @tag :tmp_dir
+    test "la ruta abierta desde el tablón se dibuja con su ficha y se puede quitar", %{
+      conn: conn,
+      tmp_dir: tmp_dir
+    } do
+      :ok = EngineFixture.load_sde(tmp_dir)
+
+      {:ok, view, _html} =
+        live(conn, ~p"/control/market?view=map&route=30000142,30000144&stop=30000142")
+
+      assert has_element?(view, "#galaxy-map #map-route polyline")
+      assert has_element?(view, "#map-routes #map-route-card", "Ruta del tablón")
+      assert has_element?(view, "#map-layer-routes[aria-pressed=true]")
+
+      # Dentro de la región, los tramos entre sus sistemas.
+      view |> element("#map-region-10000002") |> render_click()
+      assert has_element?(view, "#region-systems-map #map-route line")
+
+      # La capa la apaga; el enlace la quita del mapa.
+      view |> element("#map-layer-routes") |> render_click()
+      refute has_element?(view, "#map-route-card")
+      view |> element("#map-layer-routes") |> render_click()
+      view |> element("#map-route-remove") |> render_click()
+      assert_patch(view, ~p"/control/market?view=map")
+      refute has_element?(view, "#map-route-card")
+    end
+
+    @tag :tmp_dir
+    test "desde el detalle de un mosaico se abre la región en el mapa", %{
+      conn: conn,
+      tmp_dir: tmp_dir
+    } do
+      :ok = EngineFixture.load_sde(tmp_dir)
+      {:ok, view, _html} = live(conn, ~p"/control/market")
+      send(view.pid, {:region_status, region_status(%{})})
+
+      view |> element("#region-10000002") |> render_click()
+      view |> element("#region-detail-map") |> render_click()
+      assert_patch(view, ~p"/control/market?view=map&region=10000002")
+      assert has_element?(view, "#region-systems-map #map-system-30000142")
     end
   end
 

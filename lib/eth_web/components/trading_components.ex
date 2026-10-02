@@ -268,7 +268,9 @@ defmodule EthWeb.TradingComponents do
   attr :type, :string, default: "text", values: ~w(text number select toggle)
   attr :options, :list, default: []
   attr :class, :any, default: nil
-  attr :rest, :global, include: ~w(placeholder min max step phx-debounce inputmode)
+
+  attr :rest, :global,
+    include: ~w(placeholder min max step phx-debounce inputmode list autocomplete)
 
   def filter_field(%{type: "select"} = assigns) do
     ~H"""
@@ -602,6 +604,7 @@ defmodule EthWeb.TradingComponents do
   attr :help, :string, default: nil
   slot :inner_block, required: true
   slot :summary, required: true, doc: "dato clave de la sección, sobre la base común"
+  slot :action, doc: "acción chica a la derecha del título (p. ej. ver la ruta en el mapa)"
 
   def detail_band(assigns) do
     ~H"""
@@ -613,6 +616,7 @@ defmodule EthWeb.TradingComponents do
         {@title}
         <.help :if={@topic && @help} topic={@topic} title={@title}>{@help}</.help>
         <.help :if={@topic && !@help} topic={@topic} title={@title} />
+        <span :if={@action != []} class="ml-auto">{render_slot(@action)}</span>
       </h3>
       <div class="relative min-h-0">
         <div

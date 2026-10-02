@@ -10,9 +10,10 @@ defmodule EthWeb.ControlLive do
       segmentada, los presupuestos de ESI como arcos, la cola de historial como medidor
       de caudal, el feed del radar como pulso y el SDE como secuencia de pasos.
     - **Mercado:** regiones por nivel (mosaicos) o en el mapa del universo, con su detalle
-      y acciones (RF-8.2, RF-8.3). El mapa (`?view=map`) ubica cada región según el SDE con
-      el estado de su poller y el calor del radar; al elegir una, muestra sus sistemas con
-      la seguridad y las kills de cada uno (capas: pollers, radar o ambos).
+      y acciones (RF-8.2, RF-8.3). El mapa (`?view=map`) es un lienzo con zoom y arrastre
+      que ubica cada región según el SDE con el estado de su poller, el calor del radar, las
+      oportunidades del motor y los pilotos; un clic entra a los sistemas de la región. Barra
+      de capas, filtros y búsqueda, e inspector con la ficha de cada sistema.
     - **Radar:** feed, sistemas calientes y últimas kills relevantes (RF-8.5).
     - **Personajes:** sesiones y tokens, con un anillo por recurso (RF-8.6).
     - **Registros:** eventos del sistema filtrables (RF-8.7).
@@ -25,10 +26,11 @@ defmodule EthWeb.ControlLive do
   """
   use EthWeb, :live_view
 
-  import EthWeb.TradingComponents, only: [row_detail: 1, detail_col: 1]
+  import EthWeb.TradingComponents, only: [row_detail: 1, detail_col: 1, filter_field: 1]
 
   alias Eth.Characters.Sessions
-  alias Eth.{Clock, Engine, Events, Market, Metrics, Sde, Threat}
+  alias Eth.{Clock, Engine, Events, Market, Metrics, Routing, Sde, Threat, Tracking}
+  alias Eth.Sde.Galaxy
   alias Eth.Esi.{Budget, ServerStatus}
   alias EthWeb.{Format, GalaxyMap}
 
@@ -38,6 +40,15 @@ defmodule EthWeb.ControlLive do
   @tiers [hub: "N1 · Hubs", active: "N2 · Activas", rest: "N3 · Resto"]
   @tab_keys ~w(overview market radar characters logs esi)
 
+  # Capas del mapa: se encienden y apagan por separado.
+  @map_layers ~w(pollers radar opps pilots routes stations borders)a
+  @map_layers_default [:pollers, :radar, :opps, :pilots, :routes, :borders]
+  @map_options %{
+    "filter" => {:map_filter, ~w(all problems heat opps)a},
+    "labels" => {:map_labels, ~w(auto all)a},
+    "color" => {:map_color, ~w(security heat)a}
+  }
+
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
@@ -46,6 +57,9 @@ defmodule EthWeb.ControlLive do
       Phoenix.PubSub.subscribe(Eth.PubSub, ServerStatus.topic())
       Phoenix.PubSub.subscribe(Eth.PubSub, Sde.topic())
       Phoenix.PubSub.subscribe(Eth.PubSub, Threat.kills_topic())
+      Phoenix.PubSub.subscribe(Eth.PubSub, Engine.topic())
+      # Viajes de los personajes con sesión: aparecen en el mapa al iniciarse (RF-8.2).
+      for s <- Sessions.list(), do: Phoenix.PubSub.subscribe(Eth.PubSub, Tracking.topic(s.id))
       schedule_tick()
     end
 
@@ -56,7 +70,11 @@ defmodule EthWeb.ControlLive do
       |> assign(:selected, nil)
       |> assign(:region_map, nil)
       |> assign(:market_view, "tiles")
-      |> assign(:map_layer, :both)
+      |> assign(:map_layers, @map_layers_default)
+      |> assign(map_filter: :all, map_labels: :auto, map_color: :security, map_system: nil)
+      |> assign(:map_find, to_form(%{"q" => ""}, as: :find))
+      |> assign(:opps, %{regions: %{}, systems: %{}})
+      |> assign(url_route: nil, runs: [], trips: [])
       |> assign(:galaxy, Sde.galaxy())
       |> assign(:event_level, nil)
       |> assign(:events, Events.recent(@event_limit))
@@ -79,7 +97,10 @@ defmodule EthWeb.ControlLive do
          socket
          |> assign(:tab, tab)
          |> assign(:market_view, if(params["view"] == "map", do: "map", else: "tiles"))
-         |> assign_selected(selected_region(params, socket.assigns.selected))}
+         |> assign_selected(selected_region(params, socket.assigns.selected))
+         |> assign(:url_route, url_route(params))
+         |> refresh_opps()
+         |> refresh_runs()}
 
       _unknown ->
         {:noreply, push_patch(socket, to: ~p"/control")}
@@ -118,6 +139,14 @@ defmodule EthWeb.ControlLive do
     do: {:noreply, update(socket, :kills, &Enum.take([kill | &1], @radar_kills))}
 
   def handle_info({:heatmap, _version}, socket), do: {:noreply, refresh_radar(socket)}
+
+  # Un viaje empezó, avanzó o terminó: el mapa lo muestra o lo quita.
+  def handle_info({:run, _run, _extra}, socket), do: {:noreply, refresh_runs(socket)}
+
+  # Nueva evaluación del motor: las oportunidades del mapa (solo con el mapa a la vista).
+  def handle_info({:opportunities_updated, _meta}, socket),
+    do: {:noreply, refresh_opps(socket)}
+
   # Con el SDE listo (o recargado) se rehace la geometría del mapa (RF-8.2).
   def handle_info({:sde_status, %{state: :ready} = status}, socket) do
     {:noreply,
@@ -137,7 +166,11 @@ defmodule EthWeb.ControlLive do
     schedule_tick()
 
     {:noreply,
-     socket |> assign(:sessions, Sessions.list()) |> refresh_health() |> refresh_radar()}
+     socket
+     |> assign(:sessions, Sessions.list())
+     |> refresh_health()
+     |> refresh_radar()
+     |> refresh_trips()}
   end
 
   ## Eventos de la UI
@@ -153,10 +186,71 @@ defmodule EthWeb.ControlLive do
   def handle_event("close_detail", _params, socket),
     do: {:noreply, assign_selected(socket, nil)}
 
-  # Capas del mapa (RF-8.2): estado de los pollers, calor del radar o ambos.
+  ## Mapa (RF-8.2)
+
+  # Clic en una región del universo (o en una salida): se entra a sus sistemas.
+  def handle_event("map_enter", %{"id" => id}, socket),
+    do: {:noreply, assign_selected(socket, String.to_integer(id))}
+
+  def handle_event("map_back", _params, socket), do: {:noreply, assign_selected(socket, nil)}
+
+  # Clic en un sistema: su ficha en el inspector; desde una lista, además se centra.
+  def handle_event("map_system", %{"id" => id} = params, socket) do
+    system_id = String.to_integer(id)
+    socket = assign(socket, :map_system, system_id)
+    {:noreply, if(params["focus"], do: focus_system(socket, system_id), else: socket)}
+  end
+
+  def handle_event("map_system_close", _params, socket),
+    do: {:noreply, assign(socket, :map_system, nil)}
+
+  # Un piloto en el inspector: se entra a su región y se centra su sistema.
+  def handle_event("map_pilot", %{"id" => id}, socket),
+    do: {:noreply, go_to_system(socket, String.to_integer(id))}
+
+  # Capas: cada una se enciende y apaga por separado.
   def handle_event("map_layer", %{"layer" => layer}, socket) do
-    layer = Enum.find([:pollers, :radar, :both], :both, &(Atom.to_string(&1) == layer))
-    {:noreply, assign(socket, :map_layer, layer)}
+    case Enum.find(@map_layers, &(Atom.to_string(&1) == layer)) do
+      nil ->
+        {:noreply, socket}
+
+      layer ->
+        layers = socket.assigns.map_layers
+
+        layers = if layer in layers, do: List.delete(layers, layer), else: [layer | layers]
+
+        {:noreply, assign(socket, :map_layers, layers)}
+    end
+  end
+
+  # Filtro del universo, nombres y color de los sistemas.
+  def handle_event("map_option", %{"option" => option, "value" => value}, socket) do
+    with {key, values} <- Map.get(@map_options, option),
+         value when value != nil <- Enum.find(values, &(Atom.to_string(&1) == value)) do
+      {:noreply, assign(socket, key, value)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  # Buscar: un sistema de la región a la vista, una región o cualquier sistema por nombre.
+  def handle_event("map_find", %{"find" => %{"q" => query}}, socket) do
+    case String.trim(query) != "" && find_target(socket.assigns, query) do
+      false ->
+        {:noreply, socket}
+
+      {:system, system_id} ->
+        {:noreply, socket |> go_to_system(system_id) |> clear_find()}
+
+      {:region, region_id} ->
+        {:noreply, socket |> assign_selected(region_id) |> clear_find()}
+
+      nil ->
+        {:noreply,
+         socket
+         |> assign(:map_find, to_form(%{"q" => query}, as: :find))
+         |> put_flash(:error, gettext("No encontré «%{query}» en el mapa", query: query))}
+    end
   end
 
   def handle_event("refresh_now", %{"id" => id}, socket) do
@@ -405,7 +499,8 @@ defmodule EthWeb.ControlLive do
       hot: Enum.take(hot, @radar_hot),
       # Calor del radar para el mapa (RF-8.2): por región y por sistema.
       heat: GalaxyMap.region_heat(hot, &system_region/1),
-      system_heat: Map.new(hot, &{&1.system_id, GalaxyMap.system_heat(&1)})
+      system_heat: Map.new(hot, &{&1.system_id, GalaxyMap.system_heat(&1)}),
+      hot_index: Map.new(hot, &{&1.system_id, &1})
     )
   end
 
@@ -416,11 +511,117 @@ defmodule EthWeb.ControlLive do
     end
   end
 
-  # Región elegida (detalle y, en el mapa, sus sistemas).
-  defp assign_selected(socket, nil), do: assign(socket, selected: nil, region_map: nil)
+  # Región elegida (detalle y, en el mapa, sus sistemas). Al cambiar de región se olvida
+  # el sistema elegido.
+  defp assign_selected(socket, nil),
+    do: assign(socket, selected: nil, region_map: nil, map_system: nil)
 
-  defp assign_selected(socket, region_id),
-    do: assign(socket, selected: region_id, region_map: Sde.region_map(region_id))
+  defp assign_selected(socket, region_id) do
+    map_system = if socket.assigns.selected == region_id, do: socket.assigns.map_system
+
+    assign(socket,
+      selected: region_id,
+      region_map: Sde.region_map(region_id),
+      map_system: map_system
+    )
+  end
+
+  # Oportunidades por región y sistema para el mapa: solo con el mapa a la vista, porque
+  # recorre la evaluación completa del motor.
+  defp refresh_opps(%{assigns: %{tab: "market", market_view: "map"}} = socket),
+    do: assign(socket, :opps, GalaxyMap.opportunity_stats(Engine.all()))
+
+  defp refresh_opps(socket), do: socket
+
+  # Ruta abierta desde el tablón: `?route=<sistemas>&stop=<sistema de compra>`.
+  defp url_route(%{"route" => route} = params) do
+    case GalaxyMap.parse_route(route) do
+      [_, _ | _] = path ->
+        stop = route_stop(params["stop"], path)
+        %{id: "route", kind: :route, label: gettext("Ruta del tablón"), path: path, stop: stop}
+
+      _ ->
+        nil
+    end
+  end
+
+  defp url_route(_params), do: nil
+
+  # Sistema de compra de la ruta: solo si es uno de sus sistemas.
+  defp route_stop(text, path) do
+    case Integer.parse(text || "") do
+      {id, ""} -> if(id in path, do: id)
+      _ -> nil
+    end
+  end
+
+  # Viajes activos de los personajes con sesión (RF-7.1), solo con el mapa a la vista: la
+  # lista sale de la base al abrir el mapa y con cada aviso del viaje; el camino, del tick.
+  defp refresh_runs(%{assigns: %{tab: "market", market_view: "map"}} = socket) do
+    runs = for s <- socket.assigns.sessions, run = Tracking.active(s.id), do: {s.name, run}
+
+    socket |> assign(:runs, runs) |> refresh_trips()
+  end
+
+  defp refresh_runs(socket), do: assign(socket, runs: [], trips: [])
+
+  # Camino que falta de cada viaje desde donde está el piloto: se mueve con él.
+  defp refresh_trips(%{assigns: %{runs: [_ | _] = runs}} = socket) do
+    trips =
+      for {name, run} <- runs, path = Tracking.remaining_path(run), path != [] do
+        to_origin? = run.status in ["planned", "to_origin"]
+
+        %{
+          id: "trip-#{run.id}",
+          kind: :trip,
+          label: gettext("Viaje de %{name}", name: name || "?"),
+          detail: "#{run.plan["type_name"]} · #{Tracking.status_label(run.status)}",
+          path: path,
+          stop: if(to_origin?, do: run.plan["origin_system_id"])
+        }
+      end
+
+    assign(socket, :trips, trips)
+  end
+
+  defp refresh_trips(socket), do: socket
+
+  # Entra a la región del sistema, lo elige y lo centra en el lienzo.
+  defp go_to_system(socket, system_id) do
+    case system_region(system_id) do
+      nil ->
+        socket
+
+      region_id ->
+        socket
+        |> assign_selected(region_id)
+        |> assign(:map_system, system_id)
+        |> focus_system(system_id)
+    end
+  end
+
+  defp focus_system(%{assigns: %{region_map: %{nodes: nodes}}} = socket, system_id) do
+    case Enum.find(nodes, &(&1.id == system_id)) do
+      nil -> socket
+      node -> push_event(socket, "map:focus", %{map: "map-canvas", x: node.x, y: node.y})
+    end
+  end
+
+  defp focus_system(socket, _system_id), do: socket
+
+  defp find_target(assigns, query) do
+    region_nodes = if assigns.region_map, do: assigns.region_map.nodes, else: []
+    galaxy_nodes = if assigns.galaxy, do: assigns.galaxy.nodes, else: []
+
+    cond do
+      node = GalaxyMap.find(region_nodes, query) -> {:system, node.id}
+      node = GalaxyMap.find(galaxy_nodes, query) -> {:region, node.id}
+      found = Sde.system_by_name(String.trim(query)) -> {:system, elem(found, 0)}
+      true -> nil
+    end
+  end
+
+  defp clear_find(socket), do: assign(socket, :map_find, to_form(%{"q" => ""}, as: :find))
 
   defp feed_label(%{source: :off}), do: gettext("Feed apagado (ETH_KILLFEED=off)")
 
@@ -749,6 +950,7 @@ defmodule EthWeb.ControlLive do
 
   attr :r, :map, required: true, doc: "estado público del poller"
   attr :now, :any, required: true
+  attr :map_link, :boolean, default: false, doc: "enlace para ver la región en el mapa"
 
   defp region_detail(assigns) do
     ~H"""
@@ -869,6 +1071,14 @@ defmodule EthWeb.ControlLive do
             "\"Actualizar ahora\" solo actúa si ESI ya publicó datos nuevos o si la región está en error."
           )}
         </span>
+        <.link
+          :if={@map_link}
+          id="region-detail-map"
+          patch={~p"/control/market?#{[view: "map", region: r.region_id]}"}
+          class="btn btn-ghost btn-sm border-base-300"
+        >
+          <.icon name="hero-map" class="size-4" /> {gettext("Ver en el mapa")}
+        </.link>
         <button
           type="button"
           phx-click="close_detail"
@@ -884,11 +1094,412 @@ defmodule EthWeb.ControlLive do
 
   ## Mapa del universo (RF-8.2)
 
+  # Botones de capa de cada nivel: {capa, etiqueta, ícono}.
+  defp map_layer_buttons(false) do
+    [
+      {:pollers, gettext("Pollers"), "hero-signal"},
+      {:radar, gettext("Radar"), "hero-fire"},
+      {:opps, gettext("Oportunidades"), "hero-banknotes"},
+      {:pilots, gettext("Pilotos"), "hero-user"},
+      {:routes, gettext("Rutas"), "hero-map-pin"}
+    ]
+  end
+
+  defp map_layer_buttons(true) do
+    [
+      {:radar, gettext("Radar"), "hero-fire"},
+      {:opps, gettext("Oportunidades"), "hero-banknotes"},
+      {:pilots, gettext("Pilotos"), "hero-user"},
+      {:routes, gettext("Rutas"), "hero-map-pin"},
+      {:stations, gettext("Estaciones"), "hero-building-office-2"},
+      {:borders, gettext("Salidas"), "hero-arrows-right-left"}
+    ]
+  end
+
+  attr :option, :string, required: true
+  attr :label, :string, required: true
+  attr :value, :atom, required: true
+  attr :choices, :list, required: true
+
+  # Opción del mapa con valores excluyentes (filtro, nombres, color).
+  defp map_choice(assigns) do
+    ~H"""
+    <div class="flex items-center gap-1.5">
+      <span class="font-display text-[10px] tracking-[0.14em] uppercase eth-faint">{@label}</span>
+      <div class="join" role="group" aria-label={@label}>
+        <button
+          :for={{value, text} <- @choices}
+          id={"map-#{@option}-#{value}"}
+          type="button"
+          phx-click="map_option"
+          phx-value-option={@option}
+          phx-value-value={value}
+          aria-pressed={to_string(@value == value)}
+          class={[
+            "btn join-item btn-xs",
+            if(@value == value, do: "btn-primary", else: "btn-ghost border-base-300")
+          ]}
+        >
+          {text}
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  attr :in_region, :boolean, required: true
+
+  # Leyenda del nivel a la vista: el color nunca va solo (RNF-5.2).
+  defp map_legend(assigns) do
+    ~H"""
+    <ul
+      id="map-legend"
+      class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] eth-muted"
+    >
+      <%= if @in_region do %>
+        <li :for={sec <- [1.0, 0.5, 0.1, -0.5]} class="flex items-center gap-1">
+          <span
+            class="inline-block size-2 rounded-full"
+            style={"background: #{Sde.security_color(sec)}"}
+          >
+          </span>
+          {security_text(sec)}
+        </li>
+        <li class="flex items-center gap-1">
+          <span class="inline-block size-2.5 border border-base-content/45"></span>
+          {gettext("estaciones NPC")}
+        </li>
+        <li class="flex items-center gap-1">
+          <span class="text-info">▸</span> {gettext("salida a otra región")}
+        </li>
+      <% else %>
+        <li
+          :for={
+            {class, label} <- [
+              {"bg-success", gettext("fresco")},
+              {"bg-info", gettext("descargando")},
+              {"bg-warning", gettext("degradado")},
+              {"bg-error", gettext("error")},
+              {"bg-base-content/30", gettext("sin poller")}
+            ]
+          }
+          class="flex items-center gap-1"
+        >
+          <span class={["inline-block size-2 rounded-full", class]}></span>
+          {label}
+        </li>
+      <% end %>
+      <li class="flex items-center gap-1">
+        <span class="inline-block size-2.5 rounded-full bg-error/30"></span>
+        {gettext("halo: calor del radar")}
+      </li>
+      <li class="flex items-center gap-1">
+        <span class="border border-success px-1 font-mono text-[9px] leading-tight text-success">
+          12
+        </span>
+        {gettext("oportunidades que compran ahí")}
+      </li>
+      <li class="flex items-center gap-1">
+        <span class="text-accent">▼</span> {gettext("piloto")}
+      </li>
+      <li class="flex items-center gap-1">
+        <span class="inline-block h-0.5 w-4 bg-primary"></span> {gettext("ruta del tablón")}
+      </li>
+      <li class="flex items-center gap-1">
+        <span class="inline-block h-0.5 w-4 bg-accent"></span>
+        {gettext("viaje activo (anillo: compra · doble: venta)")}
+      </li>
+    </ul>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :key, :string, required: true, doc: "nivel dibujado: al cambiar, la vista vuelve a 100 %"
+  slot :inner_block, required: true
+
+  # Lienzo del mapa (hook .MapCanvas): zoom con la rueda, los botones o el teclado,
+  # arrastre para desplazarse, doble clic para acercarse, pantalla completa y tooltip.
+  defp map_canvas(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      phx-hook=".MapCanvas"
+      data-key={@key}
+      class="eth-map relative overflow-hidden"
+    >
+      {render_slot(@inner_block)}
+      <div
+        id={"#{@id}-tip"}
+        data-map-tip
+        phx-update="ignore"
+        phx-mounted={JS.ignore_attributes(["class", "style"])}
+        class="eth-map-tip pointer-events-none absolute left-0 top-0 z-10 hidden max-w-64 border border-base-300 bg-base-100/95 px-2.5 py-1.5 text-xs shadow-lg"
+      >
+      </div>
+      <div
+        class="absolute right-2 bottom-2 z-10 flex flex-col items-stretch border border-base-300 bg-base-100/90 shadow-sm"
+        role="toolbar"
+        aria-label={gettext("Zoom del mapa")}
+      >
+        <button
+          :for={
+            {action, icon, label} <- [
+              {"in", "hero-plus", gettext("Acercar (+)")},
+              {"out", "hero-minus", gettext("Alejar (−)")},
+              {"fit", "hero-arrows-pointing-in", gettext("Ver todo (0)")},
+              {"full", "hero-arrows-pointing-out", gettext("Pantalla completa (F)")}
+            ]
+          }
+          type="button"
+          id={"#{@id}-#{action}"}
+          data-map-action={action}
+          title={label}
+          aria-label={label}
+          class="flex size-8 items-center justify-center border-b border-base-300 transition-colors hover:bg-base-200 hover:text-primary"
+        >
+          <.icon name={icon} class="size-4" />
+        </button>
+        <span
+          id={"#{@id}-zoom"}
+          data-map-zoom
+          phx-update="ignore"
+          class="py-1 text-center font-mono text-[10px] tabular-nums eth-faint"
+        >
+          100 %
+        </span>
+      </div>
+    </div>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".MapCanvas">
+      export default {
+        mounted() {
+          this.svg = this.el.querySelector("svg[data-map-svg]")
+          this.tip = this.el.querySelector("[data-map-tip]")
+          this.zoomLabel = this.el.querySelector("[data-map-zoom]")
+          const vb = this.svg.viewBox.baseVal
+          this.base = {x: vb.x, y: vb.y, w: vb.width, h: vb.height}
+          this.view = {...this.base}
+          this.key = this.el.dataset.key
+          this.apply()
+
+          // Alejarse del todo deja la rueda a la página: el mapa no atrapa el scroll.
+          this.onWheel = (e) => {
+            if (!e.target.closest("svg")) return
+            if (e.deltaY > 0 && this.view.w >= this.base.w) return
+            e.preventDefault()
+            this.zoomAt(this.point(e), e.deltaY < 0 ? 1 / 1.25 : 1.25)
+          }
+          this.onDown = (e) => {
+            if (e.button !== 0 || e.pointerType === "touch" || !e.target.closest("svg")) return
+            this.drag = {x: e.clientX, y: e.clientY, view: {...this.view}, moved: false, id: e.pointerId}
+          }
+          this.onMove = (e) => {
+            if (!this.drag) return this.showTip(e)
+            const dx = e.clientX - this.drag.x
+            const dy = e.clientY - this.drag.y
+            if (!this.drag.moved) {
+              if (Math.abs(dx) + Math.abs(dy) < 4) return
+              this.drag.moved = true
+              this.el.setPointerCapture(this.drag.id)
+              this.svg.classList.add("cursor-grabbing")
+              this.hideTip()
+            }
+            const s = this.unitsPerPixel()
+            const start = this.drag.view
+            this.view = this.clamp({...start, x: start.x - dx * s, y: start.y - dy * s})
+            this.apply()
+          }
+          this.onUp = () => {
+            if (!this.drag) return
+            this.suppressClick = this.drag.moved
+            this.svg.classList.remove("cursor-grabbing")
+            if (this.el.hasPointerCapture(this.drag.id)) this.el.releasePointerCapture(this.drag.id)
+            this.drag = null
+          }
+          // Un arrastre no es un clic: no elige la región que quedó bajo el puntero.
+          this.onClick = (e) => {
+            if (!this.suppressClick) return
+            this.suppressClick = false
+            e.stopPropagation()
+            e.preventDefault()
+          }
+          this.onDblClick = (e) => {
+            if (!e.target.closest("svg") || e.target.closest("[data-tip]")) return
+            e.preventDefault()
+            this.zoomAt(this.point(e), 1 / 1.8)
+          }
+          this.onLeave = () => this.hideTip()
+          this.onAction = (e) => {
+            const button = e.target.closest("[data-map-action]")
+            if (!button || !this.el.contains(button)) return
+            this.act(button.dataset.mapAction)
+          }
+          this.onKey = (e) => {
+            if (e.target.closest("input, select, textarea")) return
+            const action = {"+": "in", "=": "in", "-": "out", "0": "fit", "f": "full"}[e.key]
+            if (!action) return
+            e.preventDefault()
+            this.act(action)
+          }
+
+          // Escucha el contenedor: al entrar o salir de una región el svg cambia y todo sigue.
+          this.el.addEventListener("wheel", this.onWheel, {passive: false})
+          this.el.addEventListener("pointerdown", this.onDown)
+          this.el.addEventListener("pointermove", this.onMove)
+          this.el.addEventListener("pointerup", this.onUp)
+          this.el.addEventListener("pointercancel", this.onUp)
+          this.el.addEventListener("pointerleave", this.onLeave)
+          this.el.addEventListener("click", this.onClick, true)
+          this.el.addEventListener("dblclick", this.onDblClick)
+          this.el.addEventListener("click", this.onAction)
+          this.el.addEventListener("keydown", this.onKey)
+
+          // Buscar: el servidor pide centrar un punto (región o sistema encontrado).
+          this.handleEvent("map:focus", ({map, x, y}) => {
+            if (map !== this.el.id) return
+            const w = Math.min(this.view.w, this.base.w / 3)
+            const h = (w * this.base.h) / this.base.w
+            this.view = this.clamp({x: x - w / 2, y: y - h / 2, w, h})
+            this.apply()
+          })
+        },
+        // Universo o región: con otro nivel (otro svg) se vuelve a la vista completa.
+        updated() {
+          this.svg = this.el.querySelector("svg[data-map-svg]")
+          this.tip = this.el.querySelector("[data-map-tip]")
+          this.zoomLabel = this.el.querySelector("[data-map-zoom]")
+          if (this.el.dataset.key !== this.key) {
+            this.key = this.el.dataset.key
+            this.view = {...this.base}
+          }
+          this.apply()
+        },
+        act(action) {
+          const center = {x: this.view.x + this.view.w / 2, y: this.view.y + this.view.h / 2}
+          if (action === "in") this.zoomAt(center, 1 / 1.5)
+          if (action === "out") this.zoomAt(center, 1.5)
+          if (action === "fit") {
+            this.view = {...this.base}
+            this.apply()
+          }
+          if (action === "full") {
+            if (document.fullscreenElement) document.exitFullscreen()
+            else if (this.el.requestFullscreen) this.el.requestFullscreen()
+          }
+        },
+        point(e) {
+          const pt = this.svg.createSVGPoint()
+          pt.x = e.clientX
+          pt.y = e.clientY
+          return pt.matrixTransform(this.svg.getScreenCTM().inverse())
+        },
+        unitsPerPixel() {
+          const ctm = this.svg.getScreenCTM()
+          return ctm && ctm.a ? 1 / ctm.a : 1
+        },
+        // Zoom manteniendo fijo el punto `p` (bajo el puntero): de 1× a 12×.
+        zoomAt(p, factor) {
+          const w = Math.min(Math.max(this.view.w * factor, this.base.w / 12), this.base.w)
+          const ratio = w / this.view.w
+          const h = this.view.h * ratio
+          const x = p.x - (p.x - this.view.x) * ratio
+          const y = p.y - (p.y - this.view.y) * ratio
+          this.view = this.clamp({x, y, w, h})
+          this.apply()
+        },
+        // El centro de la vista nunca sale del lienzo: el dibujo no se pierde de vista.
+        clamp(v) {
+          const b = this.base
+          const cx = Math.min(Math.max(v.x + v.w / 2, b.x), b.x + b.w)
+          const cy = Math.min(Math.max(v.y + v.h / 2, b.y), b.y + b.h)
+          return {x: cx - v.w / 2, y: cy - v.h / 2, w: v.w, h: v.h}
+        },
+        // Las marcas y los nombres conservan su tamaño en pantalla (--glyph): al acercarse se
+        // separan en lugar de crecer, y con zoom cercano aparecen los nombres secundarios.
+        apply() {
+          const v = this.view
+          const k = this.base.w / v.w
+          this.svg.setAttribute("viewBox", `${v.x} ${v.y} ${v.w} ${v.h}`)
+          this.svg.style.setProperty("--glyph", (1 / k).toFixed(4))
+          this.svg.dataset.zoomed = k >= 1.8 ? "near" : "far"
+          if (this.zoomLabel) this.zoomLabel.textContent = `${Math.round(k * 100)} %`
+        },
+        showTip(e) {
+          const target = e.target.closest("[data-tip]")
+          if (!target || !this.tip) return this.hideTip()
+          this.tip.textContent = target.dataset.tip
+          this.tip.classList.remove("hidden")
+          const box = this.el.getBoundingClientRect()
+          let left = e.clientX - box.left + 14
+          let top = e.clientY - box.top + 14
+          if (left + this.tip.offsetWidth > box.width - 4) left -= this.tip.offsetWidth + 28
+          if (top + this.tip.offsetHeight > box.height - 4) top -= this.tip.offsetHeight + 28
+          this.tip.style.left = `${Math.max(left, 4)}px`
+          this.tip.style.top = `${Math.max(top, 4)}px`
+        },
+        hideTip() {
+          if (this.tip) this.tip.classList.add("hidden")
+        }
+      }
+    </script>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :map, :map, required: true
+  attr :label, :string, required: true
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  # El svg del lienzo: el hook maneja viewBox, `--glyph`, `data-zoomed` y el cursor (el
+  # servidor no los pisa al redibujar cada segundo).
+  defp map_svg(assigns) do
+    ~H"""
+    <svg
+      id={@id}
+      data-map-svg
+      viewBox={"0 0 #{@map.width} #{@map.height}"}
+      phx-mounted={JS.ignore_attributes(["viewBox", "style", "class", "data-zoomed"])}
+      class="block h-auto w-full cursor-grab select-none"
+      role="group"
+      aria-label={@label}
+      {@rest}
+    >
+      {render_slot(@inner_block)}
+    </svg>
+    """
+  end
+
+  attr :points, :map, required: true
+  attr :links, :list, required: true
+  attr :class, :string, required: true
+
+  defp map_links(assigns) do
+    ~H"""
+    <g aria-hidden="true" class={@class}>
+      <line
+        :for={{a, b} <- @links}
+        x1={@points[a].x}
+        y1={@points[a].y}
+        x2={@points[b].x}
+        y2={@points[b].y}
+        stroke="currentColor"
+        stroke-width="1"
+        vector-effect="non-scaling-stroke"
+      />
+    </g>
+    """
+  end
+
   attr :map, :map, required: true, doc: "`Eth.Sde.galaxy/0`"
   attr :regions, :map, required: true
   attr :heat, :map, required: true
-  attr :layer, :atom, required: true
+  attr :opps, :map, required: true, doc: "oportunidades por región"
+  attr :pilots, :map, required: true, doc: "pilotos por región"
+  attr :layers, :list, required: true
+  attr :filter, :atom, required: true
+  attr :labels, :atom, required: true
   attr :selected, :integer, default: nil
+  attr :routes, :list, default: [], doc: "rutas a dibujar (`map_routes/3`)"
   attr :now, :any, required: true
 
   defp galaxy_map(assigns) do
@@ -898,162 +1509,375 @@ defmodule EthWeb.ControlLive do
     assigns =
       assign(assigns,
         points: Map.new(assigns.map.nodes, &{&1.id, &1}),
-        max_orders: max(max_orders, 1)
+        max_orders: max(max_orders, 1),
+        routes: universe_routes(assigns.routes, assigns.map[:frame])
       )
 
     ~H"""
-    <svg
-      id="galaxy-map"
-      viewBox={"0 0 #{@map.width} #{@map.height}"}
-      class="h-auto w-full"
-      role="group"
-      aria-label={gettext("Mapa de regiones")}
-    >
-      <g aria-hidden="true" class="text-base-content/15">
-        <line
-          :for={{a, b} <- @map.links}
-          x1={@points[a].x}
-          y1={@points[a].y}
-          x2={@points[b].x}
-          y2={@points[b].y}
-          stroke="currentColor"
-          stroke-width="1"
-          vector-effect="non-scaling-stroke"
-        />
-      </g>
+    <.map_svg id="galaxy-map" map={@map} label={gettext("Mapa de regiones")}>
+      <.map_links points={@points} links={@map.links} class="text-base-content/15" />
+      <.universe_route_lines routes={@routes} />
       <.map_region
         :for={n <- @map.nodes}
         node={n}
         status={@regions[n.id]}
         heat={@heat[n.id]}
-        layer={@layer}
+        opps={@opps[n.id]}
+        pilots={Map.get(@pilots, n.id, [])}
+        layers={@layers}
+        filter={@filter}
+        labels={@labels}
         selected={@selected == n.id}
         max_orders={@max_orders}
         now={@now}
       />
-    </svg>
+    </.map_svg>
     """
   end
 
   attr :node, :map, required: true
   attr :status, :map, default: nil, doc: "estado del poller (`nil` si la región no se sigue)"
   attr :heat, :map, default: nil
-  attr :layer, :atom, required: true
+  attr :opps, :map, default: nil
+  attr :pilots, :list, default: []
+  attr :layers, :list, required: true
+  attr :filter, :atom, required: true
+  attr :labels, :atom, required: true
   attr :selected, :boolean, default: false
   attr :max_orders, :integer, required: true
   attr :now, :any, required: true
 
   # Una región: anillo con el estado y la cuenta regresiva de su poller, tamaño según sus
-  # órdenes y halo rojo con el calor del radar.
+  # órdenes, halo rojo con el calor del radar, cuántas oportunidades compran ahí y una
+  # marca si hay un piloto. Clic: entra a la región.
   defp map_region(assigns) do
-    %{status: status, heat: heat, layer: layer, now: now} = assigns
-
-    {_key, label, color} =
-      if status, do: display(status, now), else: {:none, gettext("Sin poller"), "neutral"}
-
-    r = if status, do: GalaxyMap.node_radius(status.orders, assigns.max_orders), else: 3.5
-    radar? = layer in [:radar, :both]
-    alerts? = radar? and heat != nil and heat.alerts > 0
+    %{status: status, heat: heat, now: now} = assigns
+    {key, label, color} = region_display(status, now)
+    r = region_radius(status, assigns.max_orders)
+    flags = region_flags(assigns)
 
     assigns =
-      assign(assigns,
+      assigns
+      |> assign(flags)
+      |> assign(
         r: r,
         label: label,
         color: color,
-        pollers?: status != nil and layer in [:pollers, :both],
-        halo: radar? && GalaxyMap.halo_radius(heat, r),
-        alerts?: alerts?,
+        halo: flags.radar? && GalaxyMap.halo_radius(heat, r),
+        opps_count: opps_count(assigns.layers, assigns.opps),
         fraction: status && map_fraction(status, now),
-        named?: (status != nil and status.tier == :hub) or assigns.selected or alerts?
+        dim?: not GalaxyMap.region_matches?(assigns.filter, key, heat, assigns.opps),
+        minor?: not flags.major? and assigns.labels != :all,
+        tip: region_tip(assigns.node, status, label, heat, assigns.opps, assigns.pilots, now)
       )
 
     ~H"""
     <g
       id={"map-region-#{@node.id}"}
-      class="cursor-pointer outline-none"
+      transform={"translate(#{@node.x} #{@node.y})"}
+      class={["cursor-pointer outline-none transition-opacity", @dim? && "opacity-20"]}
       role="button"
       tabindex="0"
-      phx-click="select_region"
-      phx-keydown="select_region"
+      phx-click="map_enter"
+      phx-keydown="map_enter"
       phx-key="Enter"
       phx-value-id={@node.id}
       aria-label={"#{@node.name}: #{@label}"}
       aria-pressed={to_string(@selected)}
+      data-tip={@tip}
     >
-      <title>{region_title(@node, @status, @label, @heat)}</title>
-      <circle
-        :if={@halo}
-        cx={@node.x}
-        cy={@node.y}
-        r={@halo}
-        class={["fill-error", @alerts? && "eth-pulse-bar"]}
-        fill-opacity={if(@alerts?, do: "0.3", else: "0.12")}
-      />
-      <%= if @pollers? do %>
+      <g class="eth-map-glyph">
+        <circle r={max(@r + 5, 10)} class="fill-transparent" />
         <circle
-          cx={@node.x}
-          cy={@node.y}
-          r={@r}
-          class={["fill-base-100", tone_text(@color)]}
-          stroke="currentColor"
-          stroke-opacity="0.3"
-          stroke-width="2"
-          vector-effect="non-scaling-stroke"
+          :if={@halo}
+          r={@halo}
+          class={["fill-error", @alerts? && "eth-pulse-bar"]}
+          fill-opacity={if(@alerts?, do: "0.3", else: "0.12")}
         />
+        <%= if @pollers? do %>
+          <circle
+            r={@r}
+            class={["fill-base-100", tone_text(@color)]}
+            stroke="currentColor"
+            stroke-opacity="0.3"
+            stroke-width="2"
+          />
+          <circle
+            r={@r}
+            fill="none"
+            stroke="currentColor"
+            class={tone_text(@color)}
+            stroke-width="2.5"
+            stroke-dasharray={GalaxyMap.arc_dash(@fraction, @r)}
+            transform="rotate(-90)"
+          />
+          <circle r="2.5" fill="currentColor" class={tone_text(@color)} />
+        <% else %>
+          <circle
+            r={if(@status, do: 4, else: 3)}
+            class={if(@status, do: "fill-base-content/50", else: "fill-base-content/25")}
+          />
+        <% end %>
+        <.map_count :if={@opps_count > 0} x={@r + 2} y={-@r - 2} count={@opps_count} />
+        <.map_pilot :if={@pilots?} y={-@r - 4} />
         <circle
-          cx={@node.x}
-          cy={@node.y}
-          r={@r}
+          :if={@selected}
+          r={@r + 5}
           fill="none"
           stroke="currentColor"
-          class={tone_text(@color)}
-          stroke-width="2.5"
-          stroke-dasharray={GalaxyMap.arc_dash(@fraction, @r)}
-          transform={"rotate(-90 #{@node.x} #{@node.y})"}
+          class="text-primary"
+          stroke-width="1.5"
         />
-        <circle cx={@node.x} cy={@node.y} r="2.5" fill="currentColor" class={tone_text(@color)} />
-      <% else %>
-        <circle
-          cx={@node.x}
-          cy={@node.y}
-          r={if(@status, do: 4, else: 3)}
-          class={if(@status, do: "fill-base-content/50", else: "fill-base-content/25")}
-        />
-      <% end %>
-      <circle
-        :if={@selected}
-        cx={@node.x}
-        cy={@node.y}
-        r={@r + 5}
-        fill="none"
-        stroke="currentColor"
-        class="text-primary"
-        stroke-width="1.5"
-        vector-effect="non-scaling-stroke"
-      />
-      <text
-        :if={@named?}
-        x={@node.x}
-        y={@node.y + @r + 14}
-        text-anchor="middle"
-        class={[
-          "font-display text-[12px]",
-          if(@selected, do: "fill-primary", else: "fill-base-content/80")
-        ]}
-      >
-        {@node.name}
-      </text>
+        <text
+          y={@r + 14}
+          text-anchor="middle"
+          class={[
+            "font-display text-[12px]",
+            @minor? && "eth-map-label-minor",
+            if(@selected, do: "fill-primary", else: "fill-base-content/80")
+          ]}
+        >
+          {@node.name}
+        </text>
+      </g>
     </g>
     """
+  end
+
+  defp region_display(nil, _now), do: {nil, gettext("Sin poller"), "neutral"}
+  defp region_display(status, now), do: display(status, now)
+
+  defp region_radius(nil, _max_orders), do: 3.5
+  defp region_radius(status, max_orders), do: GalaxyMap.node_radius(status.orders, max_orders)
+
+  # Qué se dibuja de una región según las capas encendidas; las importantes llevan nombre
+  # siempre (hubs, la elegida, con alertas o con un piloto).
+  defp region_flags(%{status: status, heat: heat, layers: layers} = assigns) do
+    radar? = :radar in layers
+    alerts? = radar? and alerted?(heat)
+    pilots? = :pilots in layers and assigns.pilots != []
+
+    %{
+      radar?: radar?,
+      alerts?: alerts?,
+      pilots?: pilots?,
+      pollers?: status != nil and :pollers in layers,
+      major?: hub?(status) or assigns.selected or alerts? or pilots?
+    }
+  end
+
+  defp hub?(%{tier: :hub}), do: true
+  defp hub?(_status), do: false
+
+  defp alerted?(%{alerts: alerts}), do: alerts > 0
+  defp alerted?(_heat), do: false
+
+  # Oportunidades que compran en el lugar, si la capa está encendida.
+  defp opps_count(layers, %{buy: buy}), do: if(:opps in layers, do: buy, else: 0)
+  defp opps_count(_layers, _opps), do: 0
+
+  attr :x, :any, required: true
+  attr :y, :any, required: true
+  attr :count, :integer, required: true
+
+  # Cuántas oportunidades compran en el lugar: una píldora verde arriba a la derecha.
+  defp map_count(assigns) do
+    assigns = assign(assigns, :text, Format.compact(assigns.count))
+
+    ~H"""
+    <g transform={"translate(#{@x} #{@y})"} aria-hidden="true">
+      <rect
+        x="0"
+        y="-7"
+        width={6 + 6 * String.length(@text)}
+        height="12"
+        rx="2"
+        class="fill-base-100 stroke-success"
+        stroke-width="1"
+      />
+      <text x="3" y="2.5" class="fill-success font-mono text-[9px]">{@text}</text>
+    </g>
+    """
+  end
+
+  attr :y, :any, required: true
+
+  # Marca de piloto: un triángulo que apunta al lugar.
+  defp map_pilot(assigns) do
+    ~H"""
+    <path
+      d={"M 0 #{@y} l -4.5 -7 h 9 z"}
+      class="fill-accent stroke-base-100"
+      stroke-width="1"
+      aria-hidden="true"
+    />
+    """
+  end
+
+  attr :map, :map, required: true, doc: "`Eth.Sde.region_map/1`"
+  attr :heat, :map, required: true, doc: "calor del radar por sistema"
+  attr :opps, :map, required: true, doc: "oportunidades por sistema"
+  attr :pilots, :map, required: true, doc: "pilotos por sistema"
+  attr :layers, :list, required: true
+  attr :labels, :atom, required: true
+  attr :color, :atom, required: true
+  attr :selected, :integer, default: nil
+  attr :routes, :list, default: [], doc: "rutas a dibujar (`map_routes/3`)"
+
+  # Sistemas de una región: color de seguridad (o de calor), stargates internos, kills del
+  # radar, estaciones, salidas a otras regiones, oportunidades y pilotos.
+  defp region_systems_map(assigns) do
+    assigns =
+      assign(assigns,
+        points: Map.new(assigns.map.nodes, &{&1.id, &1}),
+        all_names: assigns.labels == :all or length(assigns.map.nodes) <= 40
+      )
+
+    ~H"""
+    <.map_svg id="region-systems-map" map={@map} label={gettext("Sistemas de la región")}>
+      <.map_links points={@points} links={@map.links} class="text-base-content/20" />
+      <.region_route_lines routes={@routes} points={@points} />
+      <.map_system
+        :for={n <- @map.nodes}
+        node={n}
+        heat={@heat[n.id]}
+        opps={@opps[n.id]}
+        pilots={Map.get(@pilots, n.id, [])}
+        layers={@layers}
+        color={@color}
+        all_names={@all_names}
+        selected={@selected == n.id}
+      />
+    </.map_svg>
+    """
+  end
+
+  attr :node, :map, required: true
+  attr :heat, :map, default: nil
+  attr :opps, :map, default: nil
+  attr :pilots, :list, default: []
+  attr :layers, :list, required: true
+  attr :color, :atom, required: true
+  attr :all_names, :boolean, required: true
+  attr :selected, :boolean, default: false
+
+  defp map_system(assigns) do
+    %{node: node, layers: layers} = assigns
+
+    assigns =
+      assigns
+      |> assign(system_flags(assigns))
+      |> assign(
+        stations?: :stations in layers and node.stations > 0,
+        exits: if(:borders in layers, do: node.exits, else: []),
+        opps_count: opps_count(layers, assigns.opps),
+        tip: system_tip(node, assigns.heat, assigns.opps, assigns.pilots)
+      )
+
+    ~H"""
+    <g
+      id={"map-system-#{@node.id}"}
+      transform={"translate(#{@node.x} #{@node.y})"}
+      class="cursor-pointer outline-none"
+      role="button"
+      tabindex="0"
+      phx-click="map_system"
+      phx-keydown="map_system"
+      phx-key="Enter"
+      phx-value-id={@node.id}
+      aria-label={@node.name}
+      aria-pressed={to_string(@selected)}
+      data-tip={@tip}
+    >
+      <g class="eth-map-glyph">
+        <circle r="10" class="fill-transparent" />
+        <circle
+          :if={@halo}
+          r={@halo}
+          class={["fill-error", @alerts? && "eth-pulse-bar"]}
+          fill-opacity={if(@alerts?, do: "0.35", else: "0.15")}
+        />
+        <rect
+          :if={@stations?}
+          x="-8"
+          y="-8"
+          width="16"
+          height="16"
+          fill="none"
+          class="stroke-base-content/45"
+          stroke-width="1"
+        />
+        <circle
+          :if={@color == :security}
+          r="5"
+          style={"fill: #{Sde.security_color(@node.security)}"}
+        />
+        <circle :if={@color == :heat} r="5" class={GalaxyMap.heat_class(@heat)} />
+        <path
+          :if={@exits != []}
+          d="M 9 -3 l 4 3 l -4 3 z"
+          class="fill-info"
+          aria-hidden="true"
+        />
+        <.map_count :if={@opps_count > 0} x="7" y="-8" count={@opps_count} />
+        <.map_pilot :if={@pilots?} y="-9" />
+        <circle
+          :if={@selected}
+          r="11"
+          fill="none"
+          stroke="currentColor"
+          class="text-primary"
+          stroke-width="1.5"
+        />
+        <text
+          y="-12"
+          text-anchor="middle"
+          class={[
+            "font-mono text-[11px]",
+            @minor? && "eth-map-label-minor",
+            cond do
+              @selected -> "fill-primary"
+              @hot? -> "fill-error"
+              true -> "fill-base-content/70"
+            end
+          ]}
+        >
+          {@node.name}
+        </text>
+        <text
+          :if={@exits != []}
+          y="19"
+          text-anchor="middle"
+          class="eth-map-label-minor fill-info font-display text-[9px]"
+        >
+          → {Enum.map_join(@exits, " · ", & &1.name)}
+        </text>
+      </g>
+    </g>
+    """
+  end
+
+  # Qué se dibuja de un sistema: halo del radar, piloto y si lleva nombre siempre.
+  defp system_flags(%{heat: heat, layers: layers} = assigns) do
+    hot? = :radar in layers and heat != nil
+    pilots? = :pilots in layers and assigns.pilots != []
+
+    %{
+      hot?: hot?,
+      pilots?: pilots?,
+      halo: hot? && GalaxyMap.halo_radius(heat, 5),
+      alerts?: hot? and alerted?(heat),
+      minor?: not (assigns.all_names or hot? or pilots? or assigns.selected)
+    }
   end
 
   defp market_view_path("map"), do: ~p"/control/market?view=map"
   defp market_view_path(_tiles), do: ~p"/control/market"
 
   defp map_region_name(galaxy, region_id) do
-    case Enum.find(galaxy.nodes, &(&1.id == region_id)) do
+    case galaxy && Enum.find(galaxy.nodes, &(&1.id == region_id)) do
       %{name: name} -> name
-      nil -> Integer.to_string(region_id)
+      _ -> Integer.to_string(region_id)
     end
   end
 
@@ -1061,14 +1885,45 @@ defmodule EthWeb.ControlLive do
   defp map_fraction(%{status: :fetching} = status, _now), do: pages_fraction(status)
   defp map_fraction(status, now), do: expires_fraction(status, now)
 
-  defp region_title(node, status, label, heat) do
+  # Tooltip de una región: una línea por dato (`white-space: pre-line`).
+  defp region_tip(node, status, label, heat, opps, pilots, now) do
     poller =
-      if status,
-        do: "#{label} · #{Format.compact(status.orders)} #{gettext("órdenes")}",
-        else: label
+      if status do
+        orders = gettext("%{n} órdenes", n: Format.compact(status.orders))
+        Enum.join([label, timing(status, now), orders], " · ")
+      else
+        label
+      end
 
-    [node.name, poller, heat_text(heat)] |> Enum.reject(&is_nil/1) |> Enum.join(" · ")
+    [node.name, poller, heat_text(heat), opps_text(opps), pilots_text(pilots)]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join("\n")
   end
+
+  defp system_tip(node, heat, opps, pilots) do
+    sec = gettext("seguridad %{sec}", sec: security_text(node.security))
+
+    stations =
+      if node.stations > 0,
+        do: ngettext("%{count} estación", "%{count} estaciones", node.stations)
+
+    exits =
+      if node.exits != [],
+        do: gettext("sale a %{regions}", regions: Enum.map_join(node.exits, ", ", & &1.name))
+
+    [
+      node.name,
+      Enum.reject([sec, stations], &is_nil/1) |> Enum.join(" · "),
+      exits,
+      heat_text(heat),
+      opps_text(opps),
+      pilots_text(pilots)
+    ]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join("\n")
+  end
+
+  defp security_text(sec), do: :erlang.float_to_binary(Sde.security_display(sec), decimals: 1)
 
   defp heat_text(nil), do: nil
   defp heat_text(%{kills: 0}), do: nil
@@ -1081,70 +1936,615 @@ defmodule EthWeb.ControlLive do
       ", " <> ngettext("%{count} kill", "%{count} kills", kills)
   end
 
-  attr :map, :map, required: true, doc: "`Eth.Sde.region_map/1`"
-  attr :heat, :map, required: true, doc: "calor del radar por sistema"
-  attr :layer, :atom, required: true
+  defp opps_text(nil), do: nil
 
-  # Sistemas de una región: color de seguridad, stargates internos y kills del radar.
-  defp region_systems_map(assigns) do
-    assigns =
-      assign(assigns,
-        points: Map.new(assigns.map.nodes, &{&1.id, &1}),
-        radar?: assigns.layer in [:radar, :both],
-        all_names?: length(assigns.map.nodes) <= 40
-      )
+  defp opps_text(opps) do
+    gettext("Oportunidades: %{buy} compran, %{sell} venden · mejor %{best} ISK",
+      buy: Format.integer(opps.buy),
+      sell: Format.integer(opps.sell),
+      best: Format.compact(opps.best)
+    )
+  end
 
+  defp heat_tone(%{alerts: alerts}) when alerts > 0, do: "text-error"
+  defp heat_tone(_heat), do: "text-warning"
+
+  defp pilots_text([]), do: nil
+  defp pilots_text(names), do: gettext("Pilotos: %{names}", names: Enum.join(names, ", "))
+
+  # Pilotos por región (para el universo) a partir de los pilotos por sistema.
+  defp pilots_by_region(pilots) do
+    Enum.reduce(pilots, %{}, fn {system_id, names}, acc ->
+      case system_region(system_id) do
+        nil -> acc
+        region_id -> Map.update(acc, region_id, names, &(&1 ++ names))
+      end
+    end)
+  end
+
+  # Las N primeras regiones por `fun` (solo las que tienen algo).
+  defp top_regions(stats, fun, n) do
+    stats
+    |> Enum.map(fn {id, s} -> {id, fun.(s)} end)
+    |> Enum.filter(fn {_id, v} -> v > 0 end)
+    |> Enum.sort_by(fn {_id, v} -> -v end)
+    |> Enum.take(n)
+  end
+
+  # Saltos de cada piloto a un sistema, por la ruta más corta y por la segura (RF-2.4).
+  defp pilot_jumps(pilots, system_id) do
+    for {from, names} <- pilots, name <- names do
+      %{
+        name: name,
+        here?: from == system_id,
+        shortest: Routing.distance(from, system_id, :shortest),
+        secure: Routing.distance(from, system_id, :secure)
+      }
+    end
+  end
+
+  defp jumps_text(nil), do: "—"
+  defp jumps_text(n), do: ngettext("%{count} salto", "%{count} saltos", n)
+
+  ## Rutas en el mapa (RF-8.2): la del tablón y los viajes activos
+
+  # Rutas a dibujar: la abierta desde el tablón y el camino que falta de cada viaje.
+  defp map_routes(layers, url_route, trips) do
+    if :routes in layers, do: Enum.reject([url_route | trips], &is_nil/1), else: []
+  end
+
+  # Cada sistema de la ruta ubicado en el lienzo del universo.
+  defp universe_routes(routes, frame) do
+    for route <- routes do
+      points =
+        for id <- route.path,
+            system = Sde.system(id),
+            xy = Galaxy.project(frame, system),
+            do: {id, xy}
+
+      Map.put(route, :points, points)
+    end
+  end
+
+  defp route_class(:trip), do: "text-accent"
+  defp route_class(_route), do: "text-primary"
+
+  attr :routes, :list, required: true, doc: "rutas con `points` ya en el lienzo"
+
+  # Rutas sobre el universo: una línea por los sistemas del camino, con la compra (anillo)
+  # y el destino (anillo doble). Van debajo de las regiones: no tapan sus clics.
+  defp universe_route_lines(assigns) do
     ~H"""
-    <svg
-      id="region-systems-map"
-      viewBox={"0 0 #{@map.width} #{@map.height}"}
-      class="h-auto w-full"
-      role="img"
-      aria-label={gettext("Sistemas de la región")}
+    <g
+      :for={r <- @routes}
+      :if={length(r.points) > 1}
+      id={"map-#{r.id}"}
+      class={route_class(r.kind)}
+      aria-hidden="true"
     >
-      <g aria-hidden="true" class="text-base-content/20">
-        <line
-          :for={{a, b} <- @map.links}
-          x1={@points[a].x}
-          y1={@points[a].y}
-          x2={@points[b].x}
-          y2={@points[b].y}
-          stroke="currentColor"
-          stroke-width="1"
-          vector-effect="non-scaling-stroke"
-        />
-      </g>
-      <g :for={n <- @map.nodes} id={"map-system-#{n.id}"}>
-        <title>{system_title(n, @heat[n.id])}</title>
-        <circle
-          :if={@radar? && GalaxyMap.halo_radius(@heat[n.id], 5)}
-          cx={n.x}
-          cy={n.y}
-          r={GalaxyMap.halo_radius(@heat[n.id], 5)}
-          class={["fill-error", @heat[n.id].alerts > 0 && "eth-pulse-bar"]}
-          fill-opacity={if(@heat[n.id].alerts > 0, do: "0.35", else: "0.15")}
-        />
-        <circle cx={n.x} cy={n.y} r="5" style={"fill: #{Sde.security_color(n.security)}"} />
-        <text
-          :if={@all_names? or (@radar? and @heat[n.id] != nil)}
-          x={n.x}
-          y={n.y - 9}
-          text-anchor="middle"
-          class={[
-            "font-mono text-[11px]",
-            if(@radar? and @heat[n.id] != nil, do: "fill-error", else: "fill-base-content/70")
-          ]}
-        >
-          {n.name}
-        </text>
-      </g>
-    </svg>
+      <polyline
+        points={Enum.map_join(r.points, " ", fn {_id, {x, y}} -> "#{x},#{y}" end)}
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-opacity="0.85"
+        stroke-linejoin="round"
+        stroke-linecap="round"
+        vector-effect="non-scaling-stroke"
+      />
+      <.route_marks route={r} points={Map.new(r.points)} />
+    </g>
     """
   end
 
-  defp system_title(node, heat) do
-    sec = :erlang.float_to_binary(Sde.security_display(node.security), decimals: 1)
-    [node.name, sec, heat_text(heat)] |> Enum.reject(&is_nil/1) |> Enum.join(" · ")
+  attr :routes, :list, required: true
+  attr :points, :map, required: true, doc: "sistemas de la región por ID"
+
+  # Rutas dentro de una región: solo los tramos entre sistemas de la región.
+  defp region_route_lines(assigns) do
+    ~H"""
+    <g :for={r <- @routes} id={"map-#{r.id}"} class={route_class(r.kind)} aria-hidden="true">
+      <line
+        :for={{a, b} <- GalaxyMap.route_links(r.path, @points)}
+        x1={@points[a].x}
+        y1={@points[a].y}
+        x2={@points[b].x}
+        y2={@points[b].y}
+        stroke="currentColor"
+        stroke-width="3"
+        stroke-opacity="0.8"
+        stroke-linecap="round"
+        vector-effect="non-scaling-stroke"
+      />
+      <.route_marks route={r} points={Map.new(@points, fn {id, n} -> {id, {n.x, n.y}} end)} />
+    </g>
+    """
+  end
+
+  attr :route, :map, required: true
+  attr :points, :map, required: true, doc: "`%{sistema => {x, y}}`"
+
+  defp route_marks(assigns) do
+    %{route: route, points: points} = assigns
+
+    assigns =
+      assign(assigns,
+        stop: route.stop && points[route.stop],
+        finish: points[List.last(route.path)]
+      )
+
+    ~H"""
+    <g :if={@stop} transform={"translate(#{elem(@stop, 0)} #{elem(@stop, 1)})"}>
+      <circle r="9" class="eth-map-glyph" fill="none" stroke="currentColor" stroke-width="2" />
+    </g>
+    <g :if={@finish} transform={"translate(#{elem(@finish, 0)} #{elem(@finish, 1)})"}>
+      <g class="eth-map-glyph" fill="none" stroke="currentColor">
+        <circle r="9" stroke-width="2" />
+        <circle r="13" stroke-width="1.2" />
+      </g>
+    </g>
+    """
+  end
+
+  # Sistemas de la ruta por seguridad: {cantidad, etiqueta, color}, sin las vacías.
+  defp band_parts(bands) do
+    for {band, label, class} <- [
+          {:highsec, gettext("alta"), "text-success"},
+          {:lowsec, gettext("baja"), "text-warning"},
+          {:nullsec, gettext("nula"), "text-error"}
+        ],
+        count = bands[band],
+        do: {count, label, class}
+  end
+
+  attr :route, :map, required: true
+  attr :hot_index, :map, required: true
+  attr :galaxy, :map, required: true
+  attr :remove, :string, default: nil, doc: "enlace para quitar la ruta (la del tablón)"
+
+  # Ficha de una ruta: extremos, saltos, seguridad del camino, alertas y regiones.
+  defp map_route_card(assigns) do
+    path = assigns.route.path
+    systems = Enum.map(path, &{&1, Sde.system(&1)})
+
+    bands =
+      systems
+      |> Enum.flat_map(fn
+        {_id, %{security: sec}} -> [Sde.security_band(sec)]
+        _ -> []
+      end)
+      |> Enum.frequencies()
+
+    assigns =
+      assign(assigns,
+        first: hd(path),
+        last: List.last(path),
+        jumps: length(path) - 1,
+        band_parts: band_parts(bands),
+        alerts: Enum.filter(path, &match?(%{alert: true}, assigns.hot_index[&1])),
+        regions:
+          systems
+          |> Enum.flat_map(fn
+            {_id, %{region_id: region_id}} -> [region_id]
+            _ -> []
+          end)
+          |> Enum.dedup()
+          |> Enum.uniq()
+      )
+
+    ~H"""
+    <section
+      id={"map-#{@route.id}-card"}
+      class={[
+        "eth-chamfer-sm border bg-base-200/50 p-3",
+        if(@route.kind == :trip, do: "border-accent/50", else: "border-primary/40")
+      ]}
+    >
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <div class={["font-display text-sm", route_class(@route.kind)]}>{@route.label}</div>
+          <div :if={@route[:detail]} class="truncate text-xs eth-muted">{@route.detail}</div>
+        </div>
+        <.link
+          :if={@remove}
+          id="map-route-remove"
+          patch={@remove}
+          aria-label={gettext("Quitar la ruta del mapa")}
+          class="eth-muted transition-colors hover:text-primary"
+        >
+          <.icon name="hero-x-mark" class="size-4" />
+        </.link>
+      </div>
+
+      <div class="mt-2 flex flex-wrap items-center gap-x-1.5 font-mono text-xs">
+        <span style={sec_style(@first)}>{system_name(@first)}</span>
+        <%= if @route.stop && @route.stop not in [@first, @last] do %>
+          <span class="eth-faint">→</span>
+          <span class="underline" style={sec_style(@route.stop)}>{system_name(@route.stop)}</span>
+        <% end %>
+        <span class="eth-faint">→</span>
+        <span style={sec_style(@last)}>{system_name(@last)}</span>
+      </div>
+
+      <div class="mt-1 text-xs eth-muted">
+        {ngettext("%{count} salto", "%{count} saltos", @jumps)}
+        <span :for={{count, label, class} <- @band_parts}>
+          · <span class={class}>{count}</span> {label}
+        </span>
+      </div>
+
+      <p :if={@alerts != []} class="mt-2 text-xs text-error">
+        <.icon name="hero-exclamation-triangle" class="size-3.5" />
+        {gettext("En alerta: %{systems}",
+          systems: Enum.map_join(@alerts, ", ", &system_name/1)
+        )}
+      </p>
+
+      <div :if={length(@regions) > 1} class="mt-2 flex flex-wrap gap-1">
+        <button
+          :for={region_id <- @regions}
+          type="button"
+          phx-click="map_enter"
+          phx-value-id={region_id}
+          class="border border-base-300 px-1.5 py-0.5 text-[11px] transition-colors hover:border-primary/60 hover:text-primary"
+        >
+          {map_region_name(@galaxy, region_id)}
+        </button>
+      </div>
+    </section>
+    """
+  end
+
+  ## Inspector del mapa (RF-8.2)
+
+  attr :galaxy, :map, required: true
+  attr :regions, :map, required: true
+  attr :heat, :map, required: true
+  attr :opps, :map, required: true
+  attr :pilots, :map, required: true, doc: "pilotos por sistema"
+
+  # Universo: totales, dónde están los pilotos y las regiones que más se destacan.
+  defp map_universe_panel(assigns) do
+    heat = Map.values(assigns.heat)
+
+    assigns =
+      assign(assigns,
+        alerts: heat |> Enum.map(& &1.alerts) |> Enum.sum(),
+        kills: heat |> Enum.map(& &1.kills) |> Enum.sum(),
+        opp_total: assigns.opps.regions |> Map.values() |> Enum.map(& &1.buy) |> Enum.sum(),
+        top_opps: top_regions(assigns.opps.regions, & &1.buy, 5),
+        top_heat: top_regions(assigns.heat, &(&1.alerts * 1_000 + &1.kills), 5)
+      )
+
+    ~H"""
+    <div id="map-universe-panel" class="space-y-4">
+      <h3 class="eth-kicker text-[11px] text-primary">{gettext("Universo")}</h3>
+      <div class="grid grid-cols-2 gap-3">
+        <.stat
+          label={gettext("regiones con poller")}
+          value={"#{map_size(@regions)} / #{length(@galaxy.nodes)}"}
+        />
+        <.stat label={gettext("oportunidades")} value={Format.integer(@opp_total)} />
+        <.stat
+          label={gettext("sistemas en alerta")}
+          value={Format.integer(@alerts)}
+          value_class={@alerts > 0 && "text-error"}
+        />
+        <.stat label={gettext("kills en la ventana")} value={Format.integer(@kills)} />
+      </div>
+
+      <.map_list id="map-pilots" title={gettext("Pilotos")}>
+        <li :if={@pilots == %{}} class="px-2 py-1.5 text-xs eth-faint">
+          {gettext("Ningún personaje con ubicación: iniciá sesión con uno para verlo acá.")}
+        </li>
+        <li :for={{system_id, names} <- @pilots}>
+          <button
+            type="button"
+            id={"map-pilot-#{system_id}"}
+            phx-click="map_pilot"
+            phx-value-id={system_id}
+            class="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm transition-colors hover:bg-base-200"
+          >
+            <span class="inline-block size-2 rotate-45 bg-accent"></span>
+            <span class="min-w-0 flex-1 truncate">{Enum.join(names, ", ")}</span>
+            <span class="font-mono text-xs" style={sec_style(system_id)}>
+              {system_name(system_id)}
+            </span>
+          </button>
+        </li>
+      </.map_list>
+
+      <.map_list
+        :if={@top_opps != []}
+        id="map-top-opps"
+        title={gettext("Más oportunidades (compran ahí)")}
+      >
+        <li :for={{region_id, count} <- @top_opps}>
+          <.map_list_button id={"map-top-opps-#{region_id}"} event="map_enter" value={region_id}>
+            {map_region_name(@galaxy, region_id)}
+            <:detail>
+              <span class="text-success">{Format.integer(count)}</span>
+              <span class="eth-faint">· {Format.compact(@opps.regions[region_id].best)}</span>
+            </:detail>
+          </.map_list_button>
+        </li>
+      </.map_list>
+
+      <.map_list :if={@top_heat != []} id="map-top-heat" title={gettext("Más calientes")}>
+        <li :for={{region_id, _score} <- @top_heat}>
+          <.map_list_button id={"map-top-heat-#{region_id}"} event="map_enter" value={region_id}>
+            {map_region_name(@galaxy, region_id)}
+            <:detail>
+              <span class={heat_tone(@heat[region_id])}>
+                {heat_text(@heat[region_id])}
+              </span>
+            </:detail>
+          </.map_list_button>
+        </li>
+      </.map_list>
+    </div>
+    """
+  end
+
+  attr :region_id, :integer, required: true
+  attr :name, :string, required: true
+  attr :map, :map, required: true, doc: "`Eth.Sde.region_map/1`"
+  attr :status, :map, default: nil
+  attr :heat, :map, default: nil
+  attr :opps, :map, required: true
+  attr :hot_index, :map, required: true
+  attr :system_heat, :map, required: true
+  attr :pilots, :map, required: true, doc: "pilotos por sistema (de todo el universo)"
+  attr :system, :integer, default: nil
+  attr :now, :any, required: true
+
+  # Región: totales, la ficha del sistema elegido, sus sistemas calientes y sus salidas.
+  defp map_region_panel(assigns) do
+    %{map: map, opps: opps} = assigns
+    ids = MapSet.new(map.nodes, & &1.id)
+    region_opps = opps.regions[assigns.region_id]
+
+    assigns =
+      assign(assigns,
+        stations: map.nodes |> Enum.map(& &1.stations) |> Enum.sum(),
+        region_opps: region_opps,
+        hot:
+          assigns.hot_index
+          |> Map.values()
+          |> Enum.filter(&MapSet.member?(ids, &1.system_id))
+          |> Enum.sort_by(&{not &1.alert, -&1.kills})
+          |> Enum.take(5),
+        exits: map.nodes |> Enum.flat_map(& &1.exits) |> Enum.uniq() |> Enum.sort_by(& &1.name),
+        node: assigns.system && Enum.find(map.nodes, &(&1.id == assigns.system)),
+        status_label: assigns.status && elem(display(assigns.status, assigns.now), 1)
+      )
+
+    ~H"""
+    <div id="map-region-inspector" class="space-y-4">
+      <div class="flex items-baseline justify-between gap-2">
+        <h3 class="eth-kicker text-[11px] text-primary">{@name}</h3>
+        <span :if={@status_label} class="text-xs eth-muted">{@status_label}</span>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <.stat label={gettext("sistemas")} value={Format.integer(length(@map.nodes))} />
+        <.stat label={gettext("estaciones NPC")} value={Format.integer(@stations)} />
+        <.stat
+          label={gettext("oportunidades (compran · venden)")}
+          value={
+            if(@region_opps,
+              do: "#{Format.integer(@region_opps.buy)} · #{Format.integer(@region_opps.sell)}",
+              else: "0"
+            )
+          }
+        />
+        <.stat
+          label={gettext("en alerta · kills")}
+          value={if(@heat, do: "#{@heat.alerts} · #{@heat.kills}", else: "0 · 0")}
+          value_class={@heat && @heat.alerts > 0 && "text-error"}
+        />
+      </div>
+      <.link
+        id="map-region-hunter"
+        navigate={~p"/?#{[search: @name]}"}
+        class="btn btn-ghost btn-xs border-base-300"
+      >
+        <.icon name="hero-magnifying-glass" class="size-3.5" />
+        {gettext("Contratos de %{name} en el Cazador", name: @name)}
+      </.link>
+
+      <.map_system_card
+        :if={@node}
+        node={@node}
+        hot={@hot_index[@node.id]}
+        opps={@opps.systems[@node.id]}
+        pilots={@pilots}
+      />
+
+      <.map_list :if={@hot != []} id="map-region-hot" title={gettext("Sistemas calientes")}>
+        <li :for={h <- @hot}>
+          <.map_list_button
+            id={"map-region-hot-#{h.system_id}"}
+            event="map_system"
+            value={h.system_id}
+            focus
+          >
+            {system_name(h.system_id)}
+            <:detail>
+              <span class={if(h.alert, do: "text-error", else: "text-warning")}>
+                {heat_text(@system_heat[h.system_id])}
+              </span>
+            </:detail>
+          </.map_list_button>
+        </li>
+      </.map_list>
+
+      <div :if={@exits != []} id="map-region-exits">
+        <h4 class="eth-kicker mb-1.5 text-[10px]">{gettext("Regiones vecinas")}</h4>
+        <div class="flex flex-wrap gap-1">
+          <button
+            :for={exit <- @exits}
+            type="button"
+            id={"map-exit-#{exit.id}"}
+            phx-click="map_enter"
+            phx-value-id={exit.id}
+            class="border border-info/40 px-1.5 py-0.5 text-xs text-info transition-colors hover:bg-info/10"
+          >
+            → {exit.name}
+          </button>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  attr :node, :map, required: true
+  attr :hot, :map, default: nil, doc: "entrada del radar (`Eth.Threat.hot_systems/0`)"
+  attr :opps, :map, default: nil
+  attr :pilots, :map, required: true
+
+  # Ficha de un sistema: seguridad, estaciones, salidas, radar, oportunidades y a cuántos
+  # saltos está cada piloto.
+  defp map_system_card(assigns) do
+    assigns = assign(assigns, :jumps, pilot_jumps(assigns.pilots, assigns.node.id))
+
+    ~H"""
+    <section
+      id="map-system-card"
+      class="eth-chamfer-sm border border-primary/40 bg-base-200/50 p-3"
+    >
+      <div class="flex items-start justify-between gap-2">
+        <div>
+          <div class="font-display text-base eth-strong">{@node.name}</div>
+          <div class="text-xs eth-muted">
+            <span class="font-mono" style={"color: #{Sde.security_color(@node.security)}"}>
+              {security_text(@node.security)}
+            </span>
+            · {ngettext("%{count} estación NPC", "%{count} estaciones NPC", @node.stations)}
+          </div>
+        </div>
+        <button
+          type="button"
+          id="map-system-close"
+          phx-click="map_system_close"
+          aria-label={gettext("Cerrar la ficha del sistema")}
+          class="eth-muted transition-colors hover:text-primary"
+        >
+          <.icon name="hero-x-mark" class="size-4" />
+        </button>
+      </div>
+
+      <dl class="mt-3 space-y-2 text-sm">
+        <div :if={@node.exits != []}>
+          <dt class="text-xs eth-faint">{gettext("Sale por stargate a")}</dt>
+          <dd class="mt-0.5 flex flex-wrap gap-1">
+            <button
+              :for={exit <- @node.exits}
+              type="button"
+              phx-click="map_enter"
+              phx-value-id={exit.id}
+              class="border border-info/40 px-1.5 py-0.5 text-xs text-info transition-colors hover:bg-info/10"
+            >
+              → {exit.name}
+            </button>
+          </dd>
+        </div>
+        <div>
+          <dt class="text-xs eth-faint">{gettext("Radar")}</dt>
+          <dd :if={is_nil(@hot)} class="eth-muted">{gettext("Sin kills en la ventana")}</dd>
+          <dd :if={@hot} class={if(@hot.alert, do: "text-error", else: "text-warning")}>
+            {ngettext("%{count} kill", "%{count} kills", @hot.kills)}
+            <span class="eth-faint">
+              · {gettext("%{times}× lo normal", times: over_normal(@hot))}
+            </span>
+            <span
+              :if={@hot[:trend] in [:rising, :falling]}
+              class={["ml-1", trend_class(@hot.trend)]}
+              title={trend_label(@hot.trend)}
+            >
+              {if @hot.trend == :rising, do: "▲", else: "▼"}
+            </span>
+          </dd>
+          <dd :if={@hot && @hot.alert && @hot.classification} class="mt-1 text-xs eth-muted">
+            <span class="font-semibold text-error">
+              {threat_type_label(@hot.classification.type)}:
+            </span>
+            {@hot.classification.description}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-xs eth-faint">{gettext("Oportunidades")}</dt>
+          <dd :if={is_nil(@opps)} class="eth-muted">{gettext("Ninguna compra ni vende acá")}</dd>
+          <dd :if={@opps}>
+            <span class="text-success">
+              {ngettext("%{count} compra", "%{count} compran", @opps.buy)}
+            </span>
+            · {ngettext("%{count} vende", "%{count} venden", @opps.sell)}
+            <span class="eth-faint">
+              · {gettext("mejor %{isk} ISK", isk: Format.compact(@opps.best))}
+            </span>
+          </dd>
+        </div>
+        <div :if={@jumps != []}>
+          <dt class="text-xs eth-faint">{gettext("Pilotos (ruta corta · segura)")}</dt>
+          <dd :for={j <- @jumps} class="flex items-baseline justify-between gap-2">
+            <span class="truncate">{j.name}</span>
+            <span :if={j.here?} class="text-accent">{gettext("está acá")}</span>
+            <span :if={not j.here?} class="font-mono text-xs tabular-nums eth-muted">
+              {jumps_text(j.shortest)} · {jumps_text(j.secure)}
+            </span>
+          </dd>
+        </div>
+      </dl>
+
+      <.link
+        id="map-system-hunter"
+        navigate={~p"/?#{[search: @node.name]}"}
+        class="btn btn-ghost btn-xs mt-3 border-base-300"
+      >
+        <.icon name="hero-magnifying-glass" class="size-3.5" />
+        {gettext("Contratos en %{name}", name: @node.name)}
+      </.link>
+    </section>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  defp map_list(assigns) do
+    ~H"""
+    <div id={@id} {@rest}>
+      <h4 class="eth-kicker mb-1.5 text-[10px]">{@title}</h4>
+      <ul class="divide-y divide-base-300/60 border border-base-300">
+        {render_slot(@inner_block)}
+      </ul>
+    </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :event, :string, required: true
+  attr :value, :any, required: true
+  attr :focus, :boolean, default: false
+  slot :inner_block, required: true
+  slot :detail
+
+  defp map_list_button(assigns) do
+    ~H"""
+    <button
+      type="button"
+      id={@id}
+      phx-click={@event}
+      phx-value-id={@value}
+      phx-value-focus={@focus && "1"}
+      class="flex w-full items-baseline justify-between gap-2 px-2 py-1.5 text-left text-sm transition-colors hover:bg-base-200"
+    >
+      <span class="min-w-0 truncate">{render_slot(@inner_block)}</span>
+      <span class="shrink-0 text-xs tabular-nums">{render_slot(@detail)}</span>
+    </button>
+    """
   end
 
   ## Sesiones de personajes (RF-8.6)

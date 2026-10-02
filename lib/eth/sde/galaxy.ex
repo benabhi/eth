@@ -9,9 +9,11 @@ defmodule Eth.Sde.Galaxy do
   - **Regiones:** cada una en el centro de sus sistemas; dos regiones se unen si algún
     stargate cruza de una a la otra. Solo el espacio conocido (sin agujeros de gusano ni
     Abyss).
-  - **Sistemas de una región:** su posición y los stargates internos.
+  - **Sistemas de una región:** su posición, los stargates internos, cuántas estaciones NPC
+    tiene cada uno y a qué regiones sale por stargate (sistemas frontera).
   - Todo se escala a un lienzo de `@width × @height` con margen, conservando la
-    proporción.
+    proporción. `frame` guarda esa escala para ubicar cualquier sistema en el mismo lienzo
+    (`project/2`: las rutas sobre el mapa del universo).
 
   Implementa: RF-8.2.
   """
@@ -26,14 +28,20 @@ defmodule Eth.Sde.Galaxy do
           required(:name) => String.t(),
           required(:x) => float(),
           required(:y) => float(),
-          optional(:security) => float()
+          optional(:security) => float(),
+          optional(:stations) => non_neg_integer(),
+          optional(:exits) => [%{id: pos_integer(), name: String.t()}]
         }
+
+  @typedoc "Escala del lienzo: del plano del SDE (x, −z) a coordenadas del lienzo."
+  @type frame :: %{min_x: float(), min_y: float(), scale: float(), dx: float(), dy: float()}
 
   @type layout :: %{
           nodes: [point()],
           links: [{pos_integer(), pos_integer()}],
           width: pos_integer(),
-          height: pos_integer()
+          height: pos_integer(),
+          frame: frame() | nil
         }
 
   # Regiones del espacio conocido: 10000001…; los agujeros de gusano empiezan en 11000001.
@@ -70,15 +78,27 @@ defmodule Eth.Sde.Galaxy do
     fit(nodes, links)
   end
 
-  @doc "Sistemas de una región con su posición y seguridad, y los stargates entre ellos."
-  @spec region(%{pos_integer() => map()}, pos_integer()) :: layout()
-  def region(systems, region_id) do
+  @doc """
+  Sistemas de una región con su posición, seguridad, estaciones NPC (`stations`:
+  `%{sistema => cantidad}`) y las regiones a las que salen por stargate (`exits`), y los
+  stargates entre ellos.
+  """
+  @spec region(%{pos_integer() => map()}, pos_integer(), map(), map()) :: layout()
+  def region(systems, region_id, regions \\ %{}, stations \\ %{}) do
     members =
       for {id, s} <- systems, s.region_id == region_id, positioned?(s), into: %{}, do: {id, s}
 
     nodes =
       for {id, s} <- members do
-        %{id: id, name: s.name, security: s.security, x: s.x, y: -s.z}
+        %{
+          id: id,
+          name: s.name,
+          security: s.security,
+          x: s.x,
+          y: -s.z,
+          stations: Map.get(stations, id, 0),
+          exits: exits(s, systems, regions)
+        }
       end
 
     links =
@@ -89,6 +109,32 @@ defmodule Eth.Sde.Galaxy do
           do: pair(id, neighbor_id)
 
     fit(nodes, links)
+  end
+
+  @doc """
+  Ubica un sistema del SDE (`x`, `z`) en el lienzo de un mapa ya armado (`nil` si no tiene
+  posición o el mapa está vacío).
+  """
+  @spec project(frame() | nil, map()) :: {float(), float()} | nil
+  def project(nil, _system), do: nil
+
+  def project(frame, system) do
+    if positioned?(system) do
+      {Float.round(frame.dx + (system.x - frame.min_x) * frame.scale, 1),
+       Float.round(frame.dy + (-system.z - frame.min_y) * frame.scale, 1)}
+    end
+  end
+
+  # Regiones vecinas a las que sale el sistema por stargate (sin repetir, por nombre).
+  defp exits(system, systems, regions) do
+    system
+    |> Map.get(:neighbors, [])
+    |> Enum.map(&Map.get(systems, &1))
+    |> Enum.filter(&(&1 != nil and &1.region_id != system.region_id))
+    |> Enum.map(& &1.region_id)
+    |> Enum.uniq()
+    |> Enum.map(&%{id: &1, name: region_name(regions, &1)})
+    |> Enum.sort_by(& &1.name)
   end
 
   defp positioned?(system), do: is_number(Map.get(system, :x)) and is_number(Map.get(system, :z))
@@ -110,7 +156,7 @@ defmodule Eth.Sde.Galaxy do
 
   # Escala al lienzo conservando la proporción y centra el dibujo. Las uniones quedan solo
   # entre puntos presentes.
-  defp fit([], _links), do: %{nodes: [], links: [], width: @width, height: @height}
+  defp fit([], _links), do: %{nodes: [], links: [], width: @width, height: @height, frame: nil}
 
   defp fit(nodes, links) do
     {min_x, max_x} = nodes |> Enum.map(& &1.x) |> Enum.min_max()
@@ -136,7 +182,8 @@ defmodule Eth.Sde.Galaxy do
       nodes: Enum.sort_by(scaled, & &1.id),
       links: links |> Enum.filter(fn {a, b} -> a in ids and b in ids end) |> Enum.sort(),
       width: @width,
-      height: @height
+      height: @height,
+      frame: %{min_x: min_x, min_y: min_y, scale: scale, dx: offset_x, dy: offset_y}
     }
   end
 end

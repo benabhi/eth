@@ -45,12 +45,23 @@ defmodule Eth.Sde do
     end
   end
 
-  @doc "Mapa de los sistemas de una región (RF-8.2). `nil` sin SDE."
+  @doc """
+  Mapa de los sistemas de una región (RF-8.2), con sus estaciones NPC y sus salidas a
+  otras regiones. `nil` sin SDE.
+  """
   @spec region_map(pos_integer()) :: Galaxy.layout() | nil
   def region_map(region_id) do
     case data() do
-      nil -> nil
-      d -> Galaxy.region(d.systems, region_id)
+      nil ->
+        nil
+
+      d ->
+        stations =
+          for {_id, st} <- d.stations, st.region_id == region_id, reduce: %{} do
+            acc -> Map.update(acc, st.system_id, 1, &(&1 + 1))
+          end
+
+        Galaxy.region(d.systems, region_id, d.regions, stations)
     end
   end
 

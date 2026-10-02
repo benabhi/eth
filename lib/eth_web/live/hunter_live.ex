@@ -613,6 +613,14 @@ defmodule EthWeb.HunterLive do
 
   defp pct(x), do: "#{:erlang.float_to_binary(x * 100, decimals: 1)} %"
 
+  # Mapa del Centro de control con la ruta de la ficha (RF-8.2): todos los sistemas del
+  # camino y el de compra marcado.
+  defp route_map_path(details, row) do
+    route = Enum.map_join(details.to_origin ++ tl(details.route), ",", & &1.system_id)
+    stop = row.opportunity.origin.system_id
+    ~p"/control/market?#{[view: "map", route: route, stop: stop]}"
+  end
+
   defp route_label(:secure), do: gettext("Segura")
   defp route_label(:evasive), do: gettext("Evasiva")
   defp route_label(_shortest), do: gettext("Rápida")

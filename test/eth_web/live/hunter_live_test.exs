@@ -299,6 +299,8 @@ defmodule EthWeb.HunterLiveTest do
         render_async(view)
         assert has_element?(view, "#route", "Perimeter: Gatecamp en el gate a Jita")
         assert has_element?(view, "#detail", "Ruta (amenazas y riesgo base)")
+        # La misma ruta en el mapa del Centro de control, con el sistema de compra.
+        assert has_element?(view, "#band-route #route-map[href*='view=map'][href*='route=']")
       end
     end
   end

@@ -33,12 +33,19 @@ defmodule Eth.Sde.GalaxyTest do
   end
 
   test "los sistemas de una región con su seguridad y los stargates internos" do
-    map = Galaxy.region(systems(), 10_000_001)
+    map = Galaxy.region(systems(), 10_000_001, regions(), %{1 => 2})
 
     assert Enum.map(map.nodes, & &1.name) == ["A1", "A2"]
-    assert [%{security: 0.9}, %{security: 0.5}] = map.nodes
-    # El stargate a otra región no es interno.
+    assert [%{security: 0.9, stations: 2, exits: []}, a2] = map.nodes
+    # A2 es frontera: su stargate sale a Beta, que no es un enlace interno.
+    assert %{security: 0.5, stations: 0, exits: [%{id: 10_000_002, name: "Beta"}]} = a2
     assert map.links == [{1, 2}]
+
+    # Cualquier sistema se ubica en el mismo lienzo (las rutas sobre el mapa).
+    [a1, _a2] = map.nodes
+    assert Galaxy.project(map.frame, systems()[1]) == {a1.x, a1.y}
+    assert Galaxy.project(map.frame, systems()[5]) == nil
+    assert Galaxy.project(nil, systems()[1]) == nil
   end
 
   test "sin posiciones no hay mapa" do

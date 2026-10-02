@@ -237,7 +237,10 @@ defmodule EthWeb.Docs do
       )
 
   def summary(:region_map),
-    do: gettext("Las regiones en su lugar del universo, con su poller y el calor del radar.")
+    do:
+      gettext(
+        "El universo con zoom y arrastre: pollers, radar, oportunidades y pilotos; un clic entra a los sistemas de una región."
+      )
 
   def summary(:budgets),
     do:

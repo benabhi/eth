@@ -356,6 +356,10 @@
             >
               <.icon name="hero-map" class="size-4" /> {gettext("Fijar ruta")}
             </button>
+            <%!-- El viaje en el mapa del Centro de control (capa Rutas, RF-8.2) --%>
+            <.link id="run-map" navigate={~p"/control/market?view=map"} class="btn btn-sm">
+              <.icon name="hero-globe-alt" class="size-4" /> {gettext("Ver en el mapa")}
+            </.link>
             <span :if={@run.plan["type_id"]} title={market_blocked(@pilot)}>
               <button
                 id="run-open-market"

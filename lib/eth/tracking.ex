@@ -105,6 +105,19 @@ defmodule Eth.Tracking do
     )
   end
 
+  @doc """
+  Camino (sistemas) que le falta a un viaje activo desde donde está el piloto: hasta el
+  origen y al destino, o directo al destino si ya compró. Lo dibuja el mapa del Centro de
+  control (RF-8.2); `[]` si el viaje no tiene monitor.
+  """
+  @spec remaining_path(Run.t()) :: [pos_integer()]
+  def remaining_path(%Run{} = run) do
+    case RunMonitor.live(run.id) do
+      %{path: path} when is_list(path) -> path
+      _ -> []
+    end
+  end
+
   @doc "Viajes del personaje, más recientes primero (RF-7.6)."
   @spec history(pos_integer(), pos_integer()) :: [Run.t()]
   def history(character_id, limit \\ 50) do

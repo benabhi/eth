@@ -62,7 +62,10 @@ defmodule Eth.Tracking.RunMonitor do
     :ok
   end
 
-  @doc "Estado en vivo: revalidación, amenazas y ruta evasiva (`nil` sin monitor)."
+  @doc """
+  Estado en vivo: revalidación, amenazas, ruta evasiva y el camino que falta desde la
+  ubicación actual (`path`, para el mapa del Centro de control) (`nil` sin monitor).
+  """
   @spec live(pos_integer()) :: map() | nil
   def live(run_id) do
     case whereis(run_id) do
@@ -139,7 +142,8 @@ defmodule Eth.Tracking.RunMonitor do
       wallet: state.wallet,
       revalidation: state.revalidation,
       threats: state.threats,
-      evasive: state.evasive
+      evasive: state.evasive,
+      path: if(Run.active?(state.run), do: remaining_path(state), else: [])
     }
 
     {:reply, reply, state}
