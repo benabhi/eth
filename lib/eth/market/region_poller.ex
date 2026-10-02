@@ -257,6 +257,14 @@ defmodule Eth.Market.RegionPoller do
     state |> set(:rate_limited) |> schedule(Clock.ms_until(until) + jitter())
   end
 
+  # Conexiones con ESI ocupadas (cola local del pool): espera su turno sin contar un fallo
+  # ni abrir el circuito; los datos anteriores se siguen usando.
+  defp handle_result({:error, :pool_busy}, state) do
+    %{state | last_error: describe(:pool_busy)}
+    |> set(:rate_limited)
+    |> schedule(GameRules.get(:esi_pool_busy_retry_ms) + jitter())
+  end
+
   defp handle_result({:error, reason}, state) do
     failures = state.failures + 1
     delay = backoff_ms(failures)
@@ -295,6 +303,10 @@ defmodule Eth.Market.RegionPoller do
   defp describe({:transport, message}), do: "Error de red: #{message}"
   defp describe(:inconsistent), do: "Páginas inconsistentes entre snapshots de ESI"
   defp describe(:replay_missing), do: "No hay snapshot grabado para el modo Replay"
+
+  defp describe(:pool_busy),
+    do: "Conexiones con ESI ocupadas por otras descargas: reintenta en unos segundos"
+
   defp describe({:crash, reason}), do: "Fallo inesperado: #{inspect(reason)}"
   defp describe(other), do: inspect(other)
 

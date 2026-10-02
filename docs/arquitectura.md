@@ -56,7 +56,7 @@ Eth.Supervisor
 ├── Eth.Repo
 ├── DNSCluster                       (sin uso: no hay clúster)
 ├── Phoenix.PubSub (Eth.PubSub)
-├── Finch (Eth.Finch)                pool de ESI: acota la concurrencia global
+├── Finch (Eth.Finch)                pool de ESI (`esi_pool_size`): acota la concurrencia global
 ├── Eth.Vault                        Cloak: cifra los refresh tokens
 ├── Eth.Esi.Budget                   dueño de la tabla de presupuesto
 │   ── procesos de fondo ──

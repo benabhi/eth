@@ -12,6 +12,7 @@ defmodule Eth.Esi.Client do
   """
 
   alias Eth.Esi.{Budget, Response}
+  alias Eth.GameRules
 
   @repo_url "https://github.com/benabhi/eth"
 
@@ -20,6 +21,7 @@ defmodule Eth.Esi.Client do
           | {:rate_limited, DateTime.t()}
           | {:http, Response.t()}
           | {:transport, Exception.t()}
+          | :pool_busy
 
   @type opts :: [
           params: keyword(),
@@ -43,13 +45,39 @@ defmodule Eth.Esi.Client do
     with :ok <- Budget.check(opts[:group], character_id) do
       started = System.monotonic_time()
 
-      result = Req.request(base_request(), request_options(method, path, json, opts))
+      result = send_request(method, path, json, opts)
 
       duration_ms =
         System.convert_time_unit(System.monotonic_time() - started, :native, :millisecond)
 
       handle_result(result, path, duration_ms, character_id)
     end
+  end
+
+  # Sin conexión libre en el pool tras `esi_pool_timeout_ms`, Finch levanta un RuntimeError:
+  # es una cola local (el pedido nunca salió hacia ESI), no un error de ESI.
+  defp send_request(method, path, json, opts) do
+    Req.request(base_request(), request_options(method, path, json, opts))
+  rescue
+    error in RuntimeError ->
+      if pool_busy?(error), do: :pool_busy, else: reraise(error, __STACKTRACE__)
+  end
+
+  @doc false
+  @spec pool_busy?(Exception.t()) :: boolean()
+  def pool_busy?(%RuntimeError{message: message}),
+    do: String.contains?(message, "unable to provide a connection")
+
+  def pool_busy?(_error), do: false
+
+  defp handle_result(:pool_busy, path, duration_ms, _character_id) do
+    :telemetry.execute(
+      [:eth, :esi, :request],
+      %{duration_ms: duration_ms},
+      %{path: path, status: :pool_busy, group: nil, not_modified: false}
+    )
+
+    {:error, :pool_busy}
   end
 
   defp handle_result({:ok, %Req.Response{} = req_resp}, path, duration_ms, character_id) do
@@ -90,6 +118,7 @@ defmodule Eth.Esi.Client do
       base_url: Keyword.fetch!(config, :base_url),
       retry: false,
       receive_timeout: Keyword.get(config, :receive_timeout, 30_000),
+      pool_timeout: GameRules.get(:esi_pool_timeout_ms),
       headers: [
         {"user-agent", user_agent(config[:contact])},
         {"x-compatibility-date", Keyword.fetch!(config, :compatibility_date)}

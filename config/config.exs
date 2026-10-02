@@ -88,6 +88,13 @@ config :eth, Eth.GameRules,
   # Pollers (RF-1.3, RF-1.4)
   poll_jitter_ms: 1_000..5_000,
   pages_concurrency: 8,
+  # Pool de conexiones con ESI (Finch): con el universo completo muchas regiones vencen
+  # juntas y los pedidos hacen cola; esperan su turno hasta `esi_pool_timeout_ms` en lugar
+  # de fallar a los 5 s, y si igual no hay conexión la región reintenta pronto sin contar
+  # un fallo (`esi_pool_busy_retry_ms`).
+  esi_pool_size: 32,
+  esi_pool_timeout_ms: 60_000,
+  esi_pool_busy_retry_ms: 10_000,
   page_retries: 2,
   # Vida de la generación anterior de órdenes tras el swap: solo la lee una evaluación en
   # curso (3–4 s con el universo completo; las consultas usan los datos ya copiados en las

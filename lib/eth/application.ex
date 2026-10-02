@@ -14,7 +14,11 @@ defmodule Eth.Application do
         {DNSCluster, query: Application.get_env(:eth, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: Eth.PubSub},
         # Pool HTTP: el tamaño del pool de ESI acota la concurrencia global de requests.
-        {Finch, name: Eth.Finch, pools: %{"https://esi.evetech.net" => [size: 16, count: 1]}},
+        {Finch,
+         name: Eth.Finch,
+         pools: %{
+           "https://esi.evetech.net" => [size: Eth.GameRules.get(:esi_pool_size), count: 1]
+         }},
         Eth.Vault,
         Eth.Esi.Budget
       ] ++ workers() ++ [EthWeb.Endpoint]

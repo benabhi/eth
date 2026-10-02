@@ -63,6 +63,18 @@ defmodule Eth.Esi.ClientTest do
       assert Budget.remaining_ratio("market-order") == 11_998 / 12_000
     end
 
+    test "sin conexión libre en el pool es una cola local, no un error de ESI" do
+      message =
+        "Finch was unable to provide a connection within the timeout due to excess " <>
+          "queuing for connections."
+
+      Req.Test.stub(Esi.Client, fn _conn -> raise message end)
+
+      assert {:error, :pool_busy} = Esi.market_orders(10_000_002, 1, nil)
+      assert Esi.Client.pool_busy?(%RuntimeError{message: message})
+      refute Esi.Client.pool_busy?(%RuntimeError{message: "otro error"})
+    end
+
     test "un 304 es una respuesta válida sin cuerpo" do
       Req.Test.stub(Esi.Client, fn conn -> EsiStub.respond(conn, 304, nil, etag: ~s("e1")) end)
 

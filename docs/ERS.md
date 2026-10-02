@@ -2391,7 +2391,8 @@ Aproximación de la escala del cliente. En el tema claro se usan como fondo de i
 | `min_unit_margin_isk` | 0.01 | Margen neto unitario mínimo (walk-the-book) |
 | `max_universal_opportunities` | 5,000 | Top N universal por TVS base |
 | `poll_jitter_s` | 1–5 | Espera extra tras `Expires` |
-| `pages_concurrency` | 8 por región · 16 global | Descarga paginada |
+| `pages_concurrency` | 8 por región · 32 global (`esi_pool_size`) | Descarga paginada |
+| `esi_pool_timeout_ms` / `esi_pool_busy_retry_ms` | 60.000 / 10.000 | Espera por una conexión libre del pool de ESI antes de rendirse, y reintento de la región sin contar un fallo (la cola es local, no un error de ESI) |
 | `snapshot_grace_s` | 20 | Vida de la generación anterior tras el swap (solo la lee una evaluación en curso; con 60 s el pico de memoria del universo completo superaba RNF-1.5) |
 | `engine_min_interval_ms` / `engine_grace_ms` | 10.000 / 5.000 | Intervalo mínimo entre evaluaciones del motor y vida de la versión anterior de las oportunidades; con el universo completo evaluaba sin pausa y mantenía 4 versiones vivas (RNF-1.5) |
 | `engine_parallel_min` | 2.000 | Desde cuántos candidatos las consultas de Estación y Por órdenes se reparten entre los núcleos (RNF-1.1) |
