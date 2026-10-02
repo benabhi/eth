@@ -38,6 +38,15 @@ defmodule EthWeb.Glossary do
         :sales_tax
       ),
       e(
+        :board_age,
+        "Antigüedad",
+        ["antigüedad en el tablón", "recientes"],
+        gettext(
+          "Cuánto hace que un contrato está en el tablón sin interrupción. Lo recién aparecido conviene salir a buscarlo; lo que lleva horas sin que nadie lo tome merece desconfianza."
+        ),
+        :board_age
+      ),
+      e(
         :backoff,
         "Backoff",
         ["reintento"],

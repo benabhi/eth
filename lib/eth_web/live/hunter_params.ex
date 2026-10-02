@@ -9,7 +9,7 @@ defmodule EthWeb.HunterParams do
 
   alias Eth.Engine.Query
 
-  @fields ~w(search route_mode max_jumps min_profit min_roi capital cargo_m3 accounting shield liquid_only sort)
+  @fields ~w(search route_mode max_jumps min_profit min_roi capital cargo_m3 accounting shield liquid_only no_structures sort)
 
   @doc "Campos del formulario."
   @spec fields() :: [String.t()]
@@ -34,6 +34,7 @@ defmodule EthWeb.HunterParams do
       "accounting" => Integer.to_string(d.accounting),
       "shield" => Atom.to_string(d.shield),
       "liquid_only" => to_string(d.liquid_only),
+      "no_structures" => to_string(d.no_structures),
       "sort" => Atom.to_string(d.sort)
     }
     |> Map.merge(pilot_defaults(pilot))
@@ -72,6 +73,7 @@ defmodule EthWeb.HunterParams do
       accounting: parse_integer(form["accounting"]) |> clamp_level(),
       shield: parse_shield(form["shield"]),
       liquid_only: form["liquid_only"] == "true",
+      no_structures: form["no_structures"] == "true",
       sort: parse_sort(form["sort"])
     }
   end

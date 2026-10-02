@@ -87,7 +87,8 @@
             {gettext("Beneficio"), "profit"},
             {gettext("Margen"), "margin"},
             {gettext("Menos espera"), "days"},
-            {gettext("Menos saltos"), "jumps"}
+            {gettext("Menos saltos"), "jumps"},
+            {gettext("Recientes"), "newest"}
           ]}
         />
         <.filter_field
@@ -173,6 +174,12 @@
             {gettext("Solo seguras"), "safe"},
             {gettext("Mostrar todo"), "all"}
           ]}
+        />
+        <.filter_field
+          field={@form[:no_structures]}
+          type="toggle"
+          label={gettext("Sin estructuras")}
+          term={:structure}
         />
         <button
           type="button"
@@ -263,9 +270,13 @@
                   {row.opportunity.type_name}
                 </span>
               </div>
-              <div class="mt-0.5 flex flex-wrap gap-1">
+              <div class="mt-0.5 flex flex-wrap items-center gap-1">
                 <.seal kind={:order} label={mode_label(row.mode)} />
                 <.shield_seal shield={row.shield} />
+                <.board_age
+                  id={"age-#{row.id}"}
+                  age={Engine.board_age(row.opportunity, @meta, @now)}
+                />
               </div>
             </div>
             <div class="hidden min-w-0 text-sm md:block">
@@ -409,6 +420,7 @@
                   {Format.compact(row.profit)} · {pct(row.margin_pct)}
                 </dd>
               </dl>
+              <.skill_gains gains={@skill_gains} />
             </.detail_col>
 
             <.detail_col

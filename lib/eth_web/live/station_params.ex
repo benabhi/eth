@@ -10,7 +10,7 @@ defmodule EthWeb.StationParams do
   alias Eth.Engine.StationQuery
   alias EthWeb.HunterParams
 
-  @fields ~w(search location_id min_margin min_daily_volume capital accounting broker_relations shield sort)
+  @fields ~w(search location_id min_margin min_daily_volume capital accounting broker_relations shield no_structures sort)
 
   @doc "Campos del formulario."
   @spec fields() :: [String.t()]
@@ -30,6 +30,7 @@ defmodule EthWeb.StationParams do
       "accounting" => Integer.to_string(d.accounting),
       "broker_relations" => Integer.to_string(d.broker_relations),
       "shield" => Atom.to_string(d.shield),
+      "no_structures" => to_string(d.no_structures),
       "sort" => Atom.to_string(d.sort)
     }
     |> Map.merge(pilot_defaults(pilot))
@@ -60,6 +61,7 @@ defmodule EthWeb.StationParams do
       accounting: level(form["accounting"], defaults.accounting),
       broker_relations: level(form["broker_relations"], defaults.broker_relations),
       shield: parse_atom(form["shield"], [:hide_scam, :safe, :all], defaults.shield),
+      no_structures: form["no_structures"] == "true",
       sort: parse_atom(form["sort"], StationQuery.sorts(), defaults.sort)
     }
   end

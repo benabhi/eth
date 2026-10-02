@@ -52,6 +52,7 @@ defmodule EthWeb.HunterLive do
       |> assign(:selected, nil)
       |> assign(:route_details, nil)
       |> assign(:route_loading, false)
+      |> assign(skill_gains: [], book_depth: nil)
       |> assign(:total, 0)
       |> assign(known: nil, highlights: %{}, lingering: %{}, ghosts: %{}, hovering: false)
       |> assign(:reward, 0.0)
@@ -300,6 +301,7 @@ defmodule EthWeb.HunterLive do
 
         socket
         |> assign(selected: id, selected_row: row, route_details: nil, route_loading: true)
+        |> assign_detail_extras()
         |> reinsert(previous)
         |> stream_insert(:rows, row)
         |> start_async(:route, fn -> {id, route_details(row, query)} end)
@@ -315,11 +317,41 @@ defmodule EthWeb.HunterLive do
     socket =
       socket
       |> assign(selected: nil, selected_row: nil, route_details: nil, route_loading: false)
+      |> assign_detail_extras()
       |> reinsert(previous)
 
     if socket.assigns.pending > 0 and not socket.assigns.frozen,
       do: socket |> assign(:pending, 0) |> load_rows(),
       else: socket
+  end
+
+  # Beneficio sin la mejor compra frente al actual (RF-6.16): verde si conserva casi todo,
+  # ámbar si se resiente, rojo si se pierde.
+  defp fallback_class(nil, _row), do: "text-error"
+
+  defp fallback_class(%{profit: profit}, row) do
+    cond do
+      profit >= row.profit * 0.8 -> "text-success"
+      profit > 0 -> "text-warning"
+      true -> "text-error"
+    end
+  end
+
+  defp fallback_change(%{profit: profit}, row) do
+    change = round((profit - row.profit) / row.profit * 100)
+    if change >= 0, do: "+#{change} %", else: "−#{abs(change)} %"
+  end
+
+  # Habilidades y libro siguiente de la ficha abierta (RF-6.15, RF-6.16). Se recalculan
+  # con la fila: cambian con el mercado y con los filtros (Accounting, capital, bodega).
+  defp assign_detail_extras(%{assigns: %{selected_row: nil}} = socket),
+    do: assign(socket, skill_gains: [], book_depth: nil)
+
+  defp assign_detail_extras(%{assigns: %{selected_row: row, query: query}} = socket) do
+    assign(socket,
+      skill_gains: Engine.skill_gains(:direct, row.opportunity, query),
+      book_depth: Engine.book_depth(row, query)
+    )
   end
 
   defp reinsert_selected(socket), do: reinsert(socket, socket.assigns.selected_row)
@@ -370,6 +402,7 @@ defmodule EthWeb.HunterLive do
     |> assign(total: total, meta: Engine.meta(), now: Clock.utc_now(), empty?: rows == [])
     |> assign(:reward, Enum.reduce(rows, 0.0, &(&1.profit + &2)))
     |> assign(:selected_row, selected_row(socket.assigns[:selected], socket.assigns.query))
+    |> assign_detail_extras()
     |> assign_route_details()
     |> stream(:rows, shown, reset: true)
   end

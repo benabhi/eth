@@ -43,6 +43,10 @@ defmodule EthWeb.Docs do
     danger: {"radar", "peligro"},
     families: {"familias", "las-tres-familias"},
     shortcuts: {"tablon", "atajos"},
+    board_age: {"tablon", "antiguedad"},
+    no_structures: {"tablon", "sin-estructuras"},
+    skills: {"impuestos", "habilidades"},
+    book_depth: {"walk-the-book", "lo-que-sigue-en-el-libro"},
     sales_tax: {"impuestos", "sales-tax"},
     broker: {"impuestos", "broker-fee"},
     relist: {"impuestos", "modificar-una-orden"},
@@ -140,6 +144,18 @@ defmodule EthWeb.Docs do
 
   def summary(:shortcuts),
     do: gettext("/ buscar · j/k recorrer · Enter abrir · c copiar · w ruta · f congelar.")
+
+  def summary(:board_age),
+    do: gettext("Cuánto hace que el contrato está en el tablón; lo recién aparecido, en celeste.")
+
+  def summary(:no_structures),
+    do: gettext("Saca del tablón los contratos que pasan por estructuras de jugadores.")
+
+  def summary(:skills),
+    do: gettext("Cuánto más dejaría el contrato con más nivel en Accounting o Broker Relations.")
+
+  def summary(:book_depth),
+    do: gettext("Órdenes que siguen a las consumidas y beneficio si falla la mejor compra.")
 
   def summary(:sales_tax),
     do: gettext("Impuesto al vender, más bajo con Accounting.")

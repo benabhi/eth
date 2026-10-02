@@ -9,7 +9,7 @@ defmodule EthWeb.OrderParams do
   alias Eth.Engine.OrderQuery
   alias EthWeb.HunterParams
 
-  @fields ~w(search mode route_mode max_days min_margin min_profit capital cargo_m3 accounting broker_relations shield sort)
+  @fields ~w(search mode route_mode max_days min_margin min_profit capital cargo_m3 accounting broker_relations shield no_structures sort)
 
   @doc "Campos del formulario."
   @spec fields() :: [String.t()]
@@ -32,6 +32,7 @@ defmodule EthWeb.OrderParams do
       "accounting" => Integer.to_string(d.accounting),
       "broker_relations" => Integer.to_string(d.broker_relations),
       "shield" => Atom.to_string(d.shield),
+      "no_structures" => to_string(d.no_structures),
       "sort" => Atom.to_string(d.sort)
     }
     |> Map.merge(pilot_defaults(pilot))
@@ -66,6 +67,7 @@ defmodule EthWeb.OrderParams do
       accounting: level(form["accounting"], d.accounting),
       broker_relations: level(form["broker_relations"], d.broker_relations),
       shield: pick(form["shield"], [:hide_scam, :safe, :all], d.shield),
+      no_structures: form["no_structures"] == "true",
       sort: pick(form["sort"], OrderQuery.sorts(), d.sort)
     }
   end

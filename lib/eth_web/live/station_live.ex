@@ -41,6 +41,7 @@ defmodule EthWeb.StationLive do
      |> assign(:page_title, gettext("Station trading"))
      |> assign(:selected, nil)
      |> assign(:selected_row, nil)
+     |> assign(:skill_gains, [])
      |> assign(:total, 0)
      |> assign(known: nil, highlights: %{}, lingering: %{}, ghosts: %{}, hovering: false)
      |> assign(:pending, 0)
@@ -166,6 +167,7 @@ defmodule EthWeb.StationLive do
 
         socket
         |> assign(selected: id, selected_row: row)
+        |> assign_skill_gains()
         |> reinsert(previous)
         |> stream_insert(:rows, row)
     end
@@ -175,12 +177,24 @@ defmodule EthWeb.StationLive do
 
   defp close_detail(socket) do
     previous = socket.assigns.selected_row
-    socket = socket |> assign(selected: nil, selected_row: nil) |> reinsert(previous)
+
+    socket =
+      socket
+      |> assign(selected: nil, selected_row: nil)
+      |> assign_skill_gains()
+      |> reinsert(previous)
 
     if socket.assigns.pending > 0 and not held?(socket),
       do: socket |> assign(:pending, 0) |> load_rows(),
       else: socket
   end
+
+  # Lo que sumaría subir las habilidades de comercio en la ficha abierta (RF-6.15).
+  defp assign_skill_gains(%{assigns: %{selected_row: nil}} = socket),
+    do: assign(socket, :skill_gains, [])
+
+  defp assign_skill_gains(%{assigns: %{selected_row: row, query: query}} = socket),
+    do: assign(socket, :skill_gains, Engine.skill_gains(:station, row.opportunity, query))
 
   defp reinsert(socket, nil), do: socket
   defp reinsert(socket, row), do: stream_insert(socket, :rows, row)
@@ -230,6 +244,7 @@ defmodule EthWeb.StationLive do
     |> assign(total: total, meta: Engine.meta(), now: Clock.utc_now())
     |> assign(:reward, Enum.reduce(rows, 0.0, &(&1.profit_day + &2)))
     |> assign(:selected_row, selected_row(socket.assigns.selected, socket.assigns.query))
+    |> assign_skill_gains()
     |> stream(:rows, shown, reset: true)
   end
 

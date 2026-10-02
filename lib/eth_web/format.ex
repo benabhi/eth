@@ -90,6 +90,26 @@ defmodule EthWeb.Format do
       else: "#{div(minutes, 60)} h #{pad(rem(minutes, 60))} min"
   end
 
+  @doc """
+  Tiempo de un contrato en el tablón (RF-6.14): `{minutos, cota}` de
+  `Eth.Engine.board_age/3` → `"12 min"`, `"3 h"`, `"2 d"`; con cota (ya estaba al
+  arrancar la aplicación), `"≥ 3 h"`.
+  """
+  @spec board_age({non_neg_integer(), boolean()} | nil) :: String.t()
+  def board_age(nil), do: "—"
+  def board_age({minutes, _lower?}) when minutes < 1, do: "< 1 min"
+
+  def board_age({minutes, lower?}) do
+    text =
+      cond do
+        minutes < 60 -> "#{minutes} min"
+        minutes < 1440 -> "#{div(minutes, 60)} h"
+        true -> "#{div(minutes, 1440)} d"
+      end
+
+    if lower?, do: "≥ " <> text, else: text
+  end
+
   @doc "Antigüedad relativa en español: `hace 4 s`, `hace 9 min`, `hace 2 h`."
   @spec ago(DateTime.t() | nil, DateTime.t()) :: String.t()
   def ago(nil, _now), do: "—"

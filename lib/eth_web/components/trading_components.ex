@@ -10,7 +10,11 @@ defmodule EthWeb.TradingComponents do
   escucha el teclado de la ventana y actúa sobre elementos marcados con
   `data-shortcut`, más el diálogo de ayuda que abre `?`.
 
-  Implementa: RF-6.4, RF-6.5, RF-6.9, RF-6.12, RF-6.13, RF-11.2.
+  También el tiempo de cada contrato en el tablón (`board_age/1`, RF-6.14), lo que
+  sumaría subir las habilidades de comercio (`skill_gains/1`, RF-6.15) y las órdenes que
+  siguen a las consumidas (`book_next/1`, RF-6.16).
+
+  Implementa: RF-6.4, RF-6.5, RF-6.9, RF-6.12, RF-6.13, RF-6.14, RF-6.15, RF-6.16, RF-11.2.
   """
   use EthWeb, :html
 
@@ -114,6 +118,123 @@ defmodule EthWeb.TradingComponents do
   def shield_label(:suspicious), do: gettext("Sospechosa")
   def shield_label(:no_history), do: gettext("Sin historial")
   def shield_label(_ok), do: gettext("ok")
+
+  @doc """
+  Tiempo que lleva el contrato en el tablón (RF-6.14), con un reloj. Lo recién aparecido
+  (menos de `@fresh_minutes` minutos) se destaca: es lo que conviene salir a buscar; lo
+  que lleva horas sin que nadie lo tome merece desconfianza.
+  """
+  attr :age, :any, required: true, doc: "`{minutos, cota}` de `Eth.Engine.board_age/3` o `nil`"
+  attr :id, :string, default: nil
+
+  def board_age(assigns) do
+    ~H"""
+    <span
+      :if={@age}
+      id={@id}
+      class={[
+        "inline-flex shrink-0 items-center gap-0.5 font-mono text-xs",
+        if(fresh_age?(@age), do: "text-primary", else: "eth-faint")
+      ]}
+      title={age_title(@age)}
+    >
+      <.icon name="hero-clock" class="size-3" />{EthWeb.Format.board_age(@age)}
+    </span>
+    """
+  end
+
+  @fresh_minutes 5
+
+  defp fresh_age?({minutes, lower?}), do: not lower? and minutes < @fresh_minutes
+
+  defp age_title({_minutes, true} = age),
+    do:
+      gettext("En el tablón desde antes del arranque de la aplicación: al menos %{age}",
+        age: EthWeb.Format.board_age(age)
+      )
+
+  defp age_title(age),
+    do: gettext("En el tablón hace %{age}", age: EthWeb.Format.board_age(age))
+
+  @doc """
+  Cuánto ganarías subiendo tus habilidades de comercio en este contrato (RF-6.15): una
+  fila por habilidad con el nivel actual y lo que suma el siguiente nivel y el V.
+  """
+  attr :gains, :list, required: true, doc: "de `Eth.Engine.skill_gains/3`"
+  attr :unit, :string, default: nil, doc: "sufijo del valor, p. ej. \"/día\""
+
+  def skill_gains(assigns) do
+    ~H"""
+    <div :if={@gains != []} id="skill-gains" class="mt-4">
+      <h3 class="eth-kicker mb-2 flex items-center gap-2 text-[11px] text-primary">
+        {gettext("Si entrenás")}
+        <.help topic={:skills} title={gettext("Si entrenás")}>
+          {gettext(
+            "Lo que sumaría este mismo contrato con más nivel en cada habilidad: menos impuestos y comisiones, y a veces más cantidad con margen. Se calcula con tu nivel actual (o el del filtro)."
+          )}
+        </.help>
+      </h3>
+      <ul class="space-y-1 text-xs tabular-nums">
+        <li
+          :for={g <- @gains}
+          id={"skill-gain-#{g.skill}"}
+          class="flex items-baseline justify-between gap-3"
+        >
+          <span class="eth-muted">
+            {skill_name(g.skill)}
+            <span class="font-mono eth-faint">{level_roman(g.level)}</span>
+          </span>
+          <span class="text-right font-mono">
+            <%= cond do %>
+              <% g.next == nil and g.max == nil and g.level == 5 -> %>
+                <span class="eth-faint">{gettext("al máximo")}</span>
+              <% not gains?(g) -> %>
+                <span class="eth-faint">{gettext("sin efecto acá")}</span>
+              <% true -> %>
+                <span :if={g.next}>
+                  <span class="eth-faint">{level_roman(g.next.level)}</span>
+                  <span class="text-success">+{EthWeb.Format.compact(g.next.gain)}{@unit}</span>
+                </span>
+                <span :if={g.max} class="ml-1.5">
+                  <span class="eth-faint">· V</span>
+                  <span class="text-success">+{EthWeb.Format.compact(g.max.gain)}{@unit}</span>
+                </span>
+            <% end %>
+          </span>
+        </li>
+      </ul>
+    </div>
+    """
+  end
+
+  # ¿Subir la habilidad cambia algo en este contrato? (Broker Relations no cambia nada en
+  # una estructura con broker propio.)
+  defp gains?(g), do: Enum.any?([g.next, g.max], &(&1 && &1.gain > 0.5))
+
+  defp skill_name(:accounting), do: "Accounting"
+  defp skill_name(:broker_relations), do: "Broker Relations"
+
+  defp level_roman(level), do: Enum.at(~w(0 I II III IV V), level)
+
+  @doc """
+  Órdenes que siguen a las consumidas en el libro (RF-6.16), atenuadas debajo de ellas:
+  muestran el colchón del contrato si cambian las primeras.
+  """
+  attr :id, :string, required: true
+  attr :levels, :list, required: true, doc: "`[{precio, cantidad}]` del mejor al peor"
+
+  def book_next(assigns) do
+    ~H"""
+    <div id={@id} class="mt-1.5 border-t border-dashed border-base-300 pt-1 eth-faint">
+      <div class="mb-0.5 font-sans text-[10px] uppercase tracking-wider">
+        {if @levels == [], do: gettext("no hay más órdenes"), else: gettext("siguen")}
+      </div>
+      <div :for={{price, qty} <- @levels}>
+        {EthWeb.Format.compact(price)} × {EthWeb.Format.integer(qty)}
+      </div>
+    </div>
+    """
+  end
 
   @doc "Anillo de Certeza con el porcentaje al centro y color por tramo."
   attr :value, :float, required: true

@@ -123,6 +123,33 @@ defmodule EthWeb.HunterLiveTest do
     end
   end
 
+  test "sin estructuras saca los contratos que pasan por una (RF-6.4)", %{conn: conn} do
+    publish_market()
+    {:ok, view, _html} = live(conn, ~p"/?no_structures=true")
+    refute has_element?(view, "#opportunities [id^='opp-'] > [data-head]")
+  end
+
+  test "la fila muestra su antigüedad y la ficha, habilidades y libro (RF-6.14 a 6.16)", %{
+    conn: conn
+  } do
+    publish_market()
+    {:ok, view, _html} = live(conn, ~p"/")
+    [_, id] = Regex.run(~r/id="opp-([^"]+)"/, render(view))
+
+    # Recién aparecido.
+    assert has_element?(view, "#age-#{id}", "< 1 min")
+
+    view |> element("#opportunities [id^='opp-'] > [data-head]") |> render_click()
+
+    # Accounting 4 (invitado): el V baja el sales tax.
+    assert has_element?(view, "#skill-gain-accounting", "Accounting")
+    # La bodega se lleva 3.850.000 de las 10.000.000 de cada lado: quedan 6.150.000.
+    assert has_element?(view, "#book-next-asks", "6,150,000")
+    assert has_element?(view, "#book-next-bids", "6,150,000")
+    # Hay una sola compra: sin ella no hay a quién vender.
+    assert has_element?(view, "#book-fallback", "deja de ser rentable")
+  end
+
   test "las filas que cambian se resaltan un momento (RF-6.3)", %{conn: conn} do
     publish_market()
     {:ok, view, _html} = live(conn, ~p"/")

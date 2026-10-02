@@ -194,7 +194,8 @@
             {gettext("Beneficio por día"), "profit_day"},
             {gettext("Margen"), "margin"},
             {gettext("Volumen diario"), "volume"},
-            {gettext("Frescura"), "age"}
+            {gettext("Frescura"), "age"},
+            {gettext("Recientes"), "newest"}
           ]}
         />
         <span :if={@pending > 0} class="border border-warning/60 px-2 py-1 text-xs text-warning">
@@ -258,6 +259,12 @@
             {gettext("Solo seguras"), "safe"},
             {gettext("Mostrar todo"), "all"}
           ]}
+        />
+        <.filter_field
+          field={@form[:no_structures]}
+          type="toggle"
+          label={gettext("Sin estructuras")}
+          term={:structure}
         />
         <button
           type="button"
@@ -346,9 +353,13 @@
                   {row.opportunity.type_name}
                 </span>
               </div>
-              <div class="mt-0.5 flex flex-wrap gap-1">
+              <div class="mt-0.5 flex flex-wrap items-center gap-1">
                 <.seal kind={:order} />
                 <.shield_seal shield={row.shield} />
+                <.board_age
+                  id={"age-#{row.id}"}
+                  age={Engine.board_age(row.opportunity, @meta, @now)}
+                />
               </div>
             </div>
             <div class="hidden truncate text-sm md:block" title={row.opportunity.location.name}>
@@ -516,6 +527,7 @@
               <p class="mt-1.5 text-xs eth-faint">
                 {gettext("Estimación: depende de la competencia.")}
               </p>
+              <.skill_gains gains={@skill_gains} unit={gettext("/día")} />
             </.detail_col>
 
             <.detail_col
