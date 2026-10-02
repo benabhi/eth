@@ -1240,6 +1240,10 @@ defmodule EthWeb.ControlLive do
         <span class="inline-block h-0.5 w-3 bg-accent"></span>
         {gettext("viaje activo (anillo: compra · doble: venta)")}
       </li>
+      <li :if={@in_region} class="flex items-center gap-1.5 sm:col-span-2">
+        <span class="text-primary">⇢</span>
+        {gettext("la ruta entra desde otra región o sigue hacia otra")}
+      </li>
     </ul>
     """
   end
@@ -1602,7 +1606,7 @@ defmodule EthWeb.ControlLive do
       assign(assigns,
         points: Map.new(assigns.map.nodes, &{&1.id, &1}),
         max_orders: max(max_orders, 1),
-        routes: universe_routes(assigns.routes, assigns.map[:frame])
+        routes: universe_routes(assigns.routes, Map.new(assigns.map.nodes, &{&1.id, &1}))
       )
 
     ~H"""
@@ -1623,6 +1627,7 @@ defmodule EthWeb.ControlLive do
         max_orders={@max_orders}
         now={@now}
       />
+      <.route_marks_layer routes={@routes} />
     </.map_svg>
     """
   end
@@ -1867,6 +1872,9 @@ defmodule EthWeb.ControlLive do
         all_names: assigns.labels == :all or length(assigns.map.nodes) <= 40
       )
 
+    assigns =
+      assign(assigns, :routes, region_routes(assigns.routes, assigns.points, assigns.map.frame))
+
     ~H"""
     <.map_svg id="region-systems-map" map={@map} label={gettext("Sistemas de la región")}>
       <.map_links points={@points} links={@map.links} class="text-base-content/20" />
@@ -1882,6 +1890,7 @@ defmodule EthWeb.ControlLive do
         all_names={@all_names}
         selected={@selected == n.id}
       />
+      <.route_marks_layer routes={@routes} />
     </.map_svg>
     """
   end
@@ -2129,26 +2138,103 @@ defmodule EthWeb.ControlLive do
     if :routes in layers, do: Enum.reject([url_route | trips], &is_nil/1), else: []
   end
 
-  # Cada sistema de la ruta ubicado en el lienzo del universo.
-  defp universe_routes(routes, frame) do
+  # Universo: la ruta pasa por los mismos puntos que el mapa, de región en región (el centro
+  # de cada una); las marcas van en la región de su sistema.
+  defp universe_routes(routes, points) do
     for route <- routes do
-      points =
-        for id <- route.path,
-            system = Sde.system(id),
-            xy = Galaxy.project(frame, system),
-            do: {id, xy}
+      place = fn system_id -> system_region(system_id) end
+      regions = GalaxyMap.route_places(route.path, place)
 
-      Map.put(route, :points, points)
+      route
+      |> Map.put(:points, for(id <- regions, n = points[id], do: {n.x, n.y}))
+      |> Map.put(:marks, route_marks(route, place, points))
     end
+  end
+
+  # Región: tramos entre sus sistemas, marcas de los que están en ella y una flecha donde
+  # la ruta entra desde otra región o sigue hacia otra.
+  defp region_routes(routes, points, frame) do
+    for route <- routes do
+      crossings =
+        for {dir, inside, outside} <- GalaxyMap.route_crossings(route.path, points),
+            c = crossing(dir, points[inside], Sde.system(outside), frame),
+            uniq: true,
+            do: c
+
+      route
+      |> Map.put(:marks, route_marks(route, & &1, points))
+      |> Map.put(:crossings, crossings)
+    end
+  end
+
+  # Flecha de entrada o salida: sale del sistema hacia donde queda el de la otra región.
+  # Medidas en unidades de la marca (tamaño constante con el zoom).
+  defp crossing(dir, node, %{region_id: region_id} = system, frame) do
+    with {ox, oy} <- Galaxy.project(frame, system) do
+      {dx, dy} = unit(ox - node.x, oy - node.y)
+      angle = :math.atan2(dy, dx) * 180 / :math.pi()
+      {tip, deg} = if dir == :out, do: {46, angle}, else: {14, angle + 180}
+      name = (Sde.region(region_id) || %{name: "?"}).name
+
+      %{
+        key: "#{dir}-#{node.id}-#{region_id}",
+        x: node.x,
+        y: node.y,
+        line: {r1(dx * 12), r1(dy * 12), r1(dx * 46), r1(dy * 46)},
+        tip: {r1(dx * tip), r1(dy * tip), Float.round(deg, 1)},
+        label: {r1(dx * 54), r1(dy * 54 + 3)},
+        anchor: anchor(dx),
+        text:
+          if(dir == :out,
+            do: gettext("hacia %{region}", region: name),
+            else: gettext("desde %{region}", region: name)
+          )
+      }
+    end
+  end
+
+  defp crossing(_dir, _node, _system, _frame), do: nil
+
+  defp unit(x, y) do
+    length = :math.sqrt(x * x + y * y)
+    if length < 1.0e-6, do: {1.0, 0.0}, else: {x / length, y / length}
+  end
+
+  defp r1(value), do: Float.round(value / 1, 1)
+
+  defp anchor(dx) when dx > 0.3, do: "start"
+  defp anchor(dx) when dx < -0.3, do: "end"
+  defp anchor(_dx), do: "middle"
+
+  # Marcas de una ruta ubicadas en el lienzo: inicio, compra y venta. Si caen en el mismo
+  # lugar, las etiquetas se apilan.
+  defp route_marks(route, place, points) do
+    route
+    |> GalaxyMap.route_stops()
+    |> Enum.flat_map(fn {kind, system_id} ->
+      case points[place.(system_id)] do
+        nil -> []
+        n -> [%{kind: kind, at: n.id, x: n.x, y: n.y}]
+      end
+    end)
+    |> Enum.group_by(& &1.at)
+    |> Enum.flat_map(fn {_at, marks} ->
+      marks |> Enum.with_index() |> Enum.map(fn {m, i} -> Map.put(m, :stack, i) end)
+    end)
   end
 
   defp route_class(:trip), do: "text-accent"
   defp route_class(_route), do: "text-primary"
 
+  defp mark_label(:start, :trip), do: gettext("Estás acá")
+  defp mark_label(:start, _route), do: gettext("Inicio")
+  defp mark_label(:buy, _route), do: gettext("Compra")
+  defp mark_label(:sell, _route), do: gettext("Venta")
+
   attr :routes, :list, required: true, doc: "rutas con `points` ya en el lienzo"
 
-  # Rutas sobre el universo: una línea por los sistemas del camino, con la compra (anillo)
-  # y el destino (anillo doble). Van debajo de las regiones: no tapan sus clics.
+  # Rutas sobre el universo: una línea por las regiones del camino. Va debajo de las
+  # regiones: no tapa sus clics.
   defp universe_route_lines(assigns) do
     ~H"""
     <g
@@ -2159,7 +2245,7 @@ defmodule EthWeb.ControlLive do
       aria-hidden="true"
     >
       <polyline
-        points={Enum.map_join(r.points, " ", fn {_id, {x, y}} -> "#{x},#{y}" end)}
+        points={Enum.map_join(r.points, " ", fn {x, y} -> "#{x},#{y}" end)}
         fill="none"
         stroke="currentColor"
         stroke-width="2.5"
@@ -2168,7 +2254,6 @@ defmodule EthWeb.ControlLive do
         stroke-linecap="round"
         vector-effect="non-scaling-stroke"
       />
-      <.route_marks route={r} points={Map.new(r.points)} />
     </g>
     """
   end
@@ -2192,32 +2277,89 @@ defmodule EthWeb.ControlLive do
         stroke-linecap="round"
         vector-effect="non-scaling-stroke"
       />
-      <.route_marks route={r} points={Map.new(@points, fn {id, n} -> {id, {n.x, n.y}} end)} />
     </g>
     """
   end
 
-  attr :route, :map, required: true
-  attr :points, :map, required: true, doc: "`%{sistema => {x, y}}`"
+  attr :routes, :list, required: true, doc: "rutas con `marks`"
 
-  defp route_marks(assigns) do
-    %{route: route, points: points} = assigns
+  # Marcas de las rutas, por encima de todo y sin capturar el puntero: inicio (punto),
+  # compra (anillo) y venta (anillo doble), cada una con su etiqueta.
+  defp route_marks_layer(assigns) do
+    ~H"""
+    <g aria-hidden="true" pointer-events="none">
+      <g
+        :for={r <- @routes}
+        id={"map-#{r.id}-marks"}
+        class={route_class(r.kind)}
+      >
+        <g :for={c <- r[:crossings] || []} transform={"translate(#{c.x} #{c.y})"}>
+          <g class="eth-map-glyph">
+            <line
+              x1={elem(c.line, 0)}
+              y1={elem(c.line, 1)}
+              x2={elem(c.line, 2)}
+              y2={elem(c.line, 3)}
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-dasharray="4 3"
+            />
+            <path
+              d="M -4 -4 L 5 0 L -4 4 z"
+              fill="currentColor"
+              transform={"translate(#{elem(c.tip, 0)} #{elem(c.tip, 1)}) rotate(#{elem(c.tip, 2)})"}
+            />
+            <text
+              x={elem(c.label, 0)}
+              y={elem(c.label, 1)}
+              text-anchor={c.anchor}
+              fill="currentColor"
+              class="eth-map-outline font-display text-[10px] font-semibold"
+            >
+              {c.text}
+            </text>
+          </g>
+        </g>
+        <g
+          :for={m <- r.marks}
+          id={"map-#{r.id}-#{m.kind}"}
+          transform={"translate(#{m.x} #{m.y})"}
+        >
+          <g class="eth-map-glyph">
+            <%= case m.kind do %>
+              <% :start -> %>
+                <circle :if={m.stack == 0} r="5" fill="currentColor" class="stroke-base-100" />
+              <% :buy -> %>
+                <circle r="11" fill="none" stroke="currentColor" stroke-width="2.5" />
+              <% :sell -> %>
+                <circle r="11" fill="none" stroke="currentColor" stroke-width="2.5" />
+                <circle r="15" fill="none" stroke="currentColor" stroke-width="1.5" />
+            <% end %>
+            <.mark_tag text={mark_label(m.kind, r.kind)} y={-22 - 15 * m.stack} />
+          </g>
+        </g>
+      </g>
+    </g>
+    """
+  end
 
-    assigns =
-      assign(assigns,
-        stop: route.stop && points[route.stop],
-        finish: points[List.last(route.path)]
-      )
+  attr :text, :string, required: true
+  attr :y, :integer, required: true
+
+  # Etiqueta de una marca: una píldora del color de la ruta con el texto oscuro.
+  defp mark_tag(assigns) do
+    assigns = assign(assigns, :width, 10 + 6.2 * String.length(assigns.text))
 
     ~H"""
-    <g :if={@stop} transform={"translate(#{elem(@stop, 0)} #{elem(@stop, 1)})"}>
-      <circle r="9" class="eth-map-glyph" fill="none" stroke="currentColor" stroke-width="2" />
-    </g>
-    <g :if={@finish} transform={"translate(#{elem(@finish, 0)} #{elem(@finish, 1)})"}>
-      <g class="eth-map-glyph" fill="none" stroke="currentColor">
-        <circle r="9" stroke-width="2" />
-        <circle r="13" stroke-width="1.2" />
-      </g>
+    <g transform={"translate(0 #{@y})"}>
+      <rect x={-@width / 2} y="-7" width={@width} height="13" rx="2" fill="currentColor" />
+      <text
+        y="3"
+        text-anchor="middle"
+        class="fill-base-100 font-display text-[9px] font-semibold tracking-[0.08em] uppercase"
+      >
+        {@text}
+      </text>
     </g>
     """
   end

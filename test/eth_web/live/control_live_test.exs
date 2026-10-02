@@ -322,13 +322,17 @@ defmodule EthWeb.ControlLiveTest do
       {:ok, view, _html} =
         live(conn, ~p"/control/market?view=map&route=30000142,30000144&stop=30000142")
 
-      assert has_element?(view, "#galaxy-map #map-route polyline")
+      # En el universo, compra y venta marcadas en su región (las dos en The Forge).
+      assert has_element?(view, "#galaxy-map #map-route-marks #map-route-buy", "Compra")
+      assert has_element?(view, "#galaxy-map #map-route-marks #map-route-sell", "Venta")
+      refute has_element?(view, "#map-route-start")
       assert has_element?(view, "#map-routes #map-route-card", "Ruta del tablón")
       assert has_element?(view, "#map-layer-routes[aria-pressed=true]")
 
       # Dentro de la región, los tramos entre sus sistemas.
       view |> element("#map-region-10000002") |> render_click()
       assert has_element?(view, "#region-systems-map #map-route line")
+      assert has_element?(view, "#region-systems-map #map-route-buy")
 
       # La capa la apaga; el enlace la quita del mapa.
       view |> element("#map-layer-routes") |> render_click()

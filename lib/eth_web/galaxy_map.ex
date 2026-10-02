@@ -188,6 +188,49 @@ defmodule EthWeb.GalaxyMap do
   end
 
   @doc """
+  Lugares por los que pasa una ruta, sin repetir seguidos: `place` lleva cada sistema a su
+  región (universo) o lo deja igual. Los sistemas sin lugar se saltean.
+  """
+  @spec route_places([pos_integer()], (pos_integer() -> pos_integer() | nil)) :: [pos_integer()]
+  def route_places(path, place) do
+    path |> Enum.map(place) |> Enum.reject(&is_nil/1) |> Enum.dedup()
+  end
+
+  @doc """
+  Dónde una ruta entra o sale del mapa a la vista (una región): `{:out, adentro, afuera}`
+  si el siguiente sistema queda fuera, `{:in, adentro, afuera}` si viene de afuera.
+  """
+  @spec route_crossings([pos_integer()], map()) ::
+          [{:in | :out, pos_integer(), pos_integer()}]
+  def route_crossings(path, points) do
+    path
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.flat_map(fn [a, b] ->
+      case {Map.has_key?(points, a), Map.has_key?(points, b)} do
+        {true, false} -> [{:out, a, b}]
+        {false, true} -> [{:in, b, a}]
+        _ -> []
+      end
+    end)
+  end
+
+  @doc """
+  Paradas de una ruta para marcar: inicio (el primer sistema), compra (`stop`, si hay) y
+  venta (el último). El inicio no se marca si ya es la compra o la venta.
+  """
+  @spec route_stops(%{path: [pos_integer()], stop: pos_integer() | nil}) ::
+          [{:start | :buy | :sell, pos_integer()}]
+  def route_stops(%{path: [first | _] = path} = route) do
+    last = List.last(path)
+    stop = route[:stop]
+    start = if first not in [stop, last], do: [{:start, first}], else: []
+    buy = if stop, do: [{:buy, stop}], else: []
+    start ++ buy ++ [{:sell, last}]
+  end
+
+  def route_stops(_route), do: []
+
+  @doc """
   Busca un punto del mapa por nombre sin distinguir mayúsculas: primero el nombre exacto,
   después el que empieza así y por último el que lo contiene (`nil` si no hay).
   """

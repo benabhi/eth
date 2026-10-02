@@ -99,6 +99,30 @@ defmodule EthWeb.GalaxyMapTest do
     assert GalaxyMap.route_links([1], points) == []
   end
 
+  test "una ruta por regiones: sin repetir seguidas ni sistemas sin lugar" do
+    region = %{1 => 10, 2 => 10, 3 => 20, 4 => nil, 5 => 10}
+    assert GalaxyMap.route_places([1, 2, 3, 4, 5], &region[&1]) == [10, 20, 10]
+  end
+
+  test "entradas y salidas de una ruta en la región a la vista" do
+    points = %{2 => %{}, 3 => %{}}
+
+    assert GalaxyMap.route_crossings([1, 2, 3, 4, 3, 5], points) ==
+             [{:in, 2, 1}, {:out, 3, 4}, {:in, 3, 4}, {:out, 3, 5}]
+
+    assert GalaxyMap.route_crossings([2, 3], points) == []
+  end
+
+  test "paradas de una ruta: inicio, compra y venta" do
+    assert GalaxyMap.route_stops(%{path: [1, 2, 3, 4], stop: 2}) ==
+             [start: 1, buy: 2, sell: 4]
+
+    # Ya en la compra, o con la carga comprada (sin compra): sin inicio repetido.
+    assert GalaxyMap.route_stops(%{path: [2, 3, 4], stop: 2}) == [buy: 2, sell: 4]
+    assert GalaxyMap.route_stops(%{path: [3, 4], stop: nil}) == [start: 3, sell: 4]
+    assert GalaxyMap.route_stops(%{path: [], stop: nil}) == []
+  end
+
   test "buscar por nombre: exacto, por prefijo y por parte" do
     nodes = [
       %{id: 1, name: "The Forge"},
