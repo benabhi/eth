@@ -118,20 +118,22 @@
         class="peer sr-only"
         aria-label={gettext("Mostrar más filtros")}
       />
-      <div class="hidden flex-wrap items-center gap-2 peer-checked:flex md:flex">
+      <%!-- Por debajo de 1600 px los campos y el espacio se achican: entran en una sola línea
+           a 1366 px con los dos interruptores y el botón de restablecer --%>
+      <div class="hidden flex-wrap items-center gap-2 peer-checked:flex md:flex max-[100rem]:gap-1.5">
         <.filter_field
           field={@form[:max_jumps]}
           type="number"
           min="0"
           label={gettext("Saltos ≤")}
-          class="w-28 min-[100rem]:w-32"
+          class="w-24 min-[100rem]:w-32"
         />
         <.filter_field
           field={@form[:min_profit]}
           label={gettext("Beneficio ≥")}
           placeholder="1M"
           phx-debounce="400"
-          class="w-36 min-[100rem]:w-40"
+          class="w-32 min-[100rem]:w-40"
         />
         <.filter_field
           field={@form[:min_roi]}
@@ -140,14 +142,14 @@
           step="0.1"
           label={gettext("ROI ≥ %")}
           term={:roi}
-          class="w-28 min-[100rem]:w-32"
+          class="w-24 min-[100rem]:w-32"
         />
         <.filter_field
           field={@form[:capital]}
           label={gettext("Capital")}
           placeholder={gettext("sin límite")}
           phx-debounce="400"
-          class="w-38 min-[100rem]:w-44"
+          class="w-36 min-[100rem]:w-44"
         />
         <.filter_field
           field={@form[:cargo_m3]}
@@ -156,7 +158,7 @@
           label={gettext("Bodega m³")}
           placeholder={gettext("sin límite")}
           phx-debounce="400"
-          class="w-38 min-[100rem]:w-44"
+          class="w-36 min-[100rem]:w-44"
         />
         <.filter_field
           field={@form[:accounting]}
